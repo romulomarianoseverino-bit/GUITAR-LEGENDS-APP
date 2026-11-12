@@ -22,6 +22,48 @@ jobs:
       - name: Baixar o código do projeto
         uses: actions/checkout@v4
 
+      - name: Inspecionar ZIP 1.1 sem extrair segredos
+        run: |
+          python3 - <<'PY'
+          import zipfile, glob, os
+          matches = glob.glob('**/guitar-legends-Atualizado1.1.zip', recursive=True)
+          if not matches:
+              raise SystemExit('ZIP 1.1 NÃO ENCONTRADO no checkout.')
+          path = matches[0]
+          print('AUDITORIA_ZIP_1_1:', path)
+          with zipfile.ZipFile(path) as z:
+              bad = z.testzip()
+              print('INTEGRIDADE:', 'OK' if bad is None else 'ERRO: '+bad)
+              names = z.namelist()
+              print('TOTAL_ENTRADAS:', len(names))
+              print('LISTA_DE_ARQUIVOS:')
+              for n in names:
+                  print('ZIP_ENTRY:', n)
+              total = 0
+              terms = ('MusicLibraryRepository', 'library_manifest', 'importAudioFile',
+                       'removeImported', 'deleteTrack', 'previewTrack', 'preview',
+                       'GetContent', 'OpenDocument', 'MediaMetadataRetriever')
+              for n in names:
+                  if not n.endswith('.kt') or '/build/' in n:
+                      continue
+                  try:
+                      data = z.read(n).decode('utf-8')
+                  except Exception:
+                      continue
+                  if any(t.lower() in data.lower() for t in terms) or any(
+                      k in os.path.basename(n) for k in
+                      ('MusicLibrary', 'GameViewModel', 'AudioPlayerEngine', 'AudioAnalyzer')):
+                      remaining = 55000 - total
+                      if remaining <= 0:
+                          print('LIMITE_DE_LOG_ATINGIDO')
+                          break
+                      excerpt = data[:min(remaining, 18000)]
+                      print('\\n===== FONTE:', n, '=====\\n')
+                      print(excerpt)
+                      total += len(excerpt)
+              print('CARACTERES_DE_FONTE_EXIBIDOS:', total)
+          PY
+
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
