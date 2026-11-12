@@ -74,7 +74,7 @@ secrets {
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
 }
 
-// Dependencies currently used by the Guitar Legends app.
+// Dependencies currently used by the Guitar Legends app. Gradle memory limits are in the root gradle.properties.
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)
