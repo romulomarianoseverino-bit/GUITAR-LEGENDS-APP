@@ -22,45 +22,6 @@ jobs:
       - name: Baixar o código do projeto
         uses: actions/checkout@v4
 
-      - name: Extrair fontes centrais do ZIP 1.1 para auditoria
-        run: |
-          python3 - <<'PY'
-          import zipfile, glob, re
-          path = glob.glob('**/guitar-legends-Atualizado1.1.zip', recursive=True)[0]
-          with zipfile.ZipFile(path) as z:
-              targets = [
-                'app/src/main/java/com/example/guitarlegends/data/MusicLibraryRepository.kt',
-                'app/src/main/java/com/example/guitarlegends/ui/screens/MusicLibraryScreen.kt',
-                'app/src/main/java/com/example/guitarlegends/audio/AudioPlayerEngine.kt',
-                'app/src/main/java/com/example/guitarlegends/analysis/AudioAnalyzer.kt',
-                'app/src/main/java/com/example/guitarlegends/analysis/AdaptiveEngine.kt',
-                'app/src/main/java/com/example/guitarlegends/viewmodel/GameViewModel.kt',
-                'app/src/test/java/com/example/ExampleRobolectricTest.kt'
-              ]
-              for name in targets:
-                try:
-                  data = z.read(name).decode('utf-8')
-                except KeyError:
-                  print('ARQUIVO_AUSENTE:', name)
-                  continue
-                print('FONTE_ZIP:', name)
-                if name.endswith('GameViewModel.kt'):
-                  lines = data.splitlines()
-                  patterns = re.compile(r'init\\s*\\{|importAudioFile|previewTrack|stopPreview|removeImported|deleteTrack|loadAllTracks|startMatch|selectTrack|onCleared')
-                  selected = set()
-                  for i, line in enumerate(lines):
-                    if patterns.search(line):
-                      selected.update(range(max(0,i-8), min(len(lines),i+42)))
-                  data = '\\n'.join(f'{i+1}: {lines[i]}' for i in sorted(selected))
-                elif name.endswith('ExampleRobolectricTest.kt'):
-                  print('TOTAL_TESTES_ANNOTATION:', data.count('@Test'))
-                  print('NOMES_TESTES:')
-                  for line in data.splitlines():
-                    if '@Test' in line or line.strip().startswith('fun '):
-                      print(line)
-                  continue
-                print(data[:24000])
-          PY
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
