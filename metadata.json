@@ -1,8 +1,0 @@
-{
-  "name": "Guitar Legends",
-  "description": "Jogo musical rítmico estilo Guitar Hero com esteira de notas, análise de músicas locais, 4 instrumentos, carreira e personalização.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
