@@ -52,7 +52,8 @@ fun MultiplayerScreen(viewModel: GameViewModel) {
 
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             // Left Mode Selection & Room Settings
@@ -296,7 +297,8 @@ fun CustomizationScreen(viewModel: GameViewModel) {
 
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             // Left Character/Guitar Illustration Preview
@@ -394,6 +396,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                 ) {
                     if (selectedCategory == 0) {
                         items(viewModel.characters) { char ->
+                            val isUnlocked = char.isUnlocked || char.id in stats.unlockedCharacterIds
                             val isEquipped = stats.selectedCharacterId == char.id
                             Card(
                                 modifier = Modifier.fillMaxWidth().testTag("character_item_${char.id}"),
@@ -413,17 +416,17 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                     }
                                     if (isEquipped) {
                                         Text(text = "✔ EQUIPADO", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                    } else if (char.isUnlocked || stats.coins >= char.priceCoins) {
+                                    } else if (isUnlocked || stats.coins >= char.priceCoins) {
                                         Button(
                                             onClick = {
-                                                if (char.isUnlocked) viewModel.selectCharacter(char.id)
+                                                if (isUnlocked) viewModel.selectCharacter(char.id)
                                                 else viewModel.unlockCharacter(char.id, char.priceCoins)
                                             },
-                                            colors = ButtonDefaults.buttonColors(containerColor = if (char.isUnlocked) RockAccentCyan else RockAccentGreen),
+                                            colors = ButtonDefaults.buttonColors(containerColor = if (isUnlocked) RockAccentCyan else RockAccentGreen),
                                             shape = RoundedCornerShape(8.dp),
                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                         ) {
-                                            Text(if (char.isUnlocked) "EQUIPAR" else "DESBLOQUEAR (${char.priceCoins} LC)", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                            Text(if (isUnlocked) "EQUIPAR" else "DESBLOQUEAR (${char.priceCoins} LC)", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
                                         }
                                     } else {
                                         Text(text = "🪙 ${char.priceCoins} LC", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -433,6 +436,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                         }
                     } else {
                         items(viewModel.guitars) { guitar ->
+                            val isUnlocked = guitar.isUnlocked || guitar.id in stats.unlockedGuitarIds
                             val isEquipped = stats.selectedGuitarId == guitar.id
                             Card(
                                 modifier = Modifier.fillMaxWidth().testTag("guitar_item_${guitar.id}"),
@@ -452,17 +456,17 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                     }
                                     if (isEquipped) {
                                         Text(text = "✔ EQUIPADA", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                    } else if (guitar.isUnlocked || stats.coins >= guitar.priceCoins) {
+                                    } else if (isUnlocked || stats.coins >= guitar.priceCoins) {
                                         Button(
                                             onClick = {
-                                                if (guitar.isUnlocked) viewModel.selectGuitar(guitar.id)
+                                                if (isUnlocked) viewModel.selectGuitar(guitar.id)
                                                 else viewModel.unlockGuitar(guitar.id, guitar.priceCoins)
                                             },
-                                            colors = ButtonDefaults.buttonColors(containerColor = if (guitar.isUnlocked) RockAccentCyan else RockAccentGold),
+                                            colors = ButtonDefaults.buttonColors(containerColor = if (isUnlocked) RockAccentCyan else RockAccentGold),
                                             shape = RoundedCornerShape(8.dp),
                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                         ) {
-                                            Text(if (guitar.isUnlocked) "EQUIPAR" else "COMPRAR (${guitar.priceCoins} LC)", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                            Text(if (isUnlocked) "EQUIPAR" else "COMPRAR (${guitar.priceCoins} LC)", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
                                         }
                                     } else {
                                         Text(text = "🪙 ${guitar.priceCoins} LC", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 11.sp)

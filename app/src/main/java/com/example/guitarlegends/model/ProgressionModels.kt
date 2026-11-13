@@ -40,6 +40,8 @@ data class PlayerStats(
     val unlockedStars: Int = 6,
     val selectedCharacterId: String = "axel_rocker",
     val selectedGuitarId: String = "flame_caster",
+    val unlockedCharacterIds: Set<String> = setOf("axel_rocker", "roxie_riot"),
+    val unlockedGuitarIds: Set<String> = setOf("flame_caster", "void_v"),
     val glassAdaptiveEnabled: Boolean = true,
     val audioLatencyOffsetMs: Long = 0L,
     val controlMode: ControlMode = ControlMode.DIRECT_TOUCH,

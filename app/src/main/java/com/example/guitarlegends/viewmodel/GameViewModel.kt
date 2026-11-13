@@ -56,7 +56,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val screenStack = mutableListOf<GameScreen>()
 
     // Player Stats & Progression
-    private val _playerStats = MutableStateFlow(PlayerStats())
+    private val statsPreferences = context.getSharedPreferences("guitar_legends_player_stats", Context.MODE_PRIVATE)
+    private val _playerStats = MutableStateFlow(loadPlayerStats())
     val playerStats: StateFlow<PlayerStats> = _playerStats.asStateFlow()
 
     // Music Library
@@ -265,20 +266,69 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         selectedDifficulty = difficulty
     }
 
+    private fun loadPlayerStats(): PlayerStats {
+        val defaults = PlayerStats()
+        return PlayerStats(
+            coins = statsPreferences.getInt("coins", defaults.coins).coerceAtLeast(0),
+            totalScore = statsPreferences.getLong("totalScore", defaults.totalScore).coerceAtLeast(0L),
+            notesHitTotal = statsPreferences.getLong("notesHitTotal", defaults.notesHitTotal).coerceAtLeast(0L),
+            maxStreakOverall = statsPreferences.getInt("maxStreakOverall", defaults.maxStreakOverall).coerceAtLeast(0),
+            songsCompleted = statsPreferences.getInt("songsCompleted", defaults.songsCompleted).coerceAtLeast(0),
+            unlockedStars = statsPreferences.getInt("unlockedStars", defaults.unlockedStars).coerceAtLeast(0),
+            selectedCharacterId = statsPreferences.getString("selectedCharacterId", defaults.selectedCharacterId) ?: defaults.selectedCharacterId,
+            selectedGuitarId = statsPreferences.getString("selectedGuitarId", defaults.selectedGuitarId) ?: defaults.selectedGuitarId,
+            unlockedCharacterIds = statsPreferences.getStringSet("unlockedCharacterIds", defaults.unlockedCharacterIds)?.toSet() ?: defaults.unlockedCharacterIds,
+            unlockedGuitarIds = statsPreferences.getStringSet("unlockedGuitarIds", defaults.unlockedGuitarIds)?.toSet() ?: defaults.unlockedGuitarIds,
+            glassAdaptiveEnabled = statsPreferences.getBoolean("glassAdaptiveEnabled", defaults.glassAdaptiveEnabled),
+            audioLatencyOffsetMs = statsPreferences.getLong("audioLatencyOffsetMs", defaults.audioLatencyOffsetMs),
+            controlMode = runCatching {
+                ControlMode.valueOf(statsPreferences.getString("controlMode", defaults.controlMode.name) ?: defaults.controlMode.name)
+            }.getOrDefault(defaults.controlMode),
+            graphicsQuality = runCatching {
+                GraphicsQuality.valueOf(statsPreferences.getString("graphicsQuality", defaults.graphicsQuality.name) ?: defaults.graphicsQuality.name)
+            }.getOrDefault(defaults.graphicsQuality)
+        )
+    }
+
+    private fun savePlayerStats(stats: PlayerStats) {
+        statsPreferences.edit()
+            .putInt("coins", stats.coins)
+            .putLong("totalScore", stats.totalScore)
+            .putLong("notesHitTotal", stats.notesHitTotal)
+            .putInt("maxStreakOverall", stats.maxStreakOverall)
+            .putInt("songsCompleted", stats.songsCompleted)
+            .putInt("unlockedStars", stats.unlockedStars)
+            .putString("selectedCharacterId", stats.selectedCharacterId)
+            .putString("selectedGuitarId", stats.selectedGuitarId)
+            .putStringSet("unlockedCharacterIds", stats.unlockedCharacterIds)
+            .putStringSet("unlockedGuitarIds", stats.unlockedGuitarIds)
+            .putBoolean("glassAdaptiveEnabled", stats.glassAdaptiveEnabled)
+            .putLong("audioLatencyOffsetMs", stats.audioLatencyOffsetMs)
+            .putString("controlMode", stats.controlMode.name)
+            .putString("graphicsQuality", stats.graphicsQuality.name)
+            .apply()
+    }
+
+    private fun updatePlayerStats(transform: (PlayerStats) -> PlayerStats) {
+        val updated = transform(_playerStats.value)
+        _playerStats.value = updated
+        savePlayerStats(updated)
+    }
+
     fun toggleAdaptiveSystem(enabled: Boolean) {
-        _playerStats.value = _playerStats.value.copy(glassAdaptiveEnabled = enabled)
+        updatePlayerStats { it.copy(glassAdaptiveEnabled = enabled) }
     }
 
     fun setControlMode(mode: ControlMode) {
-        _playerStats.value = _playerStats.value.copy(controlMode = mode)
+        updatePlayerStats { it.copy(controlMode = mode) }
     }
 
     fun setGraphicsQuality(quality: GraphicsQuality) {
-        _playerStats.value = _playerStats.value.copy(graphicsQuality = quality)
+        updatePlayerStats { it.copy(graphicsQuality = quality) }
     }
 
     fun setLatencyOffset(offsetMs: Long) {
-        _playerStats.value = _playerStats.value.copy(audioLatencyOffsetMs = offsetMs)
+        updatePlayerStats { it.copy(audioLatencyOffsetMs = offsetMs) }
     }
 
     /**
@@ -580,15 +630,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         lastMatchResult = result
 
         // Update saved stats
-        val current = _playerStats.value
-        _playerStats.value = current.copy(
-            coins = current.coins + coinsEarned,
-            totalScore = current.totalScore + _score.value,
-            notesHitTotal = current.notesHitTotal + totalHitCount,
-            maxStreakOverall = maxOf(current.maxStreakOverall, _maxCombo.value),
-            songsCompleted = current.songsCompleted + (if (!failed) 1 else 0),
-            unlockedStars = current.unlockedStars + stars
-        )
+        updatePlayerStats { current ->
+            current.copy(
+                coins = current.coins + coinsEarned,
+                totalScore = current.totalScore + _score.value,
+                notesHitTotal = current.notesHitTotal + totalHitCount,
+                maxStreakOverall = maxOf(current.maxStreakOverall, _maxCombo.value),
+                songsCompleted = current.songsCompleted + (if (!failed) 1 else 0),
+                unlockedStars = current.unlockedStars + stars
+            )
+        }
 
         navigateTo(GameScreen.Results)
     }
@@ -615,29 +666,49 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun unlockCharacter(id: String, price: Int) {
-        if (_playerStats.value.coins >= price) {
-            _playerStats.value = _playerStats.value.copy(
-                coins = _playerStats.value.coins - price,
-                selectedCharacterId = id
-            )
+        val character = characters.firstOrNull { it.id == id } ?: return
+        updatePlayerStats { current ->
+            val alreadyUnlocked = character.isUnlocked || id in current.unlockedCharacterIds
+            if (alreadyUnlocked || price < 0 || price != character.priceCoins || current.coins < price) {
+                current
+            } else {
+                current.copy(
+                    coins = current.coins - price,
+                    selectedCharacterId = id,
+                    unlockedCharacterIds = current.unlockedCharacterIds + id
+                )
+            }
         }
     }
 
     fun selectCharacter(id: String) {
-        _playerStats.value = _playerStats.value.copy(selectedCharacterId = id)
+        val character = characters.firstOrNull { it.id == id } ?: return
+        updatePlayerStats { current ->
+            if (character.isUnlocked || id in current.unlockedCharacterIds) current.copy(selectedCharacterId = id) else current
+        }
     }
 
     fun unlockGuitar(id: String, price: Int) {
-        if (_playerStats.value.coins >= price) {
-            _playerStats.value = _playerStats.value.copy(
-                coins = _playerStats.value.coins - price,
-                selectedGuitarId = id
-            )
+        val guitar = guitars.firstOrNull { it.id == id } ?: return
+        updatePlayerStats { current ->
+            val alreadyUnlocked = guitar.isUnlocked || id in current.unlockedGuitarIds
+            if (alreadyUnlocked || price < 0 || price != guitar.priceCoins || current.coins < price) {
+                current
+            } else {
+                current.copy(
+                    coins = current.coins - price,
+                    selectedGuitarId = id,
+                    unlockedGuitarIds = current.unlockedGuitarIds + id
+                )
+            }
         }
     }
 
     fun selectGuitar(id: String) {
-        _playerStats.value = _playerStats.value.copy(selectedGuitarId = id)
+        val guitar = guitars.firstOrNull { it.id == id } ?: return
+        updatePlayerStats { current ->
+            if (guitar.isUnlocked || id in current.unlockedGuitarIds) current.copy(selectedGuitarId = id) else current
+        }
     }
 
     fun stop() {
