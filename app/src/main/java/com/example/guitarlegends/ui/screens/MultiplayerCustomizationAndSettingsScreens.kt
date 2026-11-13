@@ -52,7 +52,8 @@ fun MultiplayerScreen(viewModel: GameViewModel) {
 
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             // Left Mode Selection & Room Settings
@@ -296,7 +297,8 @@ fun CustomizationScreen(viewModel: GameViewModel) {
 
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             // Left Character/Guitar Illustration Preview
