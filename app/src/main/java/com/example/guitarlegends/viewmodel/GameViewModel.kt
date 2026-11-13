@@ -666,27 +666,49 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun unlockCharacter(id: String, price: Int) {
-        if (_playerStats.value.coins >= price) {
-            updatePlayerStats { current ->
-                current.copy(coins = current.coins - price, selectedCharacterId = id, unlockedCharacterIds = current.unlockedCharacterIds + id)
+        val character = characters.firstOrNull { it.id == id } ?: return
+        updatePlayerStats { current ->
+            val alreadyUnlocked = character.isUnlocked || id in current.unlockedCharacterIds
+            if (alreadyUnlocked || price < 0 || price != character.priceCoins || current.coins < price) {
+                current
+            } else {
+                current.copy(
+                    coins = current.coins - price,
+                    selectedCharacterId = id,
+                    unlockedCharacterIds = current.unlockedCharacterIds + id
+                )
             }
         }
     }
 
     fun selectCharacter(id: String) {
-        updatePlayerStats { it.copy(selectedCharacterId = id) }
+        val character = characters.firstOrNull { it.id == id } ?: return
+        updatePlayerStats { current ->
+            if (character.isUnlocked || id in current.unlockedCharacterIds) current.copy(selectedCharacterId = id) else current
+        }
     }
 
     fun unlockGuitar(id: String, price: Int) {
-        if (_playerStats.value.coins >= price) {
-            updatePlayerStats { current ->
-                current.copy(coins = current.coins - price, selectedGuitarId = id, unlockedGuitarIds = current.unlockedGuitarIds + id)
+        val guitar = guitars.firstOrNull { it.id == id } ?: return
+        updatePlayerStats { current ->
+            val alreadyUnlocked = guitar.isUnlocked || id in current.unlockedGuitarIds
+            if (alreadyUnlocked || price < 0 || price != guitar.priceCoins || current.coins < price) {
+                current
+            } else {
+                current.copy(
+                    coins = current.coins - price,
+                    selectedGuitarId = id,
+                    unlockedGuitarIds = current.unlockedGuitarIds + id
+                )
             }
         }
     }
 
     fun selectGuitar(id: String) {
-        updatePlayerStats { it.copy(selectedGuitarId = id) }
+        val guitar = guitars.firstOrNull { it.id == id } ?: return
+        updatePlayerStats { current ->
+            if (guitar.isUnlocked || id in current.unlockedGuitarIds) current.copy(selectedGuitarId = id) else current
+        }
     }
 
     fun stop() {
