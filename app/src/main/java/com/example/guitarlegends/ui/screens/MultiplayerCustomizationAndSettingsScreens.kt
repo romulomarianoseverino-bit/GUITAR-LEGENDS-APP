@@ -415,10 +415,10 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                     }
                                     if (isEquipped) {
                                         Text(text = "✔ EQUIPADO", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                    } else if (char.isUnlocked || stats.coins >= char.priceCoins) {
+                                    } else if (char.isUnlocked || char.id in stats.unlockedCharacterIds || stats.coins >= char.priceCoins) {
                                         Button(
                                             onClick = {
-                                                if (char.isUnlocked) viewModel.selectCharacter(char.id)
+                                                if (char.isUnlocked || char.id in stats.unlockedCharacterIds) viewModel.selectCharacter(char.id)
                                                 else viewModel.unlockCharacter(char.id, char.priceCoins)
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = if (char.isUnlocked) RockAccentCyan else RockAccentGreen),
@@ -454,10 +454,10 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                     }
                                     if (isEquipped) {
                                         Text(text = "✔ EQUIPADA", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                    } else if (guitar.isUnlocked || stats.coins >= guitar.priceCoins) {
+                                    } else if (guitar.isUnlocked || guitar.id in stats.unlockedGuitarIds || stats.coins >= guitar.priceCoins) {
                                         Button(
                                             onClick = {
-                                                if (guitar.isUnlocked) viewModel.selectGuitar(guitar.id)
+                                                if (guitar.isUnlocked || guitar.id in stats.unlockedGuitarIds) viewModel.selectGuitar(guitar.id)
                                                 else viewModel.unlockGuitar(guitar.id, guitar.priceCoins)
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = if (guitar.isUnlocked) RockAccentCyan else RockAccentGold),
