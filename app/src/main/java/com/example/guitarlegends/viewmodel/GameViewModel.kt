@@ -277,6 +277,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             unlockedStars = statsPreferences.getInt("unlockedStars", defaults.unlockedStars).coerceAtLeast(0),
             selectedCharacterId = statsPreferences.getString("selectedCharacterId", defaults.selectedCharacterId) ?: defaults.selectedCharacterId,
             selectedGuitarId = statsPreferences.getString("selectedGuitarId", defaults.selectedGuitarId) ?: defaults.selectedGuitarId,
+            unlockedCharacterIds = statsPreferences.getStringSet("unlockedCharacterIds", defaults.unlockedCharacterIds)?.toSet() ?: defaults.unlockedCharacterIds,
+            unlockedGuitarIds = statsPreferences.getStringSet("unlockedGuitarIds", defaults.unlockedGuitarIds)?.toSet() ?: defaults.unlockedGuitarIds,
             glassAdaptiveEnabled = statsPreferences.getBoolean("glassAdaptiveEnabled", defaults.glassAdaptiveEnabled),
             audioLatencyOffsetMs = statsPreferences.getLong("audioLatencyOffsetMs", defaults.audioLatencyOffsetMs),
             controlMode = runCatching {
@@ -298,6 +300,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             .putInt("unlockedStars", stats.unlockedStars)
             .putString("selectedCharacterId", stats.selectedCharacterId)
             .putString("selectedGuitarId", stats.selectedGuitarId)
+            .putStringSet("unlockedCharacterIds", stats.unlockedCharacterIds)
+            .putStringSet("unlockedGuitarIds", stats.unlockedGuitarIds)
             .putBoolean("glassAdaptiveEnabled", stats.glassAdaptiveEnabled)
             .putLong("audioLatencyOffsetMs", stats.audioLatencyOffsetMs)
             .putString("controlMode", stats.controlMode.name)
@@ -664,7 +668,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun unlockCharacter(id: String, price: Int) {
         if (_playerStats.value.coins >= price) {
             updatePlayerStats { current ->
-                current.copy(coins = current.coins - price, selectedCharacterId = id)
+                current.copy(coins = current.coins - price, selectedCharacterId = id, unlockedCharacterIds = current.unlockedCharacterIds + id)
             }
         }
     }
@@ -676,7 +680,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun unlockGuitar(id: String, price: Int) {
         if (_playerStats.value.coins >= price) {
             updatePlayerStats { current ->
-                current.copy(coins = current.coins - price, selectedGuitarId = id)
+                current.copy(coins = current.coins - price, selectedGuitarId = id, unlockedGuitarIds = current.unlockedGuitarIds + id)
             }
         }
     }
