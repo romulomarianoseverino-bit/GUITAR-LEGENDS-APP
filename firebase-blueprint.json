@@ -1,0 +1,349 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Conta individual do jogador, identidade com nickname exclusivo e salvamento completo na nuvem.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID autenticado no Firebase Auth."
+        },
+        "email": {
+          "type": "string",
+          "description": "E-mail autenticado da conta."
+        },
+        "nickname": {
+          "type": "string",
+          "description": "Nickname público exclusivo do jogador."
+        },
+        "nicknameNormalized": {
+          "type": "string",
+          "description": "Versão normalizada em minúsculas do nickname para unicidade."
+        },
+        "coins": {
+          "type": "integer",
+          "description": "Saldo de Moedas de Lenda."
+        },
+        "totalScore": {
+          "type": "integer",
+          "description": "Pontuação total acumulada."
+        },
+        "notesHitTotal": {
+          "type": "integer",
+          "description": "Total de notas acertadas."
+        },
+        "maxStreakOverall": {
+          "type": "integer",
+          "description": "Maior sequência de combos atingida."
+        },
+        "songsCompleted": {
+          "type": "integer",
+          "description": "Quantidade de músicas concluídas."
+        },
+        "unlockedStars": {
+          "type": "integer",
+          "description": "Total de estrelas obtidas no modo carreira."
+        },
+        "competitiveWins": {
+          "type": "integer",
+          "description": "Vitórias no modo competitivo."
+        },
+        "competitiveMatches": {
+          "type": "integer",
+          "description": "Total de partidas competitivas disputadas."
+        },
+        "careerStageMax": {
+          "type": "integer",
+          "description": "Maior palco desbloqueado no modo carreira."
+        },
+        "selectedCharacterId": {
+          "type": "string"
+        },
+        "selectedGuitarId": {
+          "type": "string"
+        },
+        "selectedBassId": {
+          "type": "string"
+        },
+        "selectedDrumsId": {
+          "type": "string"
+        },
+        "selectedVocalMicId": {
+          "type": "string"
+        },
+        "selectedHighwayThemeId": {
+          "type": "string"
+        },
+        "unlockedCosmetics": {
+          "type": "array",
+          "description": "Lista de IDs de roupas, skins, instrumentos e itens desbloqueados."
+        },
+        "achievementsUnlocked": {
+          "type": "array",
+          "description": "Lista de conquistas desbloqueadas."
+        },
+        "customRocker": {
+          "type": "object",
+          "description": "Configurações do roqueiro personalizado (cabelo, roupas, acessórios, tatuagens, estilo)."
+        },
+        "glassAdaptiveEnabled": {
+          "type": "boolean"
+        },
+        "audioLatencyOffsetMs": {
+          "type": "integer"
+        },
+        "controlMode": {
+          "type": "string"
+        },
+        "graphicsQuality": {
+          "type": "string"
+        },
+        "rewardStreak": {
+          "type": "integer"
+        },
+        "lastRewardDayKey": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "syncRevision": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "email",
+        "nickname",
+        "nicknameNormalized",
+        "coins",
+        "totalScore",
+        "notesHitTotal",
+        "maxStreakOverall",
+        "songsCompleted",
+        "unlockedStars",
+        "competitiveWins",
+        "competitiveMatches",
+        "careerStageMax",
+        "selectedCharacterId",
+        "selectedGuitarId",
+        "selectedBassId",
+        "selectedDrumsId",
+        "selectedVocalMicId",
+        "selectedHighwayThemeId",
+        "unlockedCosmetics",
+        "achievementsUnlocked",
+        "customRocker",
+        "glassAdaptiveEnabled",
+        "audioLatencyOffsetMs",
+        "controlMode",
+        "graphicsQuality",
+        "rewardStreak",
+        "lastRewardDayKey",
+        "schemaVersion",
+        "syncRevision",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "NicknameClaim": {
+      "title": "NicknameClaim",
+      "description": "Índice de reserva exclusiva de nickname para impedir duplicação.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "nickname": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "nickname", "createdAt"]
+    },
+    "DailyRewardClaim": {
+      "title": "DailyRewardClaim",
+      "description": "Registro imutável de resgate diário com validação temporal no servidor.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "dayKey": {
+          "type": "string"
+        },
+        "dayNumber": {
+          "type": "integer"
+        },
+        "streakCount": {
+          "type": "integer"
+        },
+        "rewardTitle": {
+          "type": "string"
+        },
+        "rewardType": {
+          "type": "string"
+        },
+        "coinsGranted": {
+          "type": "integer"
+        },
+        "cosmeticId": {
+          "type": "string"
+        },
+        "claimedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "dayKey",
+        "dayNumber",
+        "streakCount",
+        "rewardTitle",
+        "rewardType",
+        "coinsGranted",
+        "cosmeticId",
+        "claimedAt"
+      ]
+    },
+    "ProgressionHistoryEntry": {
+      "title": "ProgressionHistoryEntry",
+      "description": "Entrada do histórico de apresentações e progressão do jogador.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "trackId": {
+          "type": "string"
+        },
+        "trackTitle": {
+          "type": "string"
+        },
+        "instrument": {
+          "type": "string"
+        },
+        "difficulty": {
+          "type": "string"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "stars": {
+          "type": "integer"
+        },
+        "accuracyPercent": {
+          "type": "number"
+        },
+        "coinsEarned": {
+          "type": "integer"
+        },
+        "isCompetitive": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "trackId",
+        "trackTitle",
+        "instrument",
+        "difficulty",
+        "score",
+        "stars",
+        "accuracyPercent",
+        "coinsEarned",
+        "isCompetitive",
+        "createdAt"
+      ]
+    },
+    "AppRelease": {
+      "title": "AppRelease",
+      "description": "Metadados oficiais de versão e atualização do aplicativo.",
+      "type": "object",
+      "properties": {
+        "versionCode": {
+          "type": "integer"
+        },
+        "versionName": {
+          "type": "string"
+        },
+        "releaseTitle": {
+          "type": "string"
+        },
+        "changelog": {
+          "type": "string"
+        },
+        "bugFixes": {
+          "type": "string"
+        },
+        "performanceNotes": {
+          "type": "string"
+        },
+        "isMandatory": {
+          "type": "boolean"
+        },
+        "downloadUrl": {
+          "type": "string"
+        },
+        "sha256Checksum": {
+          "type": "string"
+        },
+        "minSupportedVersionCode": {
+          "type": "integer"
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "versionCode",
+        "versionName",
+        "releaseTitle",
+        "changelog",
+        "isMandatory"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Perfil privado, conta e salvamento na nuvem de cada jogador."
+    },
+    "/nicknames/{normalizedNickname}": {
+      "schema": { "$ref": "#/entities/NicknameClaim" },
+      "description": "Reserva atômica de nicknames únicos."
+    },
+    "/users/{userId}/reward_claims/{claimId}": {
+      "schema": { "$ref": "#/entities/DailyRewardClaim" },
+      "description": "Histórico imutável de recompensas diárias resgatadas pelo jogador."
+    },
+    "/users/{userId}/progression_history/{entryId}": {
+      "schema": { "$ref": "#/entities/ProgressionHistoryEntry" },
+      "description": "Histórico de partidas e evolução do jogador na carreira e competitivo."
+    },
+    "/app_releases/{releaseId}": {
+      "schema": { "$ref": "#/entities/AppRelease" },
+      "description": "Catálogo somente-leitura de atualizações e notas de versão."
+    }
+  }
+}
