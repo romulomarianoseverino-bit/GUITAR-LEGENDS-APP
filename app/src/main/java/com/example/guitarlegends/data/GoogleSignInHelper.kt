@@ -22,10 +22,23 @@ sealed class GoogleCredentialResult {
 
 object GoogleSignInHelper {
 
+    // Google Services generates this resource when a valid google-services.json is present.
+    // Resolve it dynamically so CI builds without private Firebase configuration still compile.
+    private fun getWebClientId(context: Context): String {
+        val resourceId = context.resources.getIdentifier(
+            "default_web_client_id",
+            "string",
+            context.packageName
+        )
+        return if (resourceId != 0) {
+            runCatching { context.getString(resourceId) }.getOrNull().orEmpty()
+        } else {
+            ""
+        }
+    }
+
     suspend fun requestGoogleSignIn(activityContext: Context): GoogleCredentialResult {
-        val webClientId = runCatching {
-            activityContext.getString(R.string.default_web_client_id)
-        }.getOrNull().orEmpty()
+        val webClientId = getWebClientId(activityContext)
 
         if (webClientId.isBlank()) {
             return GoogleCredentialResult.Error(
@@ -58,9 +71,7 @@ object GoogleSignInHelper {
     }
 
     suspend fun attemptSilentSignIn(activityContext: Context): GoogleCredentialResult? {
-        val webClientId = runCatching {
-            activityContext.getString(R.string.default_web_client_id)
-        }.getOrNull().orEmpty()
+        val webClientId = getWebClientId(activityContext)
         if (webClientId.isBlank()) return null
 
         val credentialManager = CredentialManager.create(activityContext)
