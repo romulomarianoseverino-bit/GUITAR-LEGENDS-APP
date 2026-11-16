@@ -52,13 +52,24 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_BASE64"
-          test -n "$STORE_PASSWORD"
-          test -n "$KEY_PASSWORD"
+          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo KEYSTORE_BASE64 está vazio."; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo "::error::O segredo KEYSTORE_PASSWORD está vazio."; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "::error::O segredo KEY_PASSWORD está vazio."; exit 1; }
+
           KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          echo "Verificando a decodificação Base64..."
+          if ! printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"; then
+            echo "::error::Não foi possível decodificar KEYSTORE_BASE64. Verifique se o segredo foi copiado por completo."
+            exit 1
+          fi
           chmod 600 "$KEYSTORE_PATH"
-          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >/dev/null
+          echo "Arquivo decodificado. Tamanho: $(wc -c < "$KEYSTORE_PATH") bytes."
+          echo "Verificando senha e alias da chave..."
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >/dev/null; then
+            echo "::error::O arquivo foi decodificado, mas a verificação da chave falhou. Confira a senha KEYSTORE_PASSWORD e o alias upload."
+            exit 1
+          fi
+          echo "Chave de publicação validada com sucesso."
           echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
