@@ -12,7 +12,12 @@
           "package_name": "com.aistudio.applet.kpfcic"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "493408628913-mtr20bnd52q57ra0okjs8fshj8vdmepp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA3hjQzTjAL013cTYgXrcEwWM1bwqGaQGQ"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "493408628913-mtr20bnd52q57ra0okjs8fshj8vdmepp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
