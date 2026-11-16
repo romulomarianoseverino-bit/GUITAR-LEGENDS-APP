@@ -45,17 +45,35 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
+      - name: Preparar chave privada de publicação
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_PASSWORD"
+          KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >/dev/null
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
       - name: Configurar Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
       - name: Compilar APK de depuração
-        id: build
+        id: debug_build
         run: gradle --no-daemon assembleDebug
 
-      - name: Publicar APK gerado
-        if: always() && steps.build.outcome == 'success'
+      - name: Publicar APK de depuração
+        if: always() && steps.debug_build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: Guitar-Legends-APK-debug
@@ -63,7 +81,20 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Compilar APK assinado de publicação
+        id: release_build
+        run: gradle --no-daemon assembleRelease
+
+      - name: Publicar APK assinado
+        if: always() && steps.release_build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guitar-Legends-APK-release
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Executar testes unitários
         id: tests
-        if: always() && steps.build.outcome == 'success'
+        if: always() && steps.debug_build.outcome == 'success'
         run: gradle --no-daemon testDebugUnitTest
