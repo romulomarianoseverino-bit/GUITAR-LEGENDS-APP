@@ -2,6 +2,7 @@ package com.example.guitarlegends.data
 
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -22,6 +23,17 @@ sealed class GoogleCredentialResult {
 
 object GoogleSignInHelper {
 
+    // Credential Manager precisa da Activity em primeiro plano para abrir a interface
+    // de seleção e receber corretamente o resultado da conta escolhida.
+    private fun Context.findActivity(): Activity? {
+        var current: Context = this
+        while (current is ContextWrapper) {
+            if (current is Activity) return current
+            current = current.baseContext
+        }
+        return current as? Activity
+    }
+
     // Google Services generates this resource when a valid google-services.json is present.
     // Resolve it dynamically so CI builds without private Firebase configuration still compile.
     private fun getWebClientId(context: Context): String {
@@ -38,7 +50,9 @@ object GoogleSignInHelper {
     }
 
     suspend fun requestGoogleSignIn(activityContext: Context): GoogleCredentialResult {
-        val webClientId = getWebClientId(activityContext)
+        val activity = activityContext.findActivity()
+            ?: return GoogleCredentialResult.Error("Não foi possível iniciar o login: a tela do aplicativo não está ativa. Feche e abra o Guitar Legends novamente.")
+        val webClientId = getWebClientId(activity)
 
         if (webClientId.isBlank()) {
             return GoogleCredentialResult.Error(
@@ -46,7 +60,7 @@ object GoogleSignInHelper {
             )
         }
 
-        val credentialManager = CredentialManager.create(activityContext)
+        val credentialManager = CredentialManager.create(activity)
         val signInOption = GetSignInWithGoogleOption.Builder(webClientId).build()
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(signInOption)
@@ -54,7 +68,7 @@ object GoogleSignInHelper {
 
         return try {
             val result = credentialManager.getCredential(
-                context = activityContext,
+                context = activity,
                 request = request
             )
             extractGoogleToken(result.credential)
@@ -71,10 +85,11 @@ object GoogleSignInHelper {
     }
 
     suspend fun attemptSilentSignIn(activityContext: Context): GoogleCredentialResult? {
-        val webClientId = getWebClientId(activityContext)
+        val activity = activityContext.findActivity() ?: return null
+        val webClientId = getWebClientId(activity)
         if (webClientId.isBlank()) return null
 
-        val credentialManager = CredentialManager.create(activityContext)
+        val credentialManager = CredentialManager.create(activity)
         val autoOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(true)
             .setServerClientId(webClientId)
@@ -85,7 +100,7 @@ object GoogleSignInHelper {
             .build()
 
         return try {
-            val result = credentialManager.getCredential(context = activityContext, request = request)
+            val result = credentialManager.getCredential(context = activity, request = request)
             extractGoogleToken(result.credential)
         } catch (_: Exception) {
             null
