@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'Imagens/**'
   workflow_dispatch:
 
 permissions:
