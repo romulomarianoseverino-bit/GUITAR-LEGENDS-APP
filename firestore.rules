@@ -239,5 +239,152 @@ service cloud.firestore {
       allow get, list: if isSignedIn();
       allow write: if false;
     }
+
+    function isValidRoomCode(code) {
+      return code is string && code.size() >= 4 && code.size() <= 24 && code.matches('^[A-Z0-9_\\-]+$');
+    }
+
+    function isValidMultiplayerRoom(data, roomCode) {
+      return data.roomCode is string && data.roomCode == roomCode && isValidRoomCode(data.roomCode) &&
+             data.hostUid is string && data.hostUid.size() >= 1 && data.hostUid.size() <= 128 &&
+             data.hostNickname is string && data.hostNickname.size() >= 2 && data.hostNickname.size() <= 24 &&
+             data.mode is string && data.mode in ['BATTLE_1V1', 'BAND_COOP'] &&
+             data.status is string && data.status in ['WAITING', 'PLAYING', 'FINISHED', 'CLOSED'] &&
+             data.trackId is string && data.trackId.size() >= 1 && data.trackId.size() <= 128 &&
+             data.trackTitle is string && data.trackTitle.size() >= 1 && data.trackTitle.size() <= 160 &&
+             data.maxPlayers is int && data.maxPlayers >= 2 && data.maxPlayers <= 4 &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= data.maxPlayers &&
+             data.memberUids[0] is string && data.hostUid in data.memberUids &&
+             data.winnerUid is string && data.winnerUid.size() <= 128 &&
+             (!('inviteMessage' in data) || (data.inviteMessage is string && data.inviteMessage.size() <= 160)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMultiplayerParticipant(data, roomCode, participantUid) {
+      return data.userId is string && data.userId == participantUid &&
+             data.roomCode is string && data.roomCode == roomCode &&
+             data.nickname is string && data.nickname.size() >= 2 && data.nickname.size() <= 24 &&
+             data.instrument is string && data.instrument in ['GUITAR', 'BASS', 'DRUMS', 'VOCALS'] &&
+             data.difficulty is string && data.difficulty in ['EASY', 'MEDIUM', 'HARD', 'EXPERT'] &&
+             data.ready is bool &&
+             data.connectionState is string && data.connectionState in ['ONLINE', 'RECONNECTING', 'DISCONNECTED'] &&
+             data.score is int && data.score >= 0 && data.score <= 50000000 &&
+             data.combo is int && data.combo >= 0 && data.combo <= 100000 &&
+             data.rockMeter is number && data.rockMeter >= 0 && data.rockMeter <= 1 &&
+             data.starPowerActive is bool &&
+             data.lastHeartbeatMs is int && data.lastHeartbeatMs >= 0 &&
+             data.joinedAt is timestamp && data.joinedAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // 4. Salas Multiplayer (acesso autenticado por código exato ou participação ativa)
+    match /multiplayer_rooms/{roomCode} {
+      allow get: if isSignedIn() && isValidRoomCode(roomCode);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.memberUids);
+
+      allow create: if isSignedIn() &&
+                       isValidRoomCode(roomCode) &&
+                       incoming().hostUid == request.auth.uid &&
+                       incoming().status == 'WAITING' &&
+                       incoming().keys().hasAll([
+                         'roomCode', 'hostUid', 'hostNickname', 'mode', 'status',
+                         'trackId', 'trackTitle', 'maxPlayers', 'memberUids',
+                         'winnerUid', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'roomCode', 'hostUid', 'hostNickname', 'mode', 'status',
+                         'trackId', 'trackTitle', 'maxPlayers', 'memberUids',
+                         'winnerUid', 'inviteMessage', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidMultiplayerRoom(incoming(), roomCode);
+
+      allow update: if isSignedIn() &&
+                       isValidRoomCode(roomCode) &&
+                       existing().status != 'CLOSED' &&
+                       incoming().hostUid == existing().hostUid &&
+                       incoming().roomCode == existing().roomCode &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidMultiplayerRoom(incoming(), roomCode) &&
+                       (
+                         // Ação 1: Host atualiza modo, faixa, início ou encerramento da sala
+                         (
+                           existing().hostUid == request.auth.uid &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'mode', 'status', 'trackId', 'trackTitle', 'maxPlayers', 'winnerUid', 'inviteMessage', 'updatedAt'
+                           ])
+                         ) ||
+                         // Ação 2: Convidado entra na sala em espera respeitando limite
+                         (
+                           existing().status == 'WAITING' &&
+                           !(request.auth.uid in existing().memberUids) &&
+                           request.auth.uid in incoming().memberUids &&
+                           incoming().memberUids.hasAll(existing().memberUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() + 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+                         ) ||
+                         // Ação 3: Participante sai da sala removendo apenas seu próprio UID
+                         (
+                           request.auth.uid != existing().hostUid &&
+                           request.auth.uid in existing().memberUids &&
+                           !(request.auth.uid in incoming().memberUids) &&
+                           existing().memberUids.hasAll(incoming().memberUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() - 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isSignedIn() && isValidRoomCode(roomCode) && existing().hostUid == request.auth.uid;
+
+      match /participants/{participantUid} {
+        allow get, list: if isSignedIn() &&
+                           isValidRoomCode(roomCode) &&
+                           (
+                             request.auth.uid == participantUid ||
+                             (exists(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)) &&
+                              request.auth.uid in get(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)).data.memberUids)
+                           );
+
+        allow create: if isSignedIn() &&
+                         isValidRoomCode(roomCode) &&
+                         isValidId(participantUid) &&
+                         request.auth.uid == participantUid &&
+                         exists(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)) &&
+                         request.auth.uid in get(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)).data.memberUids &&
+                         incoming().keys().hasAll([
+                           'userId', 'roomCode', 'nickname', 'instrument', 'difficulty',
+                           'ready', 'connectionState', 'score', 'combo', 'rockMeter',
+                           'starPowerActive', 'lastHeartbeatMs', 'joinedAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'roomCode', 'nickname', 'instrument', 'difficulty',
+                           'ready', 'connectionState', 'score', 'combo', 'rockMeter',
+                           'starPowerActive', 'lastHeartbeatMs', 'joinedAt', 'updatedAt'
+                         ]) &&
+                         isValidMultiplayerParticipant(incoming(), roomCode, participantUid);
+
+        allow update: if isSignedIn() &&
+                         isValidRoomCode(roomCode) &&
+                         isValidId(participantUid) &&
+                         request.auth.uid == participantUid &&
+                         incoming().userId == existing().userId &&
+                         incoming().roomCode == existing().roomCode &&
+                         incoming().joinedAt == existing().joinedAt &&
+                         isValidMultiplayerParticipant(incoming(), roomCode, participantUid) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'nickname', 'instrument', 'difficulty', 'ready',
+                           'connectionState', 'score', 'combo', 'rockMeter',
+                           'starPowerActive', 'lastHeartbeatMs', 'updatedAt'
+                         ]);
+
+        allow delete: if isSignedIn() &&
+                         isValidRoomCode(roomCode) &&
+                         (
+                           request.auth.uid == participantUid ||
+                           (exists(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)) &&
+                            get(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)).data.hostUid == request.auth.uid)
+                         );
+      }
+    }
   }
 }

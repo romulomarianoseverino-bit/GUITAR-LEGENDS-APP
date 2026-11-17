@@ -4,8 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -176,86 +174,120 @@ fun MainMenuScreen(viewModel: GameViewModel) {
 
             Spacer(modifier = Modifier.width(14.dp))
 
-            // Painel Direito: Grade Completa de Funcionalidades
+            // Painel Direito: Destaques Fixos (Partida Rápida + Multiplayer) & Grade Compacta 2x3
+            val activeRoom by viewModel.multiplayerRoom.collectAsState()
             Column(
                 modifier = Modifier
                     .weight(1.35f)
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                // Linha Hero Fixa: Partida Rápida + MULTIPLAYER (sempre 100% visível sem rolagem)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    item {
-                        MenuCard(
-                            title = "Partida Rápida",
-                            subtitle = "Escolha e toque agora",
-                            icon = Icons.Default.PlayArrow,
-                            accentColor = RockAccentGreen,
-                            testTag = "menu_quick_play",
-                            onClick = {
-                                viewModel.setCompetitiveMode(false)
-                                viewModel.navigateTo(GameScreen.MusicLibrary)
-                            }
-                        )
-                    }
-                    item {
+                    FeaturedMenuCard(
+                        title = "Partida Rápida",
+                        subtitle = "Escolha e toque agora",
+                        icon = Icons.Default.PlayArrow,
+                        accentColor = RockAccentGreen,
+                        badgeText = "SOLO",
+                        testTag = "menu_quick_play",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            viewModel.setCompetitiveMode(false)
+                            viewModel.navigateTo(GameScreen.MusicLibrary)
+                        }
+                    )
+                    FeaturedMenuCard(
+                        title = "Multiplayer",
+                        subtitle = if (activeRoom != null) "Sala ${activeRoom!!.roomCode} ativa" else "Salas Online 1v1 & Banda",
+                        icon = Icons.Default.Groups,
+                        accentColor = RockAccentRed,
+                        badgeText = if (activeRoom != null) "AO VIVO" else "ONLINE",
+                        testTag = "menu_multiplayer",
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.navigateTo(GameScreen.CompetitiveMultiplayer) }
+                    )
+                }
+
+                // Grade 2x3 Compacta (cabe perfeitamente em telas landscape 360dp+ sem cortar itens)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         MenuCard(
                             title = "Modo Carreira",
                             subtitle = "Desbloqueie palcos",
                             icon = Icons.Default.EmojiEvents,
                             accentColor = RockAccentGold,
                             testTag = "menu_career",
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
                             onClick = {
                                 viewModel.setCompetitiveMode(false)
                                 viewModel.navigateTo(GameScreen.Career)
                             }
                         )
-                    }
-                    item {
                         MenuCard(
                             title = "Biblioteca Pessoal",
                             subtitle = "Use MP3/WAV/OGG/FLAC",
                             icon = Icons.Default.LibraryMusic,
                             accentColor = RockAccentCyan,
                             testTag = "menu_music_library",
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
                             onClick = { viewModel.navigateTo(GameScreen.MusicLibrary) }
                         )
                     }
-                    item {
-                        MenuCard(
-                            title = "Multiplayer",
-                            subtitle = "Batalha 1v1 & Banda",
-                            icon = Icons.Default.Groups,
-                            accentColor = RockAccentRed,
-                            testTag = "menu_multiplayer",
-                            onClick = { viewModel.navigateTo(GameScreen.CompetitiveMultiplayer) }
-                        )
-                    }
-                    item {
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         MenuCard(
                             title = "Recompensas Diárias",
-                            subtitle = "Calendário & Sequência (${stats.rewardStreak}d)",
+                            subtitle = "Sequência (${stats.rewardStreak}d)",
                             icon = Icons.Default.CardGiftcard,
                             accentColor = Color(0xFFFFD700),
                             testTag = "menu_daily_rewards",
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
                             onClick = { viewModel.navigateTo(GameScreen.DailyRewards) }
                         )
-                    }
-                    item {
                         MenuCard(
                             title = "Customização",
                             subtitle = "Rocker, Skins & Esteiras",
                             icon = Icons.Default.Palette,
                             accentColor = RockAccentOrange,
                             testTag = "menu_customization",
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
                             onClick = { viewModel.navigateTo(GameScreen.Customization) }
                         )
                     }
-                    item {
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         MenuCard(
                             title = "Minha Conta",
                             subtitle = when (val auth = authState) {
@@ -266,16 +298,20 @@ fun MainMenuScreen(viewModel: GameViewModel) {
                             icon = Icons.Default.AccountCircle,
                             accentColor = Color(0xFF80D8FF),
                             testTag = "menu_profile",
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
                             onClick = { viewModel.navigateTo(GameScreen.Profile) }
                         )
-                    }
-                    item {
                         MenuCard(
                             title = "Configurações & Versão",
-                            subtitle = "Latência, Gráficos & Versões",
+                            subtitle = "Mixer, PS4, Latência & Versões",
                             icon = Icons.Default.Settings,
                             accentColor = Color(0xFFB388FF),
                             testTag = "menu_settings",
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
                             onClick = { viewModel.navigateTo(GameScreen.Settings) }
                         )
                     }
@@ -285,9 +321,8 @@ fun MainMenuScreen(viewModel: GameViewModel) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 6.dp)
                         .background(RockDarkCard, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -313,39 +348,124 @@ fun MainMenuScreen(viewModel: GameViewModel) {
 }
 
 @Composable
+fun FeaturedMenuCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    accentColor: Color,
+    badgeText: String,
+    testTag: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .height(58.dp)
+            .testTag(testTag)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = accentColor.copy(alpha = 0.16f)
+        ),
+        border = ButtonDefaults.outlinedButtonBorder.copy(
+            brush = Brush.horizontalGradient(listOf(accentColor, RockAccentGold))
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = accentColor,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = Color.Black,
+                        modifier = Modifier.size(21.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(
+                        text = title.uppercase(),
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 12.sp,
+                        maxLines = 1
+                    )
+                    Surface(
+                        color = accentColor.copy(alpha = 0.25f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            color = accentColor,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 7.sp,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = subtitle,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 9.sp,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun MenuCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
     accentColor: Color,
     testTag: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .height(66.dp)
+            .heightIn(min = 48.dp)
             .testTag(testTag)
             .clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = RockDarkCard),
         border = ButtonDefaults.outlinedButtonBorder.copy(
-            brush = Brush.horizontalGradient(listOf(accentColor.copy(alpha = 0.8f), RockCardBorder))
+            brush = Brush.horizontalGradient(listOf(accentColor.copy(alpha = 0.78f), RockCardBorder))
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 color = accentColor.copy(alpha = 0.18f),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.size(38.dp)
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.size(32.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(imageVector = icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
+                    Icon(imageVector = icon, contentDescription = title, tint = accentColor, modifier = Modifier.size(18.dp))
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -354,13 +474,13 @@ fun MenuCard(
                     text = title.uppercase(),
                     color = Color.White,
                     fontWeight = FontWeight.Black,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     maxLines = 1
                 )
                 Text(
                     text = subtitle,
                     color = Color.White.copy(alpha = 0.65f),
-                    fontSize = 9.sp,
+                    fontSize = 8.sp,
                     maxLines = 1
                 )
             }

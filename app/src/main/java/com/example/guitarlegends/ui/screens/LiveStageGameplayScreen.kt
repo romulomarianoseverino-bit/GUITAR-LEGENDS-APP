@@ -66,6 +66,9 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
     val isPaused by viewModel.isPaused.collectAsState()
     val stats by viewModel.playerStats.collectAsState()
     val controllerInfo by viewModel.controllerInfo.collectAsState()
+    val mpRoom by viewModel.multiplayerRoom.collectAsState()
+    val mpParticipants by viewModel.multiplayerParticipants.collectAsState()
+    val mpWarning by viewModel.multiplayerConnectionWarning.collectAsState()
 
     val track = viewModel.selectedTrack
     val difficulty = viewModel.selectedDifficulty
@@ -165,6 +168,51 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp
                     )
+                }
+            }
+
+            if (mpRoom != null && mpParticipants.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    color = Color(0xCC120B24),
+                    shape = RoundedCornerShape(10.dp),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = Brush.horizontalGradient(listOf(RockAccentGold, RockCardBorder))
+                    ),
+                    modifier = Modifier.testTag("gameplay_multiplayer_scoreboard")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = "SALA ${mpRoom!!.roomCode} • AO VIVO",
+                            color = RockAccentGold,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 8.sp
+                        )
+                        val selfUid = viewModel.currentMultiplayerUid()
+                        mpParticipants.sortedByDescending { if (it.userId == selfUid) score else it.score }
+                            .take(4)
+                            .forEach { p ->
+                                val displayedScore = if (p.userId == selfUid) score else p.score
+                                val stale = p.isStale(System.currentTimeMillis())
+                                Text(
+                                    text = "${if (stale) "⚠ " else ""}${p.nickname}: $displayedScore pts",
+                                    color = if (stale) RockAccentRed else if (p.userId == selfUid) RockAccentCyan else Color.White,
+                                    fontWeight = if (p.userId == selfUid) FontWeight.Black else FontWeight.SemiBold,
+                                    fontSize = 9.sp
+                                )
+                            }
+                        if (!mpWarning.isNullOrBlank()) {
+                            Text(
+                                text = mpWarning.orEmpty(),
+                                color = RockAccentGold,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 8.sp
+                            )
+                        }
+                    }
                 }
             }
         }

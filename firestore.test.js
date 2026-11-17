@@ -301,3 +301,103 @@ test("App releases: authenticated read-only catalog", async () => {
     aliceDb.collection("app_releases").doc("fake").set({ versionCode: 99 })
   );
 });
+
+function makeValidRoom(roomCode, hostUid, mode = "BATTLE_1V1", maxPlayers = 2) {
+  return {
+    roomCode,
+    hostUid,
+    hostNickname: "Axel_Host",
+    mode,
+    status: "WAITING",
+    trackId: "track_thunderstrike",
+    trackTitle: "Thunderstrike Anthem",
+    maxPlayers,
+    memberUids: [hostUid],
+    winnerUid: "",
+    inviteMessage: "Entre na sala!",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+}
+
+function makeValidParticipant(roomCode, uid, nickname = "Rocker") {
+  return {
+    userId: uid,
+    roomCode,
+    nickname,
+    instrument: "GUITAR",
+    difficulty: "MEDIUM",
+    ready: false,
+    connectionState: "ONLINE",
+    score: 0,
+    combo: 0,
+    rockMeter: 0.6,
+    starPowerActive: false,
+    lastHeartbeatMs: Date.now(),
+    joinedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+}
+
+test("Multiplayer rooms: host create, exact-code join, participant sync, leave & terminal CLOSED lock", async () => {
+  const roomCode = "ROCK-7782";
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+
+  // 1. Unauthenticated caller denied
+  await assertFails(unauthDb.collection("multiplayer_rooms").doc(roomCode).get());
+  await assertFails(unauthDb.collection("multiplayer_rooms").doc(roomCode).set(makeValidRoom(roomCode, ALICE_UID)));
+
+  // 2. Host Alice creates room and own participant record
+  const aliceRoomRef = aliceDb.collection("multiplayer_rooms").doc(roomCode);
+  await assertSucceeds(aliceRoomRef.set(makeValidRoom(roomCode, ALICE_UID)));
+  await assertSucceeds(aliceRoomRef.collection("participants").doc(ALICE_UID).set(makeValidParticipant(roomCode, ALICE_UID, "AliceRock")));
+
+  // 3. Open listing without membership filter denied; exact-code lookup allowed
+  await assertFails(bobDb.collection("multiplayer_rooms").get());
+  await assertSucceeds(bobDb.collection("multiplayer_rooms").doc(roomCode).get());
+
+  // 4. Bob cannot create participant without joining parent memberUids first
+  const bobRoomRef = bobDb.collection("multiplayer_rooms").doc(roomCode);
+  await assertFails(bobRoomRef.collection("participants").doc(BOB_UID).set(makeValidParticipant(roomCode, BOB_UID, "BobRock")));
+
+  // 5. Bob joins room cleanly (preserving Alice in memberUids) & creates own participant
+  await assertSucceeds(
+    bobRoomRef.update({
+      memberUids: [ALICE_UID, BOB_UID],
+      updatedAt: serverTimestamp(),
+    })
+  );
+  await assertSucceeds(bobRoomRef.collection("participants").doc(BOB_UID).set(makeValidParticipant(roomCode, BOB_UID, "BobRock")));
+
+  // 6. Bob updates own ready & score; cannot modify Alice's participant or spoof host settings
+  await assertSucceeds(
+    bobRoomRef.collection("participants").doc(BOB_UID).update({
+      ready: true,
+      score: 12400,
+      combo: 28,
+      rockMeter: 0.85,
+      starPowerActive: true,
+      lastHeartbeatMs: Date.now(),
+      updatedAt: serverTimestamp(),
+    })
+  );
+  await assertFails(bobRoomRef.collection("participants").doc(ALICE_UID).update({ score: 0 }));
+  await assertFails(bobRoomRef.update({ status: "PLAYING", updatedAt: serverTimestamp() }));
+
+  // 7. Third player Eve cannot exceed maxPlayers=2
+  const eveDb = testEnv.authenticatedContext("eve_789").firestore();
+  await assertFails(
+    eveDb.collection("multiplayer_rooms").doc(roomCode).update({
+      memberUids: [ALICE_UID, BOB_UID, "eve_789"],
+      updatedAt: serverTimestamp(),
+    })
+  );
+
+  // 8. Host starts match then closes room; updates rejected after CLOSED
+  await assertSucceeds(aliceRoomRef.update({ status: "PLAYING", updatedAt: serverTimestamp() }));
+  await assertSucceeds(aliceRoomRef.update({ status: "CLOSED", updatedAt: serverTimestamp() }));
+  await assertFails(aliceRoomRef.update({ status: "WAITING", updatedAt: serverTimestamp() }));
+});
+

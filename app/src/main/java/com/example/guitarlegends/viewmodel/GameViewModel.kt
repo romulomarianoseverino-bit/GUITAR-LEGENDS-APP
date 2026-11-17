@@ -91,6 +91,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val auth = firebaseAuth
         if (db != null && auth != null) AccountCloudRepository(db, auth) else null
     }
+    private val multiplayerRepo: MultiplayerCloudRepository? = run {
+        val db = FirebaseClientProvider.getFirestoreOrNull(context)
+        val auth = firebaseAuth
+        if (db != null && auth != null) MultiplayerCloudRepository(db, auth) else null
+    }
 
     // Navegação
     private val _currentScreen = MutableStateFlow<GameScreen>(GameScreen.Splash)
@@ -134,6 +139,33 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _showUpdateDialog = MutableStateFlow(false)
     val showUpdateDialog: StateFlow<Boolean> = _showUpdateDialog.asStateFlow()
+
+    // Multiplayer Online (Firestore em tempo real)
+    private val _multiplayerRoom = MutableStateFlow<MultiplayerRoomCloud?>(null)
+    val multiplayerRoom: StateFlow<MultiplayerRoomCloud?> = _multiplayerRoom.asStateFlow()
+
+    private val _multiplayerParticipants = MutableStateFlow<List<MultiplayerParticipantCloud>>(emptyList())
+    val multiplayerParticipants: StateFlow<List<MultiplayerParticipantCloud>> = _multiplayerParticipants.asStateFlow()
+
+    private val _multiplayerMode = MutableStateFlow(MultiplayerMode.BATTLE_1V1)
+    val multiplayerMode: StateFlow<MultiplayerMode> = _multiplayerMode.asStateFlow()
+
+    private val _isMultiplayerBusy = MutableStateFlow(false)
+    val isMultiplayerBusy: StateFlow<Boolean> = _isMultiplayerBusy.asStateFlow()
+
+    private val _multiplayerError = MutableStateFlow<String?>(null)
+    val multiplayerError: StateFlow<String?> = _multiplayerError.asStateFlow()
+
+    private val _multiplayerConnectionWarning = MutableStateFlow<String?>(null)
+    val multiplayerConnectionWarning: StateFlow<String?> = _multiplayerConnectionWarning.asStateFlow()
+
+    private val _disconnectedPeerNicknames = MutableStateFlow<List<String>>(emptyList())
+    val disconnectedPeerNicknames: StateFlow<List<String>> = _disconnectedPeerNicknames.asStateFlow()
+
+    private var roomObserveJob: Job? = null
+    private var participantsObserveJob: Job? = null
+    private var heartbeatJob: Job? = null
+    private var hasAutoStartedRoomMatch: Boolean = false
 
     // Status & Progressão do Jogador
     private val _playerStats = MutableStateFlow(PlayerStats())
@@ -821,6 +853,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         authJob = null
         _isAuthBusy.value = false
         viewModelScope.launch {
+            leaveMultiplayerRoom()
             stop()
             stopPreview()
             firebaseAuth?.signOut()
@@ -1635,6 +1668,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         gameLoopJob?.cancel()
         gameLoopJob = viewModelScope.launch {
             val latencyOffset = _playerStats.value.audioLatencyOffsetMs
+            var lastMultiplayerSyncMs = 0L
 
             while (isActive && _currentScreen.value is GameScreen.Gameplay) {
                 if (!_isPaused.value) {
@@ -1660,6 +1694,23 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         if (_starPowerEnergy.value <= 0f) {
                             _isStarPowerActive.value = false
                             recalculateMultiplier()
+                        }
+                    }
+
+                    val activeRoom = _multiplayerRoom.value
+                    val nowWallMs = System.currentTimeMillis()
+                    if (activeRoom != null && (nowWallMs - lastMultiplayerSyncMs) >= 450L) {
+                        lastMultiplayerSyncMs = nowWallMs
+                        multiplayerRepo?.let { mRepo ->
+                            launch {
+                                mRepo.updateParticipantProgress(
+                                    roomCode = activeRoom.roomCode,
+                                    score = _score.value,
+                                    combo = _combo.value,
+                                    rockMeter = _rockMeter.value,
+                                    starPowerActive = _isStarPowerActive.value
+                                )
+                            }
                         }
                     }
 
@@ -1899,6 +1950,36 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         )
         persistLocalMutation(newMatchRecord = localRecord)
 
+        val activeRoom = _multiplayerRoom.value
+        val activeUid = multiplayerRepo?.currentUidOrNull()
+        if (activeRoom != null && activeUid != null) {
+            val finalScore = _score.value
+            val finalCombo = _combo.value
+            val finalMeter = _rockMeter.value
+            val updatedParticipants = _multiplayerParticipants.value.map {
+                if (it.userId == activeUid) it.copy(score = finalScore) else it
+            }
+            val topUid = updatedParticipants.maxByOrNull { it.score }?.userId ?: activeUid
+            viewModelScope.launch {
+                multiplayerRepo.updateParticipantProgress(
+                    roomCode = activeRoom.roomCode,
+                    score = finalScore,
+                    combo = finalCombo,
+                    rockMeter = finalMeter,
+                    starPowerActive = false
+                )
+                if (activeRoom.hostUid == activeUid) {
+                    multiplayerRepo.updateRoomHostConfig(
+                        roomCode = activeRoom.roomCode,
+                        mode = activeRoom.modeEnum,
+                        track = selectedTrack,
+                        status = RoomStatus.FINISHED,
+                        winnerUid = topUid
+                    )
+                }
+            }
+        }
+
         val repo = accountRepo
         if (repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
             viewModelScope.launch {
@@ -1999,6 +2080,389 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         triggerBackgroundCloudSync(customizationChanged = true)
     }
 
+    // ---- Multiplayer Online (Salas, Convite, Sync & Desconexão) ----
+
+    fun currentMultiplayerUid(): String? = multiplayerRepo?.currentUidOrNull()
+
+    fun clearMultiplayerError() {
+        _multiplayerError.value = null
+    }
+
+    fun clearMultiplayerWarning() {
+        _multiplayerConnectionWarning.value = null
+    }
+
+    private fun effectiveMultiplayerNickname(): String {
+        val fromAuth = (authUiState.value as? AuthUiState.Authenticated)?.nickname
+        val fromStats = _playerStats.value.nickname.trim()
+        val emailPrefix = firebaseAuth?.currentUser?.email?.substringBefore("@")?.trim()
+        return listOf(fromAuth, fromStats, emailPrefix, "Rocker")
+            .firstOrNull { !it.isNullOrBlank() && it.length >= 2 }
+            ?.take(24) ?: "Rocker"
+    }
+
+    fun setMultiplayerMode(mode: MultiplayerMode) {
+        _multiplayerMode.value = mode
+        setCompetitiveMode(mode == MultiplayerMode.BATTLE_1V1)
+        val room = _multiplayerRoom.value ?: return
+        val uid = multiplayerRepo?.currentUidOrNull() ?: return
+        if (room.hostUid != uid) {
+            _multiplayerError.value = "Apenas o anfitrião (${room.hostNickname}) pode alterar o modo da sala."
+            return
+        }
+        if (room.memberUids.size > mode.maxPlayers) {
+            _multiplayerError.value = "Há ${room.memberUids.size} jogadores na sala. Não é possível reduzir para ${mode.maxPlayers} vagas."
+            return
+        }
+        viewModelScope.launch {
+            multiplayerRepo.updateRoomHostConfig(
+                roomCode = room.roomCode,
+                mode = mode,
+                track = selectedTrack
+            ).onFailure { err ->
+                _multiplayerError.value = err.message ?: "Falha ao atualizar o modo da sala."
+            }
+        }
+    }
+
+    fun updateMultiplayerTrack(track: Track) {
+        selectTrack(track)
+        val room = _multiplayerRoom.value ?: return
+        val uid = multiplayerRepo?.currentUidOrNull() ?: return
+        if (room.hostUid == uid) {
+            viewModelScope.launch {
+                multiplayerRepo.updateRoomHostConfig(
+                    roomCode = room.roomCode,
+                    mode = _multiplayerMode.value,
+                    track = track
+                ).onFailure { err ->
+                    _multiplayerError.value = err.message ?: "Falha ao sincronizar música da sala."
+                }
+            }
+        }
+    }
+
+    fun updateMultiplayerLoadout(
+        instrument: Instrument = selectedInstrument,
+        difficulty: Difficulty = selectedDifficulty
+    ) {
+        selectInstrument(instrument)
+        selectDifficulty(difficulty)
+        val room = _multiplayerRoom.value ?: return
+        val repo = multiplayerRepo ?: return
+        val uid = repo.currentUidOrNull() ?: return
+        val self = _multiplayerParticipants.value.find { it.userId == uid }
+        viewModelScope.launch {
+            repo.updateParticipantLoadout(
+                roomCode = room.roomCode,
+                nickname = effectiveMultiplayerNickname(),
+                instrument = instrument,
+                difficulty = difficulty,
+                ready = self?.ready ?: false
+            ).onFailure { err ->
+                _multiplayerError.value = err.message ?: "Falha ao atualizar instrumento/dificuldade."
+            }
+        }
+    }
+
+    fun createMultiplayerRoom(
+        mode: MultiplayerMode = _multiplayerMode.value,
+        customRoomCode: String? = null
+    ) {
+        val repo = multiplayerRepo ?: run {
+            _multiplayerError.value = "Serviço multiplayer na nuvem indisponível neste momento."
+            return
+        }
+        if (repo.currentUidOrNull() == null) {
+            _multiplayerError.value = "Faça login com Google para criar ou entrar em salas online."
+            return
+        }
+        viewModelScope.launch {
+            _isMultiplayerBusy.value = true
+            _multiplayerError.value = null
+            _multiplayerConnectionWarning.value = null
+            _multiplayerMode.value = mode
+            setCompetitiveMode(mode == MultiplayerMode.BATTLE_1V1)
+
+            val previousCode = _multiplayerRoom.value?.roomCode
+            val res = repo.createRoom(
+                mode = mode,
+                track = selectedTrack,
+                nickname = effectiveMultiplayerNickname(),
+                instrument = selectedInstrument,
+                difficulty = selectedDifficulty,
+                customRoomCode = customRoomCode
+            )
+            res.onSuccess { room ->
+                if (!previousCode.isNullOrBlank() && previousCode != room.roomCode) {
+                    stopRoomObserversOnly()
+                    repo.leaveOrCloseRoom(previousCode)
+                }
+                _multiplayerRoom.value = room
+                startObservingMultiplayerRoom(room.roomCode)
+            }.onFailure { err ->
+                _multiplayerError.value = err.message ?: "Não foi possível criar a sala multiplayer."
+            }
+            _isMultiplayerBusy.value = false
+        }
+    }
+
+    fun joinMultiplayerRoom(rawCode: String) {
+        val repo = multiplayerRepo ?: run {
+            _multiplayerError.value = "Serviço multiplayer na nuvem indisponível neste momento."
+            return
+        }
+        if (repo.currentUidOrNull() == null) {
+            _multiplayerError.value = "Faça login com Google para entrar em uma sala online."
+            return
+        }
+        viewModelScope.launch {
+            _isMultiplayerBusy.value = true
+            _multiplayerError.value = null
+            _multiplayerConnectionWarning.value = null
+
+            val normalized = repo.normalizeRoomCode(rawCode)
+            val previousCode = _multiplayerRoom.value?.roomCode
+
+            val res = repo.joinRoom(
+                rawCode = normalized,
+                nickname = effectiveMultiplayerNickname(),
+                instrument = selectedInstrument,
+                difficulty = selectedDifficulty
+            )
+            res.onSuccess { room ->
+                if (!previousCode.isNullOrBlank() && previousCode != room.roomCode) {
+                    stopRoomObserversOnly()
+                    repo.leaveOrCloseRoom(previousCode)
+                }
+                _multiplayerRoom.value = room
+                _multiplayerMode.value = room.modeEnum
+                setCompetitiveMode(room.modeEnum == MultiplayerMode.BATTLE_1V1)
+                _tracks.value.find { it.id == room.trackId }?.let { selectTrack(it) }
+                startObservingMultiplayerRoom(room.roomCode)
+            }.onFailure { err ->
+                _multiplayerError.value = err.message ?: "Não foi possível entrar na sala."
+            }
+            _isMultiplayerBusy.value = false
+        }
+    }
+
+    fun toggleMultiplayerReady() {
+        val room = _multiplayerRoom.value ?: return
+        val repo = multiplayerRepo ?: return
+        val uid = repo.currentUidOrNull() ?: return
+        val self = _multiplayerParticipants.value.find { it.userId == uid }
+        val nextReady = !(self?.ready ?: false)
+        viewModelScope.launch {
+            _multiplayerError.value = null
+            repo.updateParticipantLoadout(
+                roomCode = room.roomCode,
+                nickname = effectiveMultiplayerNickname(),
+                instrument = selectedInstrument,
+                difficulty = selectedDifficulty,
+                ready = nextReady
+            ).onFailure { err ->
+                _multiplayerError.value = err.message ?: "Falha ao atualizar status de prontidão."
+            }
+        }
+    }
+
+    fun startMultiplayerMatch() {
+        val room = _multiplayerRoom.value
+        val repo = multiplayerRepo
+        if (room == null || repo == null) {
+            setCompetitiveMode(_multiplayerMode.value == MultiplayerMode.BATTLE_1V1)
+            navigateTo(GameScreen.MusicLibrary)
+            return
+        }
+        val uid = repo.currentUidOrNull() ?: return
+        if (room.hostUid != uid) {
+            _multiplayerError.value = "Aguarde o anfitrião (${room.hostNickname}) iniciar a partida sincronizada."
+            return
+        }
+        val participants = _multiplayerParticipants.value
+        if (participants.size < 2) {
+            _multiplayerError.value = "Aguarde pelo menos 1 outro jogador entrar na sala '${room.roomCode}' (ou compartilhe o código)."
+            return
+        }
+        val unreadyGuests = participants.filter { it.userId != uid && !it.ready }
+        if (unreadyGuests.isNotEmpty()) {
+            val names = unreadyGuests.joinToString { it.nickname }
+            _multiplayerError.value = "Aguardando confirmação PRONTO de: $names."
+            return
+        }
+
+        viewModelScope.launch {
+            _isMultiplayerBusy.value = true
+            _multiplayerError.value = null
+            repo.updateParticipantLoadout(
+                roomCode = room.roomCode,
+                nickname = effectiveMultiplayerNickname(),
+                instrument = selectedInstrument,
+                difficulty = selectedDifficulty,
+                ready = true
+            )
+            val res = repo.updateRoomHostConfig(
+                roomCode = room.roomCode,
+                mode = _multiplayerMode.value,
+                track = selectedTrack,
+                status = RoomStatus.PLAYING,
+                winnerUid = ""
+            )
+            res.onFailure { err ->
+                _multiplayerError.value = err.message ?: "Não foi possível iniciar a partida online."
+            }
+            _isMultiplayerBusy.value = false
+        }
+    }
+
+    fun reconnectMultiplayerRoom() {
+        val room = _multiplayerRoom.value
+        val repo = multiplayerRepo ?: return
+        val uid = repo.currentUidOrNull()
+        if (room == null || uid == null) {
+            _multiplayerError.value = "Nenhuma sala ativa para reconectar."
+            return
+        }
+        viewModelScope.launch {
+            _isMultiplayerBusy.value = true
+            _multiplayerError.value = null
+            _multiplayerConnectionWarning.value = "Reconectando à sala ${room.roomCode}..."
+            repo.sendHeartbeat(room.roomCode, ParticipantConnectionState.RECONNECTING)
+            val res = repo.joinRoom(
+                rawCode = room.roomCode,
+                nickname = effectiveMultiplayerNickname(),
+                instrument = selectedInstrument,
+                difficulty = selectedDifficulty
+            )
+            res.onSuccess { refreshed ->
+                _multiplayerRoom.value = refreshed
+                _multiplayerConnectionWarning.value = null
+                startObservingMultiplayerRoom(refreshed.roomCode)
+            }.onFailure { err ->
+                _multiplayerConnectionWarning.value = "Falha ao reconectar: ${err.message}"
+            }
+            _isMultiplayerBusy.value = false
+        }
+    }
+
+    fun leaveMultiplayerRoom() {
+        val roomCode = _multiplayerRoom.value?.roomCode
+        stopRoomObserversOnly()
+        _multiplayerRoom.value = null
+        _multiplayerParticipants.value = emptyList()
+        _disconnectedPeerNicknames.value = emptyList()
+        _multiplayerConnectionWarning.value = null
+        _multiplayerError.value = null
+        hasAutoStartedRoomMatch = false
+
+        val repo = multiplayerRepo ?: return
+        if (!roomCode.isNullOrBlank() && repo.currentUidOrNull() != null) {
+            viewModelScope.launch {
+                repo.leaveOrCloseRoom(roomCode)
+            }
+        }
+    }
+
+    fun refreshMultiplayerPeerHealth(nowMs: Long = System.currentTimeMillis()) {
+        val participants = _multiplayerParticipants.value
+        val selfUid = multiplayerRepo?.currentUidOrNull()
+        val staleNames = participants
+            .filter { it.userId != selfUid && it.isStale(nowMs) }
+            .map { it.nickname.ifBlank { "Jogador" } }
+        _disconnectedPeerNicknames.value = staleNames
+        if (staleNames.isNotEmpty()) {
+            _multiplayerConnectionWarning.value =
+                "Conexão instável ou desconectado(s): ${staleNames.joinToString(", ")}"
+        }
+    }
+
+    private fun stopRoomObserversOnly() {
+        roomObserveJob?.cancel()
+        roomObserveJob = null
+        participantsObserveJob?.cancel()
+        participantsObserveJob = null
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
+
+    private fun startObservingMultiplayerRoom(roomCode: String) {
+        val repo = multiplayerRepo ?: return
+        stopRoomObserversOnly()
+        hasAutoStartedRoomMatch = false
+
+        roomObserveJob = viewModelScope.launch {
+            try {
+                repo.observeRoom(roomCode).collect { room ->
+                    if (room == null || room.statusEnum == RoomStatus.CLOSED) {
+                        val closedMsg = "A sala $roomCode foi encerrada pelo anfitrião."
+                        stopRoomObserversOnly()
+                        _multiplayerRoom.value = null
+                        _multiplayerParticipants.value = emptyList()
+                        _multiplayerConnectionWarning.value = closedMsg
+                        hasAutoStartedRoomMatch = false
+                        return@collect
+                    }
+
+                    _multiplayerRoom.value = room
+                    _multiplayerMode.value = room.modeEnum
+                    setCompetitiveMode(room.modeEnum == MultiplayerMode.BATTLE_1V1)
+                    _tracks.value.find { it.id == room.trackId }?.let { selectTrack(it) }
+
+                    if (room.statusEnum == RoomStatus.PLAYING &&
+                        !hasAutoStartedRoomMatch &&
+                        _currentScreen.value !is GameScreen.Gameplay
+                    ) {
+                        hasAutoStartedRoomMatch = true
+                        startMatch()
+                    } else if (room.statusEnum != RoomStatus.PLAYING) {
+                        hasAutoStartedRoomMatch = false
+                    }
+                }
+            } catch (e: Exception) {
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    _multiplayerConnectionWarning.value = "Conexão com a sala $roomCode interrompida. Toque em RECONECTAR."
+                }
+            }
+        }
+
+        participantsObserveJob = viewModelScope.launch {
+            try {
+                repo.observeParticipants(roomCode).collect { participants ->
+                    _multiplayerParticipants.value = participants
+                    refreshMultiplayerPeerHealth()
+                }
+            } catch (e: Exception) {
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    _multiplayerConnectionWarning.value = "Erro ao sincronizar participantes. Toque em RECONECTAR."
+                }
+            }
+        }
+
+        heartbeatJob = viewModelScope.launch {
+            var consecutiveFailures = 0
+            while (isActive && _multiplayerRoom.value?.roomCode == roomCode) {
+                val res = repo.sendHeartbeat(roomCode, ParticipantConnectionState.ONLINE)
+                if (res.isFailure) {
+                    consecutiveFailures++
+                    if (consecutiveFailures >= 2) {
+                        _multiplayerConnectionWarning.value =
+                            "Falha de rede na sala $roomCode. Verifique sua conexão ou toque em RECONECTAR."
+                    }
+                } else {
+                    consecutiveFailures = 0
+                    if (_disconnectedPeerNicknames.value.isEmpty() &&
+                        _multiplayerConnectionWarning.value?.contains("Falha de rede") == true
+                    ) {
+                        _multiplayerConnectionWarning.value = null
+                    }
+                }
+                refreshMultiplayerPeerHealth()
+                delay(4_000L)
+            }
+        }
+    }
+
     fun stop() {
         gamepadManager.releaseAllActiveLanes { lane ->
             _activeFretLanes.value = _activeFretLanes.value - lane
@@ -2010,6 +2474,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        stopRoomObserversOnly()
         audioPlayer.release()
         gamepadManager.release()
     }

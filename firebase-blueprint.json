@@ -326,6 +326,77 @@
         "changelog",
         "isMandatory"
       ]
+    },
+    "MultiplayerRoom": {
+      "title": "MultiplayerRoom",
+      "description": "Sala multiplayer online para duelo 1v1 ou banda cooperativa sincronizada via Firestore.",
+      "type": "object",
+      "properties": {
+        "roomCode": { "type": "string" },
+        "hostUid": { "type": "string" },
+        "hostNickname": { "type": "string" },
+        "mode": { "type": "string", "enum": ["BATTLE_1V1", "BAND_COOP"] },
+        "status": { "type": "string", "enum": ["WAITING", "PLAYING", "FINISHED", "CLOSED"] },
+        "trackId": { "type": "string" },
+        "trackTitle": { "type": "string" },
+        "maxPlayers": { "type": "integer" },
+        "memberUids": { "type": "array" },
+        "winnerUid": { "type": "string" },
+        "inviteMessage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "roomCode",
+        "hostUid",
+        "hostNickname",
+        "mode",
+        "status",
+        "trackId",
+        "trackTitle",
+        "maxPlayers",
+        "memberUids",
+        "winnerUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MultiplayerParticipant": {
+      "title": "MultiplayerParticipant",
+      "description": "Estado sincronizado em tempo real de cada participante conectado em uma sala multiplayer.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "roomCode": { "type": "string" },
+        "nickname": { "type": "string" },
+        "instrument": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "ready": { "type": "boolean" },
+        "connectionState": { "type": "string", "enum": ["ONLINE", "RECONNECTING", "DISCONNECTED"] },
+        "score": { "type": "integer" },
+        "combo": { "type": "integer" },
+        "rockMeter": { "type": "number" },
+        "starPowerActive": { "type": "boolean" },
+        "lastHeartbeatMs": { "type": "integer" },
+        "joinedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "roomCode",
+        "nickname",
+        "instrument",
+        "difficulty",
+        "ready",
+        "connectionState",
+        "score",
+        "combo",
+        "rockMeter",
+        "starPowerActive",
+        "lastHeartbeatMs",
+        "joinedAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -348,6 +419,14 @@
     "/app_releases/{releaseId}": {
       "schema": { "$ref": "#/entities/AppRelease" },
       "description": "Catálogo somente-leitura de atualizações e notas de versão."
+    },
+    "/multiplayer_rooms/{roomCode}": {
+      "schema": { "$ref": "#/entities/MultiplayerRoom" },
+      "description": "Salas online de Duelo 1v1 e Banda Cooperativa com controle de convite por código."
+    },
+    "/multiplayer_rooms/{roomCode}/participants/{participantUid}": {
+      "schema": { "$ref": "#/entities/MultiplayerParticipant" },
+      "description": "Participantes ativos em cada sala e telemetria sincronizada da partida."
     }
   }
 }
