@@ -64,12 +64,22 @@ jobs:
           fi
           chmod 600 "$KEYSTORE_PATH"
           echo "Arquivo decodificado. Tamanho: $(wc -c < "$KEYSTORE_PATH") bytes."
-          echo "Verificando senha e alias da chave..."
-          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >/dev/null; then
-            echo "::error::O arquivo foi decodificado, mas a verificação da chave falhou. Confira a senha KEYSTORE_PASSWORD e o alias upload."
+          echo "Verificando a senha do keystore separadamente..."
+          KEYTOOL_LOG="$RUNNER_TEMP/keytool-check.log"
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" >"$KEYTOOL_LOG" 2>&1; then
+            if grep -Eqi "password was incorrect|keystore was tampered" "$KEYTOOL_LOG"; then
+              echo "::error::O keytool recusou a senha KEYSTORE_PASSWORD (ou o arquivo do keystore está danificado)."
+            else
+              echo "::error::O keytool não conseguiu abrir o keystore. A mensagem técnica foi omitida para proteger dados."
+            fi
             exit 1
           fi
-          echo "Chave de publicação validada com sucesso."
+          echo "Senha do keystore aceita. Agora verificando o alias upload..."
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >"$KEYTOOL_LOG" 2>&1; then
+            echo "::error::A senha do keystore foi aceita, mas o alias upload não foi encontrado ou não pôde ser lido."
+            exit 1
+          fi
+          echo "Keystore e alias upload validados com sucesso."
           echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
