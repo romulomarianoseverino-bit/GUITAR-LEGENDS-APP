@@ -248,8 +248,7 @@ fun ProfileScreen(viewModel: GameViewModel) {
                             ) {
                                 OutlinedButton(
                                     onClick = { viewModel.signOut() },
-                                    enabled = !isBusy,
-                                    modifier = Modifier.weight(0.45f)
+                                    modifier = Modifier.weight(0.45f).testTag("auth_cancel_nickname_button")
                                 ) {
                                     Text("VOLTAR", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
@@ -348,8 +347,46 @@ fun ProfileScreen(viewModel: GameViewModel) {
                             }
                         }
 
+                        is AuthUiState.Loading -> {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Surface(color = RockAccentCyan.copy(alpha = 0.22f), shape = RoundedCornerShape(6.dp)) {
+                                    Text(
+                                        text = "AUTENTICANDO...",
+                                        color = RockAccentCyan,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 9.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = RockAccentCyan,
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.5.dp
+                                    )
+                                    Text(
+                                        text = "Verificando conta na nuvem. Você pode cancelar e voltar ao Modo Visitante a qualquer momento.",
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = { viewModel.cancelPendingAuth() },
+                                    modifier = Modifier.fillMaxWidth().testTag("auth_loading_cancel_button")
+                                ) {
+                                    Text("CANCELAR E VOLTAR AO MODO VISITANTE", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                }
+                            }
+                        }
+
                         else -> {
-                            // Modo Visitante (SignedOut ou Loading transitório)
+                            // Modo Visitante (SignedOut)
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

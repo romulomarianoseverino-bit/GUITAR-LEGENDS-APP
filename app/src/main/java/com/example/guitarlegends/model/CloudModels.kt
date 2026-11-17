@@ -93,8 +93,9 @@ data class UserAccountCloud(
     val graphicsQuality: String = GraphicsQuality.HIGH.name,
     val rewardStreak: Int = 0,
     val lastRewardDayKey: String = "",
-    val schemaVersion: Int = 2,
+    val schemaVersion: Int = 3,
     val syncRevision: Long = 1L,
+    val studioProfileJson: String = "",
     @ServerTimestamp
     val createdAt: Timestamp? = null,
     @ServerTimestamp
@@ -131,6 +132,7 @@ data class UserAccountCloud(
         "lastRewardDayKey" to lastRewardDayKey.take(20),
         "schemaVersion" to schemaVersion.coerceAtLeast(1),
         "syncRevision" to syncRevision.coerceAtLeast(1L),
+        "studioProfileJson" to studioProfileJson.take(24576),
         "createdAt" to FieldValue.serverTimestamp(),
         "updatedAt" to FieldValue.serverTimestamp()
     )
@@ -166,7 +168,8 @@ data class UserAccountCloud(
         rewardStreak = rewardStreak,
         lastRewardDayKey = lastRewardDayKey,
         schemaVersion = schemaVersion,
-        syncRevision = syncRevision
+        syncRevision = syncRevision,
+        studioProfile = StudioProfileJsonCodec.fromJsonString(studioProfileJson)
     )
 
     companion object {
@@ -178,6 +181,9 @@ data class UserAccountCloud(
             syncRevision: Long = stats.syncRevision
         ): UserAccountCloud {
             val cleanNick = nickname.trim().ifBlank { stats.nickname.trim() }
+            val cloudSafeStudio = stats.studioProfile.copy(
+                highwayConfig = stats.studioProfile.highwayConfig.copy(customImagePath = null)
+            )
             return UserAccountCloud(
                 id = uid,
                 userId = uid,
@@ -209,7 +215,8 @@ data class UserAccountCloud(
                 rewardStreak = stats.rewardStreak,
                 lastRewardDayKey = stats.lastRewardDayKey,
                 schemaVersion = stats.schemaVersion,
-                syncRevision = syncRevision
+                syncRevision = syncRevision,
+                studioProfileJson = StudioProfileJsonCodec.toJsonString(cloudSafeStudio).take(24576)
             )
         }
     }

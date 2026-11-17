@@ -2,9 +2,8 @@ package com.example.guitarlegends.ui.screens
 
 import android.view.MotionEvent
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,24 +20,31 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.guitarlegends.engine.LaneColors
 import com.example.guitarlegends.engine.drawHighway
 import com.example.guitarlegends.model.ControlMode
-import com.example.guitarlegends.model.HitRating
+import com.example.guitarlegends.model.Instrument
 import com.example.guitarlegends.ui.components.*
 import com.example.guitarlegends.viewmodel.GameScreen
 import com.example.guitarlegends.viewmodel.GameViewModel
+import kotlin.math.cos
+import kotlin.math.sin
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -59,11 +65,22 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
     val activeFretLanes by viewModel.activeFretLanes.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
     val stats by viewModel.playerStats.collectAsState()
+    val controllerInfo by viewModel.controllerInfo.collectAsState()
 
     val track = viewModel.selectedTrack
     val difficulty = viewModel.selectedDifficulty
     val instrument = viewModel.selectedInstrument
     val numLanes = difficulty.lanesUsed
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val highwayConfig = stats.studioProfile.highwayConfig
+    val highwayOverlayBitmap = remember(highwayConfig.selectedStampId, highwayConfig.customImagePath) {
+        com.example.guitarlegends.data.HighwayImageManager.loadHighwayOverlayBitmap(
+            context = context,
+            stampId = highwayConfig.selectedStampId,
+            customImagePath = highwayConfig.customImagePath
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -97,14 +114,6 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val selectedTheme = viewModel.highwayThemes.find { it.id == stats.selectedHighwayThemeId }
                 ?: com.example.guitarlegends.model.HighwayTheme.PS2_WOOD_STEEL
-            val charName = viewModel.characters.find { it.id == stats.selectedCharacterId }?.name ?: "Axel Shredder"
-            val charStyle = stats.customRocker.artStyle
-            val instName = when (instrument) {
-                com.example.guitarlegends.model.Instrument.GUITAR -> viewModel.guitars.find { it.id == stats.selectedGuitarId }?.name ?: "Flame Caster"
-                com.example.guitarlegends.model.Instrument.BASS -> viewModel.basses.find { it.id == stats.selectedBassId }?.name ?: "Thunder Bass"
-                com.example.guitarlegends.model.Instrument.DRUMS -> viewModel.drums.find { it.id == stats.selectedDrumsId }?.name ?: "Arena Beast Kit"
-                com.example.guitarlegends.model.Instrument.VOCALS -> viewModel.vocalMics.find { it.id == stats.selectedVocalMicId }?.name ?: "Vintage 55S"
-            }
 
             drawHighway(
                 drawScope = this,
@@ -120,9 +129,9 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                 rockMeter = rockMeter,
                 combo = combo,
                 instrument = instrument,
-                characterName = charName,
-                characterArtStyle = charStyle,
-                instrumentName = instName
+                playerStats = stats,
+                highwayOverlayBitmap = highwayOverlayBitmap,
+                overlayOpacity = highwayConfig.stampOpacity
             )
         }
 
@@ -160,13 +169,31 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             }
         }
 
-        // Top Right Controls (GLAS status badge & Pause button)
+        // Top Right Controls (Controller badge, GLAS status badge & Pause button)
         Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(end = 16.dp, top = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (controllerInfo.isConnected) {
+                Surface(
+                    color = Color(0xCC112A3A),
+                    shape = RoundedCornerShape(10.dp),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = Brush.horizontalGradient(listOf(RockAccentCyan, Color.Transparent))
+                    ),
+                    modifier = Modifier.padding(end = 8.dp).testTag("gameplay_controller_badge")
+                ) {
+                    Text(
+                        text = "🎮 ${controllerInfo.kind.label}",
+                        color = RockAccentCyan,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
             if (stats.glassAdaptiveEnabled) {
                 Surface(
                     color = Color(0xCC150D25),
@@ -203,202 +230,102 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             }
         }
 
-        // Left HUD: Score, Streak, Multiplier Amplifier, Star Power
+        // Top Center Vocal Pitch Guide Bar when singing Vocals
+        if (instrument == Instrument.VOCALS) {
+            VocalMelodyPitchBar(
+                currentTimeMs = currentPosMs,
+                activeNotes = activeNotes,
+                isStarPowerActive = isStarPowerActive,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 42.dp)
+            )
+        }
+
+        // Left HUD: Classic Console Guitar-Amp Score, Multiplier Dial, Combo Pips & Star Power
         Column(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 16.dp),
+                .padding(start = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            // Score Board
-            Surface(
-                color = Color(0xCC160F2B),
-                shape = RoundedCornerShape(12.dp),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.verticalGradient(listOf(RockAccentGold, Color.Transparent))
-                )
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-                    Text(text = "PONTOS", color = RockAccentGold, fontSize = 9.sp, fontWeight = FontWeight.Black)
-                    Text(text = "$score", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                }
-            }
-
-            // Multiplier Amplifier & Combo Streak
-            Surface(
-                color = if (isStarPowerActive) Color(0xEE004D73) else Color(0xCC1E1338),
-                shape = RoundedCornerShape(14.dp),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.verticalGradient(
-                        if (isStarPowerActive) listOf(RockAccentCyan, Color.White)
-                        else listOf(RockAccentRed, RockAccentGold)
-                    )
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Big Multiplier Dial
-                    Surface(
-                        color = if (isStarPowerActive) RockAccentCyan else RockAccentRed,
-                        shape = CircleShape,
-                        modifier = Modifier.size(38.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "${multiplier}X",
-                                color = if (isStarPowerActive) Color.Black else Color.White,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 16.sp
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = if (isStarPowerActive) "SOBRECARGA!" else "COMBO",
-                            color = if (isStarPowerActive) RockAccentCyan else Color.White.copy(alpha = 0.7f),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "$combo NOTAS",
-                            color = if (combo > 20) RockAccentGold else Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
+            GuitarAmpScoreCabinet(
+                score = score,
+                combo = combo,
+                multiplier = multiplier,
+                isStarPowerActive = isStarPowerActive
+            )
 
             // Star Power Activator Button
             val canActivateStarPower = starPowerEnergy >= 0.5f && !isStarPowerActive
             Button(
                 onClick = { viewModel.activateStarPower() },
                 enabled = canActivateStarPower,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isStarPowerActive) Color(0xFF00E5FF) else RockAccentCyan,
-                    disabledContainerColor = Color(0x4420173A)
+                    disabledContainerColor = Color(0x66161028)
                 ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                modifier = Modifier.testTag("star_power_button")
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    brush = Brush.horizontalGradient(
+                        if (canActivateStarPower || isStarPowerActive) listOf(Color.White, RockAccentCyan)
+                        else listOf(Color(0x4400E5FF), Color(0x22FFFFFF))
+                    )
+                ),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                modifier = Modifier
+                    .width(126.dp)
+                    .testTag("star_power_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Bolt,
                     contentDescription = null,
-                    tint = if (canActivateStarPower) Color.Black else Color.Gray,
-                    modifier = Modifier.size(18.dp)
+                    tint = if (canActivateStarPower || isStarPowerActive) Color.Black else Color.Gray,
+                    modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                    text = if (isStarPowerActive) "⚡ ATIVO!" else if (canActivateStarPower) "⚡ ENERGIA ESTRELAR" else "ENERGIA ${(starPowerEnergy * 100).toInt()}%",
-                    color = if (canActivateStarPower || isStarPowerActive) Color.Black else Color.Gray,
+                    text = if (isStarPowerActive) "ATIVO!" else if (canActivateStarPower) "ESTRELAR!" else "SP ${(starPowerEnergy * 100).toInt()}%",
+                    color = if (canActivateStarPower || isStarPowerActive) Color.Black else Color(0xFF9BE7FF),
                     fontWeight = FontWeight.Black,
-                    fontSize = 11.sp
+                    fontSize = 10.sp
                 )
             }
         }
 
-        // Right HUD: Rock Meter Gauge & Hit Rating feedback
+        // Right HUD: Hit Rating feedback + Classic Semicircular Rock Meter & 5 Star Power Vacuum Tubes
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.End
+                .padding(end = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Hit rating popup
             if (lastHitRating != null) {
                 Surface(
-                    color = Color(lastHitRating!!.colorHex).copy(alpha = 0.9f),
-                    shape = RoundedCornerShape(8.dp)
+                    color = Color(lastHitRating!!.colorHex).copy(alpha = 0.92f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = Brush.horizontalGradient(listOf(Color.White, Color.Transparent))
+                    )
                 ) {
                     Text(
                         text = lastHitRating!!.label,
                         color = Color.Black,
                         fontWeight = FontWeight.Black,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
             }
 
-            // PS2 Rock Meter Gauge
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xDD18102B)),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.verticalGradient(listOf(RockAccentGold, Color.Transparent))
-                ),
-                modifier = Modifier.width(80.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "MEDIDOR",
-                        color = RockAccentGold,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = "ROCK",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 8.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Vertical Meter Bar
-                    Box(
-                        modifier = Modifier
-                            .width(22.dp)
-                            .height(110.dp)
-                            .background(Color.Black, RoundedCornerShape(11.dp))
-                            .border(1.dp, Color.DarkGray, RoundedCornerShape(11.dp))
-                    ) {
-                        val meterColor = when {
-                            rockMeter > 0.7f -> RockAccentGreen
-                            rockMeter > 0.35f -> RockAccentGold
-                            else -> RockAccentRed
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(rockMeter)
-                                .align(Alignment.BottomCenter)
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(meterColor, meterColor.copy(alpha = 0.6f))
-                                    ),
-                                    RoundedCornerShape(11.dp)
-                                )
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = when {
-                            rockMeter > 0.8f -> "LENDA!"
-                            rockMeter > 0.5f -> "BOM"
-                            rockMeter > 0.25f -> "PERIGO"
-                            else -> "VAIAS!"
-                        },
-                        color = when {
-                            rockMeter > 0.8f -> RockAccentGreen
-                            rockMeter > 0.5f -> RockAccentGold
-                            else -> RockAccentRed
-                        },
-                        fontWeight = FontWeight.Black,
-                        fontSize = 10.sp
-                    )
-                }
-            }
+            AnalogRockMeterWithTubes(
+                rockMeter = rockMeter,
+                starPowerEnergy = starPowerEnergy,
+                isStarPowerActive = isStarPowerActive
+            )
         }
 
         // Bottom Controls: Fret Strike Touch Buttons (Multi-touch enabled)
@@ -443,13 +370,29 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                     ),
                     shape = RoundedCornerShape(18.dp)
                 ) {
+                    // Botão visual limpo de traste (sem textos 'PISTA 1', 'PISTA 2', etc.)
                     Box(contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "PISTA ${lane + 1}",
-                                color = if (isPressed) Color.Black else Color.White,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 11.sp
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(
+                                    color = if (isPressed) Color.White else color.copy(alpha = 0.55f),
+                                    shape = CircleShape
+                                )
+                                .border(
+                                    width = if (isPressed) 3.dp else 2.dp,
+                                    color = if (isPressed) color else Color.White.copy(alpha = 0.7f),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .background(
+                                        color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
+                                        shape = CircleShape
+                                    )
                             )
                         }
                     }
@@ -546,3 +489,440 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
         }
     }
 }
+
+/**
+ * Gabinete de Amplificador clássico PS2 (Score em LED verde, Dial X1..X8,
+ * coluna de 10 LEDs de combo e odômetro de sequência de notas).
+ */
+@Composable
+private fun GuitarAmpScoreCabinet(
+    score: Int,
+    combo: Int,
+    multiplier: Int,
+    isStarPowerActive: Boolean
+) {
+    val frameColor = if (isStarPowerActive) RockAccentCyan else Color(0xFFD5B66B)
+    val dialRingColor = when {
+        isStarPowerActive -> RockAccentCyan
+        multiplier >= 4 -> Color(0xFFE040FB)
+        multiplier == 3 -> Color(0xFFFFB300)
+        multiplier == 2 -> Color(0xFF00E676)
+        else -> Color(0xFF78909C)
+    }
+
+    val litLeds = when {
+        isStarPowerActive || multiplier >= 4 -> 10
+        combo <= 0 -> 0
+        else -> ((combo - 1) % 10) + 1
+    }
+
+    Surface(
+        color = Color(0xEE141118),
+        shape = RoundedCornerShape(10.dp),
+        border = ButtonDefaults.outlinedButtonBorder.copy(
+            brush = Brush.verticalGradient(listOf(frameColor, Color(0xFF4E4330), frameColor)),
+            width = 2.dp
+        ),
+        modifier = Modifier
+            .width(126.dp)
+            .testTag("amp_score_cabinet")
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            // Painel LED digital verde da pontuação
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF071209), RoundedCornerShape(5.dp))
+                    .border(1.dp, Color(0xFF3E4B3C), RoundedCornerShape(5.dp))
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(
+                    text = score.toString().padStart(5, '0'),
+                    color = if (isStarPowerActive) RockAccentCyan else Color(0xFF8CFF5E),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 16.sp,
+                    letterSpacing = 1.sp,
+                    maxLines = 1
+                )
+            }
+
+            // Corpo do alto-falante + coluna vertical de LEDs de streak + badge X1..X8
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Coluna de 10 pips de combo
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier
+                        .background(Color(0xFF0B0A10), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 3.dp, vertical = 3.dp)
+                ) {
+                    for (idx in 9 downTo 0) {
+                        val isLit = idx < litLeds
+                        val pipColor = when {
+                            !isLit -> Color(0xFF282430)
+                            isStarPowerActive -> RockAccentCyan
+                            idx >= 7 -> Color(0xFFFF4081)
+                            idx >= 4 -> RockAccentGold
+                            else -> Color(0xFF00E676)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(width = 8.dp, height = 4.dp)
+                                .background(pipColor, RoundedCornerShape(2.dp))
+                        )
+                    }
+                }
+
+                // Dial metálico circular com X1 / X2 / X3 / X4 / X8
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(
+                            Brush.radialGradient(listOf(Color(0xFF2D253A), Color(0xFF0E0B14))),
+                            CircleShape
+                        )
+                        .border(3.dp, dialRingColor, CircleShape)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .border(1.dp, Color.White.copy(alpha = 0.28f), CircleShape)
+                    ) {
+                        Text(
+                            text = "x$multiplier",
+                            color = dialRingColor,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 20.sp
+                        )
+                    }
+                }
+            }
+
+            // Odômetro mecânico da sequência de notas (♪ 194)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0A090E), RoundedCornerShape(5.dp))
+                    .border(1.dp, Color(0xFF4F4759), RoundedCornerShape(5.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "♪",
+                    color = if (isStarPowerActive) RockAccentCyan else RockAccentGold,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = combo.toString().padStart(3, '0'),
+                    color = if (combo >= 30) RockAccentGold else Color.White,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 13.sp,
+                    letterSpacing = 1.5.sp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Medidor Analógico Semicircular "ROCK" com ponteiro móvel e 5 válvulas luminosas
+ * ciano de Energia Estrelar no topo, fiel à referência clássica de console.
+ */
+@Composable
+private fun AnalogRockMeterWithTubes(
+    rockMeter: Float,
+    starPowerEnergy: Float,
+    isStarPowerActive: Boolean
+) {
+    val animatedRock by animateFloatAsState(
+        targetValue = rockMeter.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 160),
+        label = "rockNeedle"
+    )
+    val animatedSp by animateFloatAsState(
+        targetValue = starPowerEnergy.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 180),
+        label = "spTubes"
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(114.dp)
+            .testTag("analog_rock_meter")
+    ) {
+        Box(
+            modifier = Modifier
+                .width(112.dp)
+                .height(92.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+                val dialCenter = Offset(w * 0.5f, h * 0.88f)
+                val dialRadius = w * 0.37f
+
+                // 5 Válvulas radialmente montadas no topo do arco (-48°, -24°, 0°, +24°, +48°)
+                val tubeAngles = listOf(-48f, -24f, 0f, 24f, 48f)
+                tubeAngles.forEachIndexed { idx, deg ->
+                    val threshold = (idx + 1) / 5f
+                    val isFilled = isStarPowerActive || animatedSp >= threshold - 0.08f
+                    val rad = Math.toRadians((deg - 90f).toDouble())
+                    val dist = dialRadius + 16f
+                    val cx = dialCenter.x + (cos(rad) * dist).toFloat()
+                    val cy = dialCenter.y + (sin(rad) * dist).toFloat()
+
+                    rotate(degrees = deg, pivot = Offset(cx, cy)) {
+                        // Halo ciano quando energizada
+                        if (isFilled) {
+                            drawOval(
+                                color = Color(0x8800E5FF),
+                                topLeft = Offset(cx - 8f, cy - 13f),
+                                size = Size(16f, 24f)
+                            )
+                        }
+                        // Vidro da válvula
+                        drawRoundRect(
+                            color = if (isFilled) Color(0xFF00E5FF) else Color(0xFF1F2733),
+                            topLeft = Offset(cx - 5f, cy - 10f),
+                            size = Size(10f, 18f),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f)
+                        )
+                        // Brilho interno branco
+                        drawRoundRect(
+                            color = if (isFilled) Color.White.copy(alpha = 0.85f) else Color(0x33FFFFFF),
+                            topLeft = Offset(cx - 2f, cy - 7f),
+                            size = Size(3.5f, 11f),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f)
+                        )
+                        // Base metálica da válvula
+                        drawRect(
+                            color = Color(0xFF6B7280),
+                            topLeft = Offset(cx - 5.5f, cy + 5f),
+                            size = Size(11f, 4f)
+                        )
+                    }
+                }
+
+                // Fundo semicircular escuro
+                drawArc(
+                    color = Color(0xEE100D17),
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = true,
+                    topLeft = Offset(dialCenter.x - dialRadius, dialCenter.y - dialRadius),
+                    size = Size(dialRadius * 2f, dialRadius * 2f)
+                )
+
+                // Setores coloridos: Vermelho (esq) • Amarelo/Ouro (centro) • Verde (dir)
+                val arcTopLeft = Offset(dialCenter.x - dialRadius * 0.86f, dialCenter.y - dialRadius * 0.86f)
+                val arcSize = Size(dialRadius * 1.72f, dialRadius * 1.72f)
+                drawArc(
+                    color = Color(0xFFE53935),
+                    startAngle = 185f,
+                    sweepAngle = 54f,
+                    useCenter = true,
+                    topLeft = arcTopLeft,
+                    size = arcSize
+                )
+                drawArc(
+                    color = Color(0xFFFFC107),
+                    startAngle = 241f,
+                    sweepAngle = 58f,
+                    useCenter = true,
+                    topLeft = arcTopLeft,
+                    size = arcSize
+                )
+                drawArc(
+                    color = Color(0xFF00E676),
+                    startAngle = 301f,
+                    sweepAngle = 54f,
+                    useCenter = true,
+                    topLeft = arcTopLeft,
+                    size = arcSize
+                )
+
+                // Aro cromado / dourado do mostrador
+                drawArc(
+                    color = if (isStarPowerActive) Color(0xFF00E5FF) else Color(0xFFD6CEB8),
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    topLeft = Offset(dialCenter.x - dialRadius, dialCenter.y - dialRadius),
+                    size = Size(dialRadius * 2f, dialRadius * 2f),
+                    style = Stroke(width = 5f)
+                )
+                drawLine(
+                    color = Color(0xFF9E9686),
+                    start = Offset(dialCenter.x - dialRadius - 2f, dialCenter.y),
+                    end = Offset(dialCenter.x + dialRadius + 2f, dialCenter.y),
+                    strokeWidth = 4f
+                )
+
+                // Ponteiro analógico animado (-75° a +75°)
+                val needleDeg = -75f + animatedRock * 150f
+                val needleRad = Math.toRadians((needleDeg - 90f).toDouble())
+                val tipX = dialCenter.x + (cos(needleRad) * (dialRadius * 0.84f)).toFloat()
+                val tipY = dialCenter.y + (sin(needleRad) * (dialRadius * 0.84f)).toFloat()
+
+                drawLine(
+                    color = Color.Black.copy(alpha = 0.6f),
+                    start = Offset(dialCenter.x + 2f, dialCenter.y + 1f),
+                    end = Offset(tipX + 2f, tipY + 1f),
+                    strokeWidth = 5f,
+                    cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = Color.White,
+                    start = dialCenter,
+                    end = Offset(tipX, tipY),
+                    strokeWidth = 3.5f,
+                    cap = StrokeCap.Round
+                )
+                drawCircle(
+                    color = Color(0xFF2B2638),
+                    radius = 7f,
+                    center = dialCenter
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = 3.5f,
+                    center = dialCenter
+                )
+            }
+
+            Text(
+                text = "ROCK",
+                color = Color.Black,
+                fontWeight = FontWeight.Black,
+                fontSize = 10.sp,
+                letterSpacing = 0.8.sp,
+                modifier = Modifier.padding(bottom = 14.dp)
+            )
+        }
+
+        // Badge de status de vibração da plateia
+        Surface(
+            color = Color(0xCC120D1D),
+            shape = RoundedCornerShape(6.dp),
+            border = ButtonDefaults.outlinedButtonBorder.copy(
+                brush = Brush.horizontalGradient(
+                    listOf(
+                        when {
+                            rockMeter > 0.75f -> RockAccentGreen
+                            rockMeter > 0.38f -> RockAccentGold
+                            else -> RockAccentRed
+                        },
+                        Color.Transparent
+                    )
+                )
+            )
+        ) {
+            Text(
+                text = when {
+                    rockMeter > 0.8f -> "LENDA!"
+                    rockMeter > 0.5f -> "BOM"
+                    rockMeter > 0.25f -> "PERIGO"
+                    else -> "VAIAS!"
+                },
+                color = when {
+                    rockMeter > 0.8f -> RockAccentGreen
+                    rockMeter > 0.5f -> RockAccentGold
+                    else -> RockAccentRed
+                },
+                fontWeight = FontWeight.Black,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Barra discreta superior de guia melódico vocal exibida apenas quando o instrumento é VOCAL.
+ */
+@Composable
+private fun VocalMelodyPitchBar(
+    currentTimeMs: Long,
+    activeNotes: List<com.example.guitarlegends.model.Note>,
+    isStarPowerActive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color(0xBB100B1C),
+        shape = RoundedCornerShape(10.dp),
+        border = ButtonDefaults.outlinedButtonBorder.copy(
+            brush = Brush.horizontalGradient(
+                if (isStarPowerActive) listOf(RockAccentCyan, Color.White)
+                else listOf(RockAccentGold, RockAccentCyan)
+            )
+        ),
+        modifier = modifier
+            .fillMaxWidth(0.46f)
+            .height(26.dp)
+            .testTag("vocal_pitch_bar")
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+                val windowMs = 2600f
+                val playheadX = w * 0.18f
+
+                // Guias sutis de afinação
+                for (row in 1..4) {
+                    val y = h * (row / 5f)
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.08f),
+                        start = Offset(0f, y),
+                        end = Offset(w, y),
+                        strokeWidth = 1f
+                    )
+                }
+
+                activeNotes.forEach { n ->
+                    if (!n.isMissed) {
+                        val dt = (n.timeMs - currentTimeMs).toFloat()
+                        if (dt in -300f..windowMs) {
+                            val startX = playheadX + (dt / windowMs) * (w - playheadX)
+                            val lenW = ((n.durationMs.coerceAtLeast(180L).toFloat()) / windowMs) * (w - playheadX)
+                            val pitchY = h * (0.82f - (n.lane.coerceIn(0, 4) / 4f) * 0.64f)
+                            val phraseColor = if (isStarPowerActive || n.isStarPower) Color(0xFF00E5FF) else Color(0xFFFFD54F)
+                            drawLine(
+                                color = phraseColor,
+                                start = Offset(startX.coerceAtLeast(0f), pitchY),
+                                end = Offset((startX + lenW).coerceAtMost(w), pitchY),
+                                strokeWidth = 5f,
+                                cap = StrokeCap.Round
+                            )
+                        }
+                    }
+                }
+
+                // Agulha vocal
+                drawLine(
+                    color = Color.White,
+                    start = Offset(playheadX, 3f),
+                    end = Offset(playheadX, h - 3f),
+                    strokeWidth = 2f
+                )
+            }
+        }
+    }
+}
+

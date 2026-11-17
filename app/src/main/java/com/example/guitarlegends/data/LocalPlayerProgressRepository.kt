@@ -242,6 +242,12 @@ class LocalPlayerProgressRepository(private val context: Context) {
                 audioLatencyOffsetMs = if (guestSnapshot.hasLocalCustomizationChanges) guest.audioLatencyOffsetMs else cloudStats.audioLatencyOffsetMs,
                 controlMode = if (guestSnapshot.hasLocalCustomizationChanges) guest.controlMode else cloudStats.controlMode,
                 graphicsQuality = if (guestSnapshot.hasLocalCustomizationChanges) guest.graphicsQuality else cloudStats.graphicsQuality,
+                studioProfile = run {
+                    val base = if (guestSnapshot.hasLocalCustomizationChanges) guest.studioProfile else cloudStats.studioProfile
+                    val mergedPresets = (base.savedPresets + cloudStats.studioProfile.savedPresets).distinctBy { it.id }.take(12)
+                    val mergedChallenges = (base.claimedChallenges + cloudStats.studioProfile.claimedChallenges).distinct()
+                    base.copy(savedPresets = mergedPresets, claimedChallenges = mergedChallenges)
+                },
                 schemaVersion = maxOf(cloudStats.schemaVersion, guest.schemaVersion),
                 syncRevision = maxOf(cloudStats.syncRevision, guest.syncRevision) + 1L
             )
@@ -288,6 +294,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
             put("accessories", s.customRocker.accessories)
             put("bodyTattoos", s.customRocker.bodyTattoos)
         })
+        put("studioProfile", StudioProfileJsonCodec.toJsonObject(s.studioProfile))
     }
 
     private fun parseStats(o: JSONObject): PlayerStats {
@@ -345,7 +352,8 @@ class LocalPlayerProgressRepository(private val context: Context) {
             rewardStreak = o.optInt("rewardStreak", defaults.rewardStreak),
             lastRewardDayKey = o.optString("lastRewardDayKey", ""),
             schemaVersion = o.optInt("schemaVersion", defaults.schemaVersion),
-            syncRevision = o.optLong("syncRevision", defaults.syncRevision)
+            syncRevision = o.optLong("syncRevision", defaults.syncRevision),
+            studioProfile = StudioProfileJsonCodec.fromJsonObject(o.optJSONObject("studioProfile"))
         )
     }
 

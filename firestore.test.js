@@ -123,6 +123,15 @@ test("Owner: can create, read, and update own UserAccount profile", async () => 
     docRef.update({
       coins: 600,
       syncRevision: 2,
+      studioProfileJson: JSON.stringify({ audioSettings: { masterVolume: 0.9 } }),
+      updatedAt: serverTimestamp(),
+    })
+  );
+
+  await assertFails(
+    docRef.update({
+      syncRevision: 3,
+      studioProfileJson: "x".repeat(25000),
       updatedAt: serverTimestamp(),
     })
   );

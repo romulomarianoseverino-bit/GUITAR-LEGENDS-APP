@@ -49,8 +49,20 @@ class AudioPlayerEngine(private val context: Context) {
     var currentTrack: Track? = null
         private set
 
+    @Volatile
+    private var musicGain: Float = 0.85f
+
     private var activeCompletionListener: (() -> Unit)? = null
     private var activeErrorListener: ((String) -> Unit)? = null
+
+    fun applyAudioSettings(settings: com.example.guitarlegends.model.AudioSettings) {
+        musicGain = settings.effectiveMusic()
+        runCatching {
+            mediaPlayer?.setVolume(musicGain, musicGain)
+        }
+    }
+
+    fun getCurrentMusicGain(): Float = musicGain
 
     fun loadTrack(
         track: Track,
@@ -108,6 +120,7 @@ class AudioPlayerEngine(private val context: Context) {
                         this@AudioPlayerEngine.activeCompletionListener?.invoke()
                     }
                     prepare()
+                    setVolume(musicGain, musicGain)
                 }
                 mediaPlayer = player
                 isUsingMediaPlayer = true
@@ -142,6 +155,7 @@ class AudioPlayerEngine(private val context: Context) {
 
         if (isUsingMediaPlayer && mediaPlayer != null) {
             try {
+                mediaPlayer?.setVolume(musicGain, musicGain)
                 mediaPlayer?.seekTo(pausedPositionMs.toInt())
                 mediaPlayer?.start()
                 startTimeNano = System.nanoTime() - (pausedPositionMs * 1_000_000L)
@@ -292,7 +306,7 @@ class AudioPlayerEngine(private val context: Context) {
                     val hatSound = if (isHat) (kotlin.random.Random.nextFloat() * 2f - 1f) * 0.15f else 0f
 
                     val mix = (kickSound + snareSound + guitarDist + hatSound).coerceIn(-1f, 1f)
-                    buffer[i] = (mix * Short.MAX_VALUE * 0.7f).toInt().toShort()
+                    buffer[i] = (mix * Short.MAX_VALUE * 0.7f * musicGain).toInt().toShort()
                 }
 
                 synthTrack?.write(buffer, 0, chunkSamples)

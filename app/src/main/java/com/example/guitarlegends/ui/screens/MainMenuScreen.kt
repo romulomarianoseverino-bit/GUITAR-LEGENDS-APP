@@ -36,6 +36,7 @@ fun MainMenuScreen(viewModel: GameViewModel) {
     val stats by viewModel.playerStats.collectAsState()
     val authState by viewModel.authUiState.collectAsState()
     val updateStatus by viewModel.updateStatus.collectAsState()
+    val controllerInfo by viewModel.controllerInfo.collectAsState()
 
     Column(
         modifier = Modifier
@@ -134,6 +135,24 @@ fun MainMenuScreen(viewModel: GameViewModel) {
                                 fontSize = 9.sp,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
+                        }
+                        if (controllerInfo.isConnected) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                color = RockAccentCyan.copy(alpha = 0.22f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .clickable { viewModel.navigateTo(GameScreen.Settings) }
+                                    .testTag("menu_controller_badge")
+                            ) {
+                                Text(
+                                    text = "🎮 ${controllerInfo.kind.label.uppercase()} CONECTADO",
+                                    color = RockAccentCyan,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 9.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                         if (updateStatus is UpdateCheckStatus.UpdateAvailable) {
                             Spacer(modifier = Modifier.height(6.dp))

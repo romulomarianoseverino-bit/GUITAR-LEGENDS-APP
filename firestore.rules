@@ -92,6 +92,7 @@ service cloud.firestore {
              data.lastRewardDayKey is string && data.lastRewardDayKey.size() <= 20 &&
              data.schemaVersion is int && data.schemaVersion >= 1 &&
              data.syncRevision is int && data.syncRevision >= 1 &&
+             (!('studioProfileJson' in data) || (data.studioProfileJson is string && data.studioProfileJson.size() <= 24576)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -158,7 +159,7 @@ service cloud.firestore {
                          'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                          'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
                          'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
-                         'schemaVersion', 'syncRevision', 'createdAt', 'updatedAt'
+                         'schemaVersion', 'syncRevision', 'studioProfileJson', 'createdAt', 'updatedAt'
                        ]) &&
                        isValidUserAccount(incoming());
 
@@ -179,7 +180,7 @@ service cloud.firestore {
                            'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                            'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
                            'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
-                           'schemaVersion', 'syncRevision', 'updatedAt'
+                           'schemaVersion', 'syncRevision', 'studioProfileJson', 'updatedAt'
                          ])
                        );
 

@@ -117,7 +117,13 @@ val DEFAULT_UNLOCKED_COSMETICS = listOf(
     "theme_ps2_wood",
     "theme_neon_cyber",
     "theme_inferno_flame",
-    "theme_galactic_star"
+    "theme_galactic_star",
+    "outfit_skin_none",
+    "outfit_skin_ps2_legend",
+    "skin_none",
+    "stamp_none",
+    "stamp_ps2_flames",
+    "stamp_checker_punk"
 )
 
 data class PlayerStats(
@@ -147,8 +153,9 @@ data class PlayerStats(
     val careerStageMax: Int = 1,
     val rewardStreak: Int = 0,
     val lastRewardDayKey: String = "",
-    val schemaVersion: Int = 2,
-    val syncRevision: Long = 1L
+    val schemaVersion: Int = 3,
+    val syncRevision: Long = 1L,
+    val studioProfile: StudioProfileConfig = StudioProfileConfig()
 )
 
 enum class ControlMode(val title: String, val subtitle: String) {

@@ -7,6 +7,8 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.KeyEvent
+import android.view.MotionEvent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.guitarlegends.analysis.AdaptiveEngine
@@ -15,6 +17,8 @@ import com.example.guitarlegends.audio.AudioPlayerEngine
 import com.example.guitarlegends.audio.SoundFxSynthesizer
 import com.example.guitarlegends.data.*
 import com.example.guitarlegends.engine.ParticleSystem
+import com.example.guitarlegends.input.ConnectedControllerInfo
+import com.example.guitarlegends.input.GamepadInputManager
 import com.example.guitarlegends.model.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
@@ -26,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
 import kotlin.math.abs
 
 sealed class GameScreen {
@@ -66,6 +71,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val musicLibraryRepository = MusicLibraryRepository(context)
     val localProgressRepository = LocalPlayerProgressRepository(context)
     val updateManager = UpdateManager(context)
+    val gamepadManager = GamepadInputManager(context)
+    val highwayImageManager = HighwayImageManager(context)
+
+    val controllerInfo: StateFlow<ConnectedControllerInfo> = gamepadManager.controllerInfo
+    val lastCapturedKeyCode: StateFlow<Int?> = gamepadManager.lastCapturedKeyCode
+
+    private val _studioActionMessage = MutableStateFlow<String?>(null)
+    val studioActionMessage: StateFlow<String?> = _studioActionMessage.asStateFlow()
+
+    private val _highwayUploadError = MutableStateFlow<String?>(null)
+    val highwayUploadError: StateFlow<String?> = _highwayUploadError.asStateFlow()
+
+    private var authJob: Job? = null
 
     private val firebaseAuth: FirebaseAuth? = FirebaseClientProvider.getAuthOrNull(context)
     private val accountRepo: AccountCloudRepository? = run {
@@ -418,6 +436,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     init {
         val localSnapshot = localProgressRepository.loadSnapshot()
         _playerStats.value = localSnapshot.stats
+        applyCurrentAudioSettings()
         _hasUnlinkedGuestProgress.value = localSnapshot.hasUnlinkedGuestProgress
         if (localSnapshot.localRewards.isNotEmpty()) {
             _rewardHistory.value = localSnapshot.localRewards.map { it.toCloudClaim() }
@@ -491,6 +510,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 _playerStats.value = finalStats
+                applyCurrentAudioSettings()
                 _hasUnlinkedGuestProgress.value = false
                 localProgressRepository.saveSnapshot(
                     LocalProgressSnapshot(
@@ -509,7 +529,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.onFailure { err ->
             _authErrorMessage.value = "Erro ao carregar conta na nuvem: ${err.message}"
-            _authUiState.value = AuthUiState.NeedsNickname(uid, email)
+            _authUiState.value = AuthUiState.SignedOut
+            _cloudSyncStatus.value = "Modo Visitante (Falha na rede ao consultar nuvem)"
         }
     }
 
@@ -534,7 +555,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             _authErrorMessage.value = "Serviço Firebase não inicializado neste ambiente."
             return
         }
-        viewModelScope.launch {
+        authJob?.cancel()
+        authJob = viewModelScope.launch {
             _isAuthBusy.value = true
             _authErrorMessage.value = null
             try {
@@ -543,6 +565,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val user = result.user
                 if (user == null) {
                     _authErrorMessage.value = "Falha ao obter dados do usuário autenticado."
+                    _authUiState.value = AuthUiState.SignedOut
                 } else {
                     loadAuthenticatedAccount(
                         uid = user.uid,
@@ -552,10 +575,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 _authErrorMessage.value = "Falha na autenticação Google: ${e.message}"
+                _authUiState.value = AuthUiState.SignedOut
             } finally {
                 _isAuthBusy.value = false
             }
         }
+    }
+
+    fun cancelPendingAuth() {
+        authJob?.cancel()
+        authJob = null
+        _isAuthBusy.value = false
+        _authErrorMessage.value = null
+        _nicknameAvailability.value = null
+        _authUiState.value = AuthUiState.SignedOut
+        _cloudSyncStatus.value = "Modo Visitante (Salvamento Local)"
     }
 
     fun setAuthError(message: String?) {
@@ -783,6 +817,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun signOut() {
+        authJob?.cancel()
+        authJob = null
+        _isAuthBusy.value = false
         viewModelScope.launch {
             stop()
             stopPreview()
@@ -790,6 +827,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             GoogleSignInHelper.clearCredentials(context)
             val freshGuest = PlayerStats()
             _playerStats.value = freshGuest
+            applyCurrentAudioSettings()
             _hasUnlinkedGuestProgress.value = false
             localProgressRepository.saveSnapshot(
                 LocalProgressSnapshot(
@@ -925,6 +963,424 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             )
         )
         triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    // ---- Estúdio 3D, Loja, Desafios e Presets ----
+
+    fun clearStudioMessages() {
+        _studioActionMessage.value = null
+        _highwayUploadError.value = null
+    }
+
+    fun updateRockerBodyAndSkin(bodyModel: String, skinToneHex: Long) {
+        val current = _playerStats.value
+        _playerStats.value = current.copy(
+            selectedCharacterId = "custom_rocker",
+            studioProfile = current.studioProfile.copy(
+                rockerBodyModel = bodyModel,
+                skinToneHex = skinToneHex
+            )
+        )
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun updateRockerStudioColors(
+        hairColorHex: Long,
+        topColorHex: Long,
+        pantsColorHex: Long,
+        shoesColorHex: Long,
+        accessoryColorHex: Long
+    ) {
+        val current = _playerStats.value
+        _playerStats.value = current.copy(
+            selectedCharacterId = "custom_rocker",
+            customRocker = current.customRocker.copy(hairColorHex = hairColorHex),
+            studioProfile = current.studioProfile.copy(
+                topColorHex = topColorHex,
+                pantsColorHex = pantsColorHex,
+                shoesColorHex = shoesColorHex,
+                accessoryColorHex = accessoryColorHex,
+                fullOutfitSkinId = "outfit_skin_none"
+            )
+        )
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun updateRockerExpression(expression: StagePoseExpression) {
+        val current = _playerStats.value
+        _playerStats.value = current.copy(
+            studioProfile = current.studioProfile.copy(stageExpression = expression)
+        )
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun equipOutfitSkin(skinId: String) {
+        val current = _playerStats.value
+        _playerStats.value = current.copy(
+            selectedCharacterId = "custom_rocker",
+            studioProfile = current.studioProfile.copy(fullOutfitSkinId = skinId)
+        )
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun getInstrumentConfig(stats: PlayerStats, instrument: Instrument): InstrumentCustomConfig {
+        return when (instrument) {
+            Instrument.GUITAR -> stats.studioProfile.guitarConfig
+            Instrument.BASS -> stats.studioProfile.bassConfig
+            Instrument.DRUMS -> stats.studioProfile.drumsConfig
+            Instrument.VOCALS -> stats.studioProfile.vocalConfig
+        }
+    }
+
+    fun updateInstrumentCustomConfig(instrument: Instrument, config: InstrumentCustomConfig) {
+        val studio = _playerStats.value.studioProfile
+        val updatedStudio = when (instrument) {
+            Instrument.GUITAR -> studio.copy(guitarConfig = config)
+            Instrument.BASS -> studio.copy(bassConfig = config)
+            Instrument.DRUMS -> studio.copy(drumsConfig = config)
+            Instrument.VOCALS -> studio.copy(vocalConfig = config)
+        }
+        _playerStats.value = _playerStats.value.copy(studioProfile = updatedStudio)
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun unlockAndEquipCosmetic(item: CosmeticShopItem): Boolean {
+        val current = _playerStats.value
+        val alreadyUnlocked = item.unlockedByDefault || current.unlockedCosmetics.contains(item.id)
+        if (!alreadyUnlocked && current.coins < item.priceCoins) {
+            _studioActionMessage.value = "Moedas insuficientes (${item.priceCoins} LC necessários)."
+            return false
+        }
+        val nextCoins = if (alreadyUnlocked) current.coins else (current.coins - item.priceCoins)
+        val nextUnlocked = (current.unlockedCosmetics + item.id).distinct()
+        val withUnlock = current.copy(coins = nextCoins, unlockedCosmetics = nextUnlocked)
+        _playerStats.value = StudioCatalog.applyCosmeticLook(withUnlock, item.id)
+        soundFx.playUiClick(isConfirm = true)
+        _studioActionMessage.value = if (alreadyUnlocked) {
+            "${item.title} equipado!"
+        } else {
+            "${item.title} desbloqueado e equipado (-${item.priceCoins} LC)!"
+        }
+        triggerBackgroundCloudSync(customizationChanged = true)
+        return true
+    }
+
+    fun unlockHighwayStamp(stamp: HighwayStampItem) {
+        val current = _playerStats.value
+        val unlocked = stamp.unlockedByDefault || current.unlockedCosmetics.contains(stamp.id)
+        if (unlocked) {
+            selectHighwayStamp(stamp.id)
+            return
+        }
+        if (current.coins < stamp.priceCoins) {
+            _studioActionMessage.value = "Moedas insuficientes para esta estampa (${stamp.priceCoins} LC)."
+            return
+        }
+        val studio = current.studioProfile
+        _playerStats.value = current.copy(
+            coins = current.coins - stamp.priceCoins,
+            unlockedCosmetics = (current.unlockedCosmetics + stamp.id).distinct(),
+            studioProfile = studio.copy(
+                highwayConfig = studio.highwayConfig.copy(
+                    selectedStampId = stamp.id,
+                    customImagePath = null
+                )
+            )
+        )
+        soundFx.playUiClick(isConfirm = true)
+        _studioActionMessage.value = "Estampa '${stamp.title}' desbloqueada!"
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun selectHighwayStamp(stampId: String) {
+        val studio = _playerStats.value.studioProfile
+        _playerStats.value = _playerStats.value.copy(
+            studioProfile = studio.copy(
+                highwayConfig = studio.highwayConfig.copy(
+                    selectedStampId = stampId,
+                    customImagePath = null
+                )
+            )
+        )
+        soundFx.playUiClick()
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun updateHighwayStampOpacity(opacity: Float) {
+        val studio = _playerStats.value.studioProfile
+        _playerStats.value = _playerStats.value.copy(
+            studioProfile = studio.copy(
+                highwayConfig = studio.highwayConfig.copy(
+                    stampOpacity = opacity.coerceIn(0.15f, 0.90f)
+                )
+            )
+        )
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun importCustomHighwayImage(uri: Uri) {
+        _highwayUploadError.value = null
+        viewModelScope.launch {
+            val res = highwayImageManager.importAndValidateHighwayImage(uri)
+            res.onSuccess { savedPath ->
+                val studio = _playerStats.value.studioProfile
+                _playerStats.value = _playerStats.value.copy(
+                    studioProfile = studio.copy(
+                        highwayConfig = studio.highwayConfig.copy(
+                            selectedStampId = "stamp_custom",
+                            customImagePath = savedPath
+                        )
+                    )
+                )
+                soundFx.playUiClick(isConfirm = true)
+                _studioActionMessage.value = "Imagem aplicada com segurança à esteira!"
+                triggerBackgroundCloudSync(customizationChanged = true)
+            }.onFailure { err ->
+                _highwayUploadError.value = err.message ?: "Imagem inválida para a esteira."
+            }
+        }
+    }
+
+    fun clearCustomHighwayImage() {
+        val currentPath = _playerStats.value.studioProfile.highwayConfig.customImagePath
+        highwayImageManager.deleteCustomImage(currentPath)
+        val studio = _playerStats.value.studioProfile
+        _playerStats.value = _playerStats.value.copy(
+            studioProfile = studio.copy(
+                highwayConfig = studio.highwayConfig.copy(
+                    selectedStampId = "stamp_none",
+                    customImagePath = null
+                )
+            )
+        )
+        _highwayUploadError.value = null
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun saveAppearancePreset(rawName: String) {
+        val cleanName = rawName.trim().ifBlank { "Visual Palco #${_playerStats.value.studioProfile.savedPresets.size + 1}" }.take(28)
+        val cur = _playerStats.value
+        val studio = cur.studioProfile
+        val preset = AppearancePreset(
+            id = "preset_${UUID.randomUUID().toString().take(8)}",
+            name = cleanName,
+            selectedCharacterId = cur.selectedCharacterId,
+            rockerBodyModel = studio.rockerBodyModel,
+            skinToneHex = studio.skinToneHex,
+            customRocker = cur.customRocker,
+            topColorHex = studio.topColorHex,
+            pantsColorHex = studio.pantsColorHex,
+            shoesColorHex = studio.shoesColorHex,
+            stageExpression = studio.stageExpression,
+            fullOutfitSkinId = studio.fullOutfitSkinId,
+            guitarConfig = studio.guitarConfig,
+            selectedHighwayThemeId = cur.selectedHighwayThemeId,
+            highwayConfig = studio.highwayConfig
+        )
+        val updatedPresets = (listOf(preset) + studio.savedPresets).take(12)
+        _playerStats.value = cur.copy(
+            studioProfile = studio.copy(savedPresets = updatedPresets)
+        )
+        soundFx.playUiClick(isConfirm = true)
+        _studioActionMessage.value = "Preset '$cleanName' salvo!"
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun applyAppearancePreset(presetId: String) {
+        val cur = _playerStats.value
+        val preset = cur.studioProfile.savedPresets.find { it.id == presetId } ?: return
+        _playerStats.value = cur.copy(
+            selectedCharacterId = preset.selectedCharacterId,
+            customRocker = preset.customRocker,
+            selectedHighwayThemeId = preset.selectedHighwayThemeId,
+            studioProfile = cur.studioProfile.copy(
+                rockerBodyModel = preset.rockerBodyModel,
+                skinToneHex = preset.skinToneHex,
+                topColorHex = preset.topColorHex,
+                pantsColorHex = preset.pantsColorHex,
+                shoesColorHex = preset.shoesColorHex,
+                stageExpression = preset.stageExpression,
+                fullOutfitSkinId = preset.fullOutfitSkinId,
+                guitarConfig = preset.guitarConfig,
+                highwayConfig = preset.highwayConfig
+            )
+        )
+        soundFx.playUiClick(isConfirm = true)
+        _studioActionMessage.value = "Preset '${preset.name}' aplicado!"
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun deleteAppearancePreset(presetId: String) {
+        val cur = _playerStats.value
+        val updated = cur.studioProfile.savedPresets.filterNot { it.id == presetId }
+        _playerStats.value = cur.copy(
+            studioProfile = cur.studioProfile.copy(savedPresets = updated)
+        )
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun claimChallengeReward(challenge: ChallengeItem) {
+        val cur = _playerStats.value
+        if (cur.studioProfile.claimedChallenges.contains(challenge.id)) return
+        val progress = challenge.progressProvider(cur)
+        if (progress < challenge.targetValue) {
+            _studioActionMessage.value = "Progresso insuficiente: $progress/${challenge.targetValue}"
+            return
+        }
+        val updatedClaimed = (cur.studioProfile.claimedChallenges + challenge.id).distinct()
+        _playerStats.value = cur.copy(
+            coins = cur.coins + challenge.rewardCoins,
+            studioProfile = cur.studioProfile.copy(claimedChallenges = updatedClaimed)
+        )
+        soundFx.playUiClick(isConfirm = true)
+        _studioActionMessage.value = "Desafio '${challenge.title}' resgatado: +${challenge.rewardCoins} LC!"
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    // ---- Mixer de Áudio & Volume ----
+
+    private fun applyCurrentAudioSettings() {
+        val audio = _playerStats.value.studioProfile.audioSettings
+        audioPlayer.applyAudioSettings(audio)
+        soundFx.applyAudioSettings(audio)
+    }
+
+    fun updateAudioSettings(settings: AudioSettings) {
+        val clamped = settings.copy(
+            masterVolume = settings.masterVolume.coerceIn(0f, 1f),
+            musicVolume = settings.musicVolume.coerceIn(0f, 1f),
+            gameplaySfxVolume = settings.gameplaySfxVolume.coerceIn(0f, 1f),
+            uiSfxVolume = settings.uiSfxVolume.coerceIn(0f, 1f),
+            stageFxVolume = settings.stageFxVolume.coerceIn(0f, 1f)
+        )
+        _playerStats.value = _playerStats.value.copy(
+            studioProfile = _playerStats.value.studioProfile.copy(audioSettings = clamped)
+        )
+        applyCurrentAudioSettings()
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun toggleMuteAudio() {
+        val current = _playerStats.value.studioProfile.audioSettings
+        updateAudioSettings(current.copy(isMuted = !current.isMuted))
+    }
+
+    fun previewAudioMixer() {
+        applyCurrentAudioSettings()
+        soundFx.playMixerPreview()
+    }
+
+    fun resetAudioSettings() {
+        updateAudioSettings(AudioSettings())
+        soundFx.playUiClick(isConfirm = true)
+    }
+
+    fun playUiClick(isConfirm: Boolean = false) {
+        soundFx.playUiClick(isConfirm)
+    }
+
+    // ---- Controle Bluetooth / DualShock 4 & Remapeamento ----
+
+    fun updateControllerSettings(settings: ControllerSettings) {
+        _playerStats.value = _playerStats.value.copy(
+            studioProfile = _playerStats.value.studioProfile.copy(controllerSettings = settings)
+        )
+        triggerBackgroundCloudSync(customizationChanged = true)
+    }
+
+    fun assignControllerLaneKey(laneIndex: Int, keyCode: Int) {
+        if (laneIndex !in 0..4) return
+        val cur = _playerStats.value.studioProfile.controllerSettings
+        val mutable = cur.laneKeyCodes.toMutableList()
+        while (mutable.size < 5) mutable.add(ControllerSettings.DEFAULT_PS4_LANE_KEYCODES[mutable.size])
+        mutable[laneIndex] = keyCode
+        updateControllerSettings(cur.copy(laneKeyCodes = mutable.take(5)))
+        gamepadManager.stopKeyCapture()
+        soundFx.playUiClick(isConfirm = true)
+    }
+
+    fun assignControllerActionKey(action: String, keyCode: Int) {
+        val cur = _playerStats.value.studioProfile.controllerSettings
+        val next = when (action) {
+            "pause" -> cur.copy(pauseKeyCode = keyCode)
+            "star_power" -> cur.copy(starPowerKeyCode = keyCode)
+            "strum" -> cur.copy(strumKeyCode = keyCode)
+            else -> cur
+        }
+        updateControllerSettings(next)
+        gamepadManager.stopKeyCapture()
+        soundFx.playUiClick(isConfirm = true)
+    }
+
+    fun applyDualShock4DefaultPreset() {
+        val cur = _playerStats.value.studioProfile.controllerSettings
+        updateControllerSettings(
+            cur.copy(
+                enabled = true,
+                laneKeyCodes = ControllerSettings.DEFAULT_PS4_LANE_KEYCODES,
+                pauseKeyCode = KeyEvent.KEYCODE_BUTTON_START,
+                starPowerKeyCode = KeyEvent.KEYCODE_BUTTON_Y,
+                strumKeyCode = KeyEvent.KEYCODE_DPAD_DOWN,
+                useAnalogTriggers = true
+            )
+        )
+        soundFx.playUiClick(isConfirm = true)
+    }
+
+    fun applyFaceButtonsControllerPreset() {
+        val cur = _playerStats.value.studioProfile.controllerSettings
+        updateControllerSettings(
+            cur.copy(
+                enabled = true,
+                laneKeyCodes = ControllerSettings.FACE_BUTTONS_PRESET,
+                pauseKeyCode = KeyEvent.KEYCODE_BUTTON_START,
+                starPowerKeyCode = KeyEvent.KEYCODE_BUTTON_L1,
+                strumKeyCode = KeyEvent.KEYCODE_DPAD_DOWN
+            )
+        )
+        soundFx.playUiClick(isConfirm = true)
+    }
+
+    fun startGamepadKeyCapture() {
+        gamepadManager.startKeyCapture()
+    }
+
+    fun stopGamepadKeyCapture() {
+        gamepadManager.stopKeyCapture()
+    }
+
+    fun refreshGamepadConnection() {
+        gamepadManager.refreshConnectedDevices()
+    }
+
+    fun onHardwareKeyEvent(event: KeyEvent): Boolean {
+        return gamepadManager.handleKeyEvent(
+            event = event,
+            settings = _playerStats.value.studioProfile.controllerSettings,
+            isGameplayScreen = (_currentScreen.value is GameScreen.Gameplay),
+            isPaused = _isPaused.value,
+            onLaneDown = { lane -> onFretDown(lane) },
+            onLaneUp = { lane -> onFretUp(lane) },
+            onStrum = { onStrumBar() },
+            onStarPower = { activateStarPower() },
+            onTogglePause = { togglePause() },
+            onMenuBack = {
+                if (_currentScreen.value !is GameScreen.MainMenu && _currentScreen.value !is GameScreen.Splash) {
+                    navigateBack()
+                }
+            }
+        )
+    }
+
+    fun onHardwareMotionEvent(event: MotionEvent): Boolean {
+        return gamepadManager.handleMotionEvent(
+            event = event,
+            settings = _playerStats.value.studioProfile.controllerSettings,
+            isGameplayScreen = (_currentScreen.value is GameScreen.Gameplay),
+            isPaused = _isPaused.value,
+            onLaneDown = { lane -> onFretDown(lane) },
+            onLaneUp = { lane -> onFretUp(lane) }
+        )
     }
 
     fun navigateTo(screen: GameScreen, pushStack: Boolean = true) {
@@ -1357,6 +1813,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             _isPaused.value = true
             audioPlayer.pause()
+            gamepadManager.releaseAllActiveLanes { lane ->
+                _activeFretLanes.value = _activeFretLanes.value - lane
+            }
         }
     }
 
@@ -1366,6 +1825,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun finishMatch(failed: Boolean = false) {
+        gamepadManager.releaseAllActiveLanes { lane ->
+            _activeFretLanes.value = _activeFretLanes.value - lane
+        }
         audioPlayer.stop()
         gameLoopJob?.cancel()
 
@@ -1538,6 +2000,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stop() {
+        gamepadManager.releaseAllActiveLanes { lane ->
+            _activeFretLanes.value = _activeFretLanes.value - lane
+        }
         audioPlayer.stop()
         gameLoopJob?.cancel()
         previewProgressJob?.cancel()
@@ -1546,5 +2011,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         audioPlayer.release()
+        gamepadManager.release()
     }
 }

@@ -1,26 +1,22 @@
 package com.example.guitarlegends.ui.screens
 
-import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -286,476 +282,6 @@ fun BandSlot(name: String, player: String, color: Color, isReady: Boolean, modif
 }
 
 @Composable
-fun CustomizationScreen(viewModel: GameViewModel) {
-    BackHandler {
-        viewModel.navigateBack()
-    }
-    val stats by viewModel.playerStats.collectAsState()
-    var selectedCategory by remember { mutableStateOf(0) } // 0 = Criador & Foto, 1 = Roupas, 2 = Instrumentos, 3 = Esteiras
-    var instrumentTab by remember { mutableStateOf(Instrument.GUITAR) }
-
-    // Zero-permission native Android Photo Picker (Google Play compliant)
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            viewModel.updateCustomRockerPhoto(uri.toString())
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(RockPurpleBg)
-    ) {
-        TopStatusBar(
-            coins = stats.coins,
-            stars = stats.unlockedStars,
-            onBackClick = { viewModel.navigateBack() },
-            title = "Estúdio de Criação & Customização Lendária"
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
-        ) {
-            // Left Character / Instrument Preview Pane
-            Card(
-                modifier = Modifier
-                    .weight(0.85f)
-                    .fillMaxHeight(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = RockDarkCard),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.verticalGradient(listOf(RockAccentGold, RockCardBorder))
-                )
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.rocker_character_1794455529519),
-                        contentDescription = "Rocker Avatar",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color.Transparent, Color(0xAA0F081D), Color(0xFA0F081D))
-                                )
-                            )
-                    )
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Top Style Badge
-                        Surface(
-                            color = Color(stats.customRocker.artStyle.badgeColorHex),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = stats.customRocker.artStyle.displayName.uppercase(),
-                                color = Color.Black,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 9.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
-                        }
-
-                        // Bottom Equipped Rocker Info & Photo Button
-                        Column {
-                            Text(
-                                text = "ROCKSTAR ATUAL",
-                                color = RockAccentCyan,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 10.sp
-                            )
-                            Text(
-                                text = if (stats.selectedCharacterId == "custom_rocker") "Meu Rocker Personalizado"
-                                else viewModel.characters.find { it.id == stats.selectedCharacterId }?.name ?: "Axel Shredder",
-                                color = Color.White,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 18.sp,
-                                maxLines = 1
-                            )
-                            Text(
-                                text = "Instrumento: ${viewModel.guitars.find { it.id == stats.selectedGuitarId }?.name ?: "Flame Caster"}",
-                                color = RockAccentGold,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Esteira: ${viewModel.highwayThemes.find { it.id == stats.selectedHighwayThemeId }?.title ?: "PS2 Clássico"}",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 9.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Button(
-                                onClick = {
-                                    photoPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan),
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                                modifier = Modifier.fillMaxWidth().testTag("pick_photo_rocker_button")
-                            ) {
-                                Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("CRIAR COM FOTO DO CELULAR", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 9.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(14.dp))
-
-            // Right Customization Center with 4 Tabs
-            Column(
-                modifier = Modifier
-                    .weight(1.35f)
-                    .fillMaxHeight()
-            ) {
-                // Main Category Switcher (4 Tabs)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val tabs = listOf("PERSONAGENS & FOTO", "ROUPAS & VISUAL", "INSTRUMENTOS", "ESTEIRAS PS2")
-                    tabs.forEachIndexed { index, label ->
-                        Button(
-                            onClick = { selectedCategory = index },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (selectedCategory == index) RockAccentGold else RockDarkCard,
-                                contentColor = if (selectedCategory == index) Color.Black else Color.White
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                            modifier = Modifier.weight(1f).testTag("custom_tab_$index")
-                        ) {
-                            Text(label, fontWeight = FontWeight.Black, fontSize = 9.sp, maxLines = 1)
-                        }
-                    }
-                }
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    when (selectedCategory) {
-                        0 -> {
-                            // TAB 0: CRIAÇÃO POR FOTOGRAFIA & PERSONAGENS
-                            item {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = RockDarkCard),
-                                    shape = RoundedCornerShape(14.dp),
-                                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                                        brush = Brush.horizontalGradient(listOf(RockAccentCyan, RockCardBorder))
-                                    )
-                                ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(
-                                            text = "1. MODALIDADE DE CRIAÇÃO POR FOTO",
-                                            color = RockAccentCyan,
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 12.sp
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            for (method in CharacterCreationMethod.values()) {
-                                                val isSelected = stats.customRocker.creationMethod == method
-                                                Surface(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .clickable { viewModel.updateCustomRockerMethod(method) },
-                                                    color = if (isSelected) RockAccentCyan.copy(alpha = 0.25f) else Color(0x18FFFFFF),
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    border = if (isSelected) ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(RockAccentCyan, Color.White))) else null
-                                                ) {
-                                                    Column(modifier = Modifier.padding(8.dp)) {
-                                                        Text(method.label, color = if (isSelected) RockAccentCyan else Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp)
-                                                        Text(method.description, color = Color.White.copy(alpha = 0.7f), fontSize = 8.sp, lineHeight = 11.sp)
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(10.dp))
-                                        Text(
-                                            text = "2. ESCOLHA O ESTILO VISUAL DE INTERPRETAÇÃO 3D",
-                                            color = RockAccentGold,
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 12.sp
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            for (artStyle in CharacterArtStyle.values()) {
-                                                val isSelected = stats.customRocker.artStyle == artStyle
-                                                Surface(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .clickable { viewModel.updateCustomRockerStyle(artStyle) },
-                                                    color = if (isSelected) Color(artStyle.badgeColorHex).copy(alpha = 0.25f) else Color(0x18FFFFFF),
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    border = if (isSelected) ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(Color(artStyle.badgeColorHex), Color.White))) else null
-                                                ) {
-                                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                                        Text(artStyle.displayName, color = Color(artStyle.badgeColorHex), fontWeight = FontWeight.Black, fontSize = 10.sp, textAlign = TextAlign.Center)
-                                                        Text(artStyle.eraDescription, color = Color.White.copy(alpha = 0.7f), fontSize = 8.sp, textAlign = TextAlign.Center, lineHeight = 11.sp)
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(10.dp))
-                                        Button(
-                                            onClick = { viewModel.equipCharacter("custom_rocker") },
-                                            colors = ButtonDefaults.buttonColors(containerColor = RockAccentGreen),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.fillMaxWidth().testTag("equip_custom_rocker_button")
-                                        ) {
-                                            Text("EQUIPAR MEU ROCKER CRIADO", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                        }
-                                    }
-                                }
-                            }
-
-                            item {
-                                Text("OU ESCOLHA INTEGRANTES CLÁSSICOS", color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(vertical = 4.dp))
-                            }
-
-                            items(viewModel.characters) { char ->
-                                val isEquipped = stats.selectedCharacterId == char.id
-                                val isUnlocked = viewModel.isCosmeticUnlocked(char.id, char.isUnlocked)
-                                Card(
-                                    modifier = Modifier.fillMaxWidth().testTag("character_item_${char.id}"),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(containerColor = if (isEquipped) Color(0xFF2E174D) else RockDarkCard),
-                                    border = if (isEquipped) ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(RockAccentGold, RockAccentRed))) else null
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(text = char.name, color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                                            Text(text = "${char.style} • ${char.outfitName}", color = RockAccentGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                            Text(text = char.bio, color = Color.White.copy(alpha = 0.6f), fontSize = 9.sp)
-                                        }
-                                        if (isEquipped) {
-                                            Text(text = "✔ EQUIPADO", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                        } else if (isUnlocked || stats.coins >= char.priceCoins) {
-                                            Button(
-                                                onClick = {
-                                                    if (isUnlocked) viewModel.equipCharacter(char.id)
-                                                    else viewModel.unlockCharacter(char.id, char.priceCoins)
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = if (isUnlocked) RockAccentCyan else RockAccentGold),
-                                                shape = RoundedCornerShape(8.dp),
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                            ) {
-                                                Text(
-                                                    if (isUnlocked) "EQUIPAR" else "DESBLOQUEAR (${char.priceCoins} LC)",
-                                                    color = Color.Black,
-                                                    fontWeight = FontWeight.Black,
-                                                    fontSize = 10.sp
-                                                )
-                                            }
-                                        } else {
-                                            Text(text = "🪙 ${char.priceCoins} LC", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        1 -> {
-                            // TAB 1: ROUPAS & ACESSÓRIOS
-                            item {
-                                val current = stats.customRocker
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = RockDarkCard),
-                                    shape = RoundedCornerShape(14.dp)
-                                ) {
-                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("GUARDA-ROUPA & ACESSÓRIOS DO ROCK", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 12.sp)
-
-                                        OutfitRow("Cabelo", current.hairStyle, listOf("Moicano Punk Clássico", "Metalhead Longo", "Glam Rock Desfiado", "Dreads Rocker")) {
-                                            viewModel.updateCustomRockerAppearance(it, current.topClothing, current.pantsClothing, current.shoesClothing, current.accessories, current.bodyTattoos)
-                                        }
-                                        OutfitRow("Jaqueta / Tronco", current.topClothing, listOf("Jaqueta de Couro c/ Rebites", "Colete Jeans c/ Patches", "Camiseta Band Vintage", "Regata Rasgada")) {
-                                            viewModel.updateCustomRockerAppearance(current.hairStyle, it, current.pantsClothing, current.shoesClothing, current.accessories, current.bodyTattoos)
-                                        }
-                                        OutfitRow("Calça", current.pantsClothing, listOf("Calça Jeans Rasgada", "Calça de Couro Preto", "Calça Xadrez Punk", "Bermuda Cargo Metal")) {
-                                            viewModel.updateCustomRockerAppearance(current.hairStyle, current.topClothing, it, current.shoesClothing, current.accessories, current.bodyTattoos)
-                                        }
-                                        OutfitRow("Calçado", current.shoesClothing, listOf("Coturnos de Couro Pesado", "Tênis Skate Cano Alto", "Botas de Motociclista", "Coturnos Militares")) {
-                                            viewModel.updateCustomRockerAppearance(current.hairStyle, current.topClothing, current.pantsClothing, it, current.accessories, current.bodyTattoos)
-                                        }
-                                        OutfitRow("Acessórios", current.accessories, listOf("Munhequeiras c/ Espinhos & Óculos Aviador", "Correntes & Piercings", "Faixa de Cabeça & Bracelete", "Óculos Neon Holográficos")) {
-                                            viewModel.updateCustomRockerAppearance(current.hairStyle, current.topClothing, current.pantsClothing, current.shoesClothing, it, current.bodyTattoos)
-                                        }
-                                        OutfitRow("Tatuagens & Arte", current.bodyTattoos, listOf("Tatuagem Tribal e Chamas", "Caveiras nos Braços", "Maquiagem Gótica Clássica", "Sem Tatuagens")) {
-                                            viewModel.updateCustomRockerAppearance(current.hairStyle, current.topClothing, current.pantsClothing, current.shoesClothing, current.accessories, it)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        2 -> {
-                            // TAB 2: INSTRUMENTOS DA BANDA (GUITARRA, BAIXO, BATERIA, VOCAL)
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    for (inst in Instrument.values()) {
-                                        val isSelected = instrumentTab == inst
-                                        Button(
-                                            onClick = { instrumentTab = inst },
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = if (isSelected) RockAccentCyan else Color(0x22FFFFFF),
-                                                contentColor = if (isSelected) Color.Black else Color.White
-                                            ),
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(inst.displayName.split(" ")[0].uppercase(), fontWeight = FontWeight.Black, fontSize = 9.sp)
-                                        }
-                                    }
-                                }
-                            }
-
-                            val gearList = when (instrumentTab) {
-                                Instrument.GUITAR -> viewModel.guitars.map {
-                                    InstrumentGear(it.id, Instrument.GUITAR, it.name, it.type, it.colorHex, it.priceCoins, it.isUnlocked, it.description)
-                                }
-                                Instrument.BASS -> viewModel.basses
-                                Instrument.DRUMS -> viewModel.drums
-                                Instrument.VOCALS -> viewModel.vocalMics
-                            }
-
-                            val equippedId = when (instrumentTab) {
-                                Instrument.GUITAR -> stats.selectedGuitarId
-                                Instrument.BASS -> stats.selectedBassId
-                                Instrument.DRUMS -> stats.selectedDrumsId
-                                Instrument.VOCALS -> stats.selectedVocalMicId
-                            }
-
-                            items(gearList) { gear ->
-                                val isEquipped = equippedId == gear.id
-                                val unlocked = viewModel.isCosmeticUnlocked(gear.id, gear.isUnlocked)
-                                Card(
-                                    modifier = Modifier.fillMaxWidth().testTag("gear_item_${gear.id}"),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(containerColor = if (isEquipped) Color(0xFF2E174D) else RockDarkCard),
-                                    border = if (isEquipped) ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(RockAccentCyan, RockAccentGold))) else null
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(text = gear.name, color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                                            Text(text = gear.modelStyle, color = Color(gear.colorHex), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                            Text(text = gear.description, color = Color.White.copy(alpha = 0.6f), fontSize = 9.sp)
-                                        }
-                                        if (isEquipped) {
-                                            Text(text = "✔ EQUIPADO", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                        } else if (unlocked || stats.coins >= gear.priceCoins) {
-                                            Button(
-                                                onClick = {
-                                                    if (unlocked) viewModel.selectGear(gear.instrumentType, gear.id)
-                                                    else viewModel.unlockGear(gear.instrumentType, gear.id, gear.priceCoins)
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = if (unlocked) RockAccentCyan else RockAccentGold),
-                                                shape = RoundedCornerShape(8.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                                            ) {
-                                                Text(if (unlocked) "EQUIPAR" else "COMPRAR (${gear.priceCoins} LC)", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
-                                            }
-                                        } else {
-                                            Text(text = "🪙 ${gear.priceCoins} LC", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        3 -> {
-                            // TAB 3: ESTEIRAS DE NOTAS (HIGHWAY THEMES)
-                            items(viewModel.highwayThemes) { theme ->
-                                val isEquipped = stats.selectedHighwayThemeId == theme.id
-                                Card(
-                                    modifier = Modifier.fillMaxWidth().testTag("theme_item_${theme.id}"),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(containerColor = if (isEquipped) Color(0xFF2E174D) else RockDarkCard),
-                                    border = if (isEquipped) ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(RockAccentGold, RockAccentCyan))) else null
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Surface(
-                                                    color = Color(theme.primaryColorHex),
-                                                    shape = CircleShape,
-                                                    modifier = Modifier.size(12.dp)
-                                                ) {}
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(text = theme.title, color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                                            }
-                                            Text(text = theme.description, color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
-                                        }
-                                        if (isEquipped) {
-                                            Text(text = "✔ ATIVA NO PALCO", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                        } else {
-                                            Button(
-                                                onClick = { viewModel.equipHighwayTheme(theme.id) },
-                                                colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan),
-                                                shape = RoundedCornerShape(8.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                                            ) {
-                                                Text("EQUIPAR", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun OutfitRow(label: String, selectedOption: String, options: List<String>, onSelect: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = label.uppercase(), color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -887,13 +413,36 @@ fun StatRow(label: String, value: String) {
 @Composable
 fun SettingsScreen(viewModel: GameViewModel) {
     BackHandler {
+        viewModel.stopGamepadKeyCapture()
         viewModel.navigateBack()
     }
     val stats by viewModel.playerStats.collectAsState()
     val updateStatus by viewModel.updateStatus.collectAsState()
     val releases by viewModel.releasesCatalog.collectAsState()
-    var latency by remember { mutableStateOf(stats.audioLatencyOffsetMs.toFloat()) }
+    val controllerInfo by viewModel.controllerInfo.collectAsState()
+    val capturedKeyCode by viewModel.lastCapturedKeyCode.collectAsState()
+
+    val audio = stats.studioProfile.audioSettings
+    val ctrl = stats.studioProfile.controllerSettings
+
+    var latency by remember(stats.audioLatencyOffsetMs) { mutableStateOf(stats.audioLatencyOffsetMs.toFloat()) }
     var showChangelogModal by remember { mutableStateOf(false) }
+    var captureTarget by remember { mutableStateOf<String?>(null) } // "lane_0".."lane_4", "pause", "star_power", "strum"
+
+    LaunchedEffect(capturedKeyCode, captureTarget) {
+        val code = capturedKeyCode
+        val target = captureTarget
+        if (code != null && target != null) {
+            when {
+                target.startsWith("lane_") -> {
+                    val idx = target.removePrefix("lane_").toIntOrNull()
+                    if (idx != null) viewModel.assignControllerLaneKey(idx, code)
+                }
+                else -> viewModel.assignControllerActionKey(target, code)
+            }
+            captureTarget = null
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -903,196 +452,407 @@ fun SettingsScreen(viewModel: GameViewModel) {
         TopStatusBar(
             coins = stats.coins,
             stars = stats.unlockedStars,
-            onBackClick = { viewModel.navigateBack() },
-            title = "Configurações, Calibração & Versão"
+            onBackClick = {
+                viewModel.stopGamepadKeyCapture()
+                viewModel.navigateBack()
+            },
+            title = "Configurações: Áudio, Controle PS4, Calibração & Versão"
         )
 
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Audio Latency & Calibration
+            // Painel Esquerdo: Mixer Completo de Áudio + Latência + Modo de Controle + Conta
             Card(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = RockDarkCard),
                 border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.verticalGradient(listOf(RockAccentCyan, RockCardBorder)))
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(text = "CALIBRAÇÃO DE LATÊNCIA DE ÁUDIO", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                        Text(text = "Ajuste o atraso entre o som do fone/alto-falante e o toque na esteira.", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(text = "Offset: ${latency.toInt()} ms", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                        Slider(
-                            value = latency,
-                            onValueChange = {
-                                latency = it
-                                viewModel.setLatencyOffset(it.toLong())
-                            },
-                            valueRange = -100f..150f,
-                            colors = SliderDefaults.colors(thumbColor = RockAccentCyan, activeTrackColor = RockAccentCyan),
-                            modifier = Modifier.testTag("latency_slider")
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(text = "MODO DE CONTROLES", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "MIXER DE ÁUDIO E VOLUME", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Button(
-                                onClick = { viewModel.setControlMode(ControlMode.DIRECT_TOUCH) },
+                                onClick = { viewModel.toggleMuteAudio() },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (stats.controlMode == ControlMode.DIRECT_TOUCH) RockAccentGreen else Color(0x33FFFFFF)
+                                    containerColor = if (audio.isMuted) RockAccentRed else Color(0x33FFFFFF)
                                 ),
                                 shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f).testTag("ctrl_direct_touch")
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(28.dp).testTag("audio_mute_button")
                             ) {
-                                Text("TOQUE DIRETO", color = if (stats.controlMode == ControlMode.DIRECT_TOUCH) Color.Black else Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                Text(
+                                    text = if (audio.isMuted) "MUDO ON" else "SILENCIAR",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 8.sp
+                                )
                             }
                             Button(
-                                onClick = { viewModel.setControlMode(ControlMode.FRET_AND_STRUM) },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (stats.controlMode == ControlMode.FRET_AND_STRUM) RockAccentGold else Color(0x33FFFFFF)
-                                ),
+                                onClick = { viewModel.previewAudioMixer() },
+                                colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
                                 shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f).testTag("ctrl_fret_strum")
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(28.dp).testTag("audio_preview_button")
                             ) {
-                                Text("TRASTE + PALHETA", color = if (stats.controlMode == ControlMode.FRET_AND_STRUM) Color.Black else Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                Text("TESTAR", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 8.sp)
+                            }
+                            OutlinedButton(
+                                onClick = { viewModel.resetAudioSettings() },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(28.dp).testTag("audio_reset_button")
+                            ) {
+                                Text("PADRÃO", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp)
                             }
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedButton(
-                            onClick = { viewModel.navigateTo(GameScreen.Profile) },
-                            shape = RoundedCornerShape(10.dp),
-                            border = ButtonDefaults.outlinedButtonBorder.copy(
-                                brush = Brush.horizontalGradient(listOf(RockAccentCyan, RockAccentGold))
+                    VolumeMixerSlider("Volume Geral (Master)", audio.masterVolume, "audio_slider_master") {
+                        viewModel.updateAudioSettings(audio.copy(masterVolume = it))
+                    }
+                    VolumeMixerSlider("Volume das Músicas", audio.musicVolume, "audio_slider_music") {
+                        viewModel.updateAudioSettings(audio.copy(musicVolume = it))
+                    }
+                    VolumeMixerSlider("Efeitos de Gameplay (Notas/Baqueta)", audio.gameplaySfxVolume, "audio_slider_gameplay_sfx") {
+                        viewModel.updateAudioSettings(audio.copy(gameplaySfxVolume = it))
+                    }
+                    VolumeMixerSlider("Efeitos de Interface & Menus", audio.uiSfxVolume, "audio_slider_ui_sfx") {
+                        viewModel.updateAudioSettings(audio.copy(uiSfxVolume = it))
+                    }
+                    VolumeMixerSlider("Ambiente, Público & Palco", audio.stageFxVolume, "audio_slider_stage_fx") {
+                        viewModel.updateAudioSettings(audio.copy(stageFxVolume = it))
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+                    Text(text = "CALIBRAÇÃO DE LATÊNCIA: ${latency.toInt()} ms", color = Color.White, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                    Slider(
+                        value = latency,
+                        onValueChange = {
+                            latency = it
+                            viewModel.setLatencyOffset(it.toLong())
+                        },
+                        valueRange = -100f..150f,
+                        colors = SliderDefaults.colors(thumbColor = RockAccentCyan, activeTrackColor = RockAccentCyan),
+                        modifier = Modifier.testTag("latency_slider")
+                    )
+
+                    Text(text = "MODO DE CONTROLE NA TELA", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { viewModel.setControlMode(ControlMode.DIRECT_TOUCH) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (stats.controlMode == ControlMode.DIRECT_TOUCH) RockAccentGreen else Color(0x33FFFFFF)
                             ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("settings_my_account_button")
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).testTag("ctrl_direct_touch")
                         ) {
-                            Icon(Icons.Default.AccountCircle, contentDescription = null, tint = RockAccentCyan, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "MINHA CONTA (LOGIN OPCIONAL / VISITANTE)",
-                                color = RockAccentCyan,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 10.sp
-                            )
+                            Text("TOQUE DIRETO", color = if (stats.controlMode == ControlMode.DIRECT_TOUCH) Color.Black else Color.White, fontWeight = FontWeight.Black, fontSize = 9.sp)
                         }
-                        Text(
-                            text = "Esquema Local v${stats.schemaVersion} • Otimizado para Android",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 9.sp
-                        )
+                        Button(
+                            onClick = { viewModel.setControlMode(ControlMode.FRET_AND_STRUM) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (stats.controlMode == ControlMode.FRET_AND_STRUM) RockAccentGold else Color(0x33FFFFFF)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).testTag("ctrl_fret_strum")
+                        ) {
+                            Text("TRASTE + PALHETA", color = if (stats.controlMode == ControlMode.FRET_AND_STRUM) Color.Black else Color.White, fontWeight = FontWeight.Black, fontSize = 9.sp)
+                        }
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.navigateTo(GameScreen.Profile) },
+                        shape = RoundedCornerShape(10.dp),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            brush = Brush.horizontalGradient(listOf(RockAccentCyan, RockAccentGold))
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("settings_my_account_button")
+                    ) {
+                        Icon(Icons.Default.AccountCircle, contentDescription = null, tint = RockAccentCyan, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("MINHA CONTA (VISITANTE / GOOGLE)", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 9.sp)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Graphics & Version Updates Panel
+            // Painel Direito: Controle Bluetooth / DualShock 4 + Gráficos + Atualizações
             Card(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = RockDarkCard),
                 border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.verticalGradient(listOf(RockAccentGold, RockCardBorder)))
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(text = "GRÁFICOS & ATUALIZAÇÕES", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                    // Seção Controle Bluetooth / PS4
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "CONTROLE BLUETOOTH / DUALSHOCK 4", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                        Switch(
+                            checked = ctrl.enabled,
+                            onCheckedChange = { viewModel.updateControllerSettings(ctrl.copy(enabled = it)) },
+                            modifier = Modifier.testTag("controller_enable_switch")
+                        )
+                    }
 
-                        GraphicsQuality.values().forEach { gq ->
-                            val isSel = stats.graphicsQuality == gq
-                            Card(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable { viewModel.setGraphicsQuality(gq) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = CardDefaults.cardColors(containerColor = if (isSel) Color(0xFF2F1B4E) else Color(0x22FFFFFF))
+                    Surface(
+                        color = if (controllerInfo.isConnected) RockAccentGreen.copy(alpha = 0.2f) else Color(0x18FFFFFF),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth().testTag("controller_status_badge")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = controllerInfo.statusMessage,
+                                color = if (controllerInfo.isConnected) RockAccentGreen else Color.White.copy(alpha = 0.8f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                onClick = { viewModel.refreshGamepadConnection() },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                                modifier = Modifier.height(26.dp)
                             ) {
-                                Text(
-                                    text = "${gq.label} ${if (isSel) "✔" else ""}",
-                                    color = if (isSel) RockAccentGold else Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
+                                Text("ATUALIZAR", color = RockAccentCyan, fontSize = 8.sp, fontWeight = FontWeight.Black)
                             }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Button(
+                            onClick = { viewModel.applyDualShock4DefaultPreset() },
+                            colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f).height(30.dp).testTag("preset_ps4_button")
+                        ) {
+                            Text("PADRÃO PS4 (L2/L1/R1/R2/✕)", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
+                        }
+                        Button(
+                            onClick = { viewModel.applyFaceButtonsControllerPreset() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f).height(30.dp).testTag("preset_face_button")
+                        ) {
+                            Text("BOTÕES (□/△/○/✕/R1)", color = Color.White, fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
+                        }
+                    }
 
-                        // Painel de Versão & Atualizações
+                    if (captureTarget != null) {
                         Surface(
-                            color = Color(0x18FFFFFF),
-                            shape = RoundedCornerShape(10.dp),
+                            color = RockAccentGold.copy(alpha = 0.25f),
+                            shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
                                 Text(
-                                    text = "VERSÃO INSTALADA: v${viewModel.updateManager.installedVersionName} (Build ${viewModel.updateManager.installedVersionCode})",
-                                    color = Color.White,
+                                    text = "Pressione o botão desejado no seu controle agora...",
+                                    color = RockAccentGold,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 10.sp
+                                    modifier = Modifier.weight(1f)
                                 )
-                                val statusLabel = when (val st = updateStatus) {
-                                    is com.example.guitarlegends.data.UpdateCheckStatus.Idle -> "Toque para verificar novas versões."
-                                    is com.example.guitarlegends.data.UpdateCheckStatus.Checking -> "Verificando servidor oficial..."
-                                    is com.example.guitarlegends.data.UpdateCheckStatus.UpToDate -> "✔ Atualizado (${st.installedVersion})"
-                                    is com.example.guitarlegends.data.UpdateCheckStatus.UpdateAvailable ->
-                                        "🔔 Nova versão ${st.latestRelease.versionName} disponível!"
-                                    is com.example.guitarlegends.data.UpdateCheckStatus.Error -> "⚠ ${st.message}"
-                                }
-                                Text(
-                                    text = statusLabel,
-                                    color = if (updateStatus is com.example.guitarlegends.data.UpdateCheckStatus.UpdateAvailable) RockAccentGold else RockAccentCyan,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Button(
-                                        onClick = { viewModel.checkForUpdates(silent = false) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan),
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        modifier = Modifier.weight(1f).testTag("settings_check_updates_button")
-                                    ) {
-                                        Text("VERIFICAR ATUALIZAÇÕES", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
-                                    }
-                                    Button(
-                                        onClick = { showChangelogModal = true },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        modifier = Modifier.testTag("settings_changelog_button")
-                                    ) {
-                                        Text("NOTAS DE VERSÃO", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, maxLines = 1)
-                                    }
-                                }
-                                if (updateStatus is com.example.guitarlegends.data.UpdateCheckStatus.UpdateAvailable) {
-                                    Button(
-                                        onClick = { viewModel.launchOfficialUpdate() },
-                                        colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        modifier = Modifier.fillMaxWidth().testTag("settings_launch_update_button")
-                                    ) {
-                                        Text("ABRIR CANAL OFICIAL DE ATUALIZAÇÃO ▶", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 8.sp)
-                                    }
+                                TextButton(onClick = {
+                                    captureTarget = null
+                                    viewModel.stopGamepadKeyCapture()
+                                }) {
+                                    Text("CANCELAR", color = Color.White, fontSize = 9.sp)
                                 }
                             }
                         }
                     }
 
+                    // Mapeamento das 5 Pistas (tocam notas e acordes simultâneos)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val laneColors = listOf(Color(0xFF00E676), Color(0xFFFF1744), Color(0xFFFFEA00), Color(0xFF2979FF), Color(0xFFFF9100))
+                        for (lane in 0..4) {
+                            val code = ctrl.laneKeyCodes.getOrElse(lane) { ControllerSettings.DEFAULT_PS4_LANE_KEYCODES[lane] }
+                            val capturing = captureTarget == "lane_$lane"
+                            Surface(
+                                color = if (capturing) RockAccentGold else Color(0x22FFFFFF),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        captureTarget = "lane_$lane"
+                                        viewModel.startGamepadKeyCapture()
+                                    }
+                                    .testTag("controller_remap_lane_$lane")
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 6.dp, horizontal = 3.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Box(modifier = Modifier.size(8.dp).background(laneColors[lane], CircleShape))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (capturing) "..." else ControllerSettings.keyCodeDisplayName(code),
+                                        color = if (capturing) Color.Black else Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 8.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Botões Auxiliares (Pausa, Star Power, Palheta)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(
+                            Triple("pause", "PAUSE", ctrl.pauseKeyCode),
+                            Triple("star_power", "STAR POWER", ctrl.starPowerKeyCode),
+                            Triple("strum", "PALHETA", ctrl.strumKeyCode)
+                        ).forEach { (actionId, title, code) ->
+                            val capturing = captureTarget == actionId
+                            OutlinedButton(
+                                onClick = {
+                                    captureTarget = actionId
+                                    viewModel.startGamepadKeyCapture()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                                modifier = Modifier.weight(1f).height(34.dp).testTag("controller_remap_$actionId")
+                            ) {
+                                Text(
+                                    text = if (capturing) "$title: ..." else "$title: ${ControllerSettings.keyCodeDisplayName(code)}",
+                                    color = if (capturing) RockAccentGold else Color.White,
+                                    fontSize = 7.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+                    Text(text = "GRÁFICOS & ATUALIZAÇÕES", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                    GraphicsQuality.values().forEach { gq ->
+                        val isSel = stats.graphicsQuality == gq
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable { viewModel.setGraphicsQuality(gq) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (isSel) Color(0xFF2F1B4E) else Color(0x22FFFFFF))
+                        ) {
+                            Text(
+                                text = "${gq.label} ${if (isSel) "✔" else ""}",
+                                color = if (isSel) RockAccentGold else Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    // Painel de Versão & Atualizações
+                    Surface(color = Color(0x18FFFFFF), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "VERSÃO INSTALADA: v${viewModel.updateManager.installedVersionName} (Build ${viewModel.updateManager.installedVersionCode})",
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 10.sp
+                            )
+                            val statusLabel = when (val st = updateStatus) {
+                                is com.example.guitarlegends.data.UpdateCheckStatus.Idle -> "Toque para verificar novas versões."
+                                is com.example.guitarlegends.data.UpdateCheckStatus.Checking -> "Verificando servidor oficial..."
+                                is com.example.guitarlegends.data.UpdateCheckStatus.UpToDate -> "✔ Atualizado (${st.installedVersion})"
+                                is com.example.guitarlegends.data.UpdateCheckStatus.UpdateAvailable ->
+                                    "🔔 Nova versão ${st.latestRelease.versionName} disponível!"
+                                is com.example.guitarlegends.data.UpdateCheckStatus.Error -> "⚠ ${st.message}"
+                            }
+                            Text(
+                                text = statusLabel,
+                                color = if (updateStatus is com.example.guitarlegends.data.UpdateCheckStatus.UpdateAvailable) RockAccentGold else RockAccentCyan,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Button(
+                                    onClick = { viewModel.checkForUpdates(silent = false) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.weight(1f).testTag("settings_check_updates_button")
+                                ) {
+                                    Text("VERIFICAR ATUALIZAÇÕES", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
+                                }
+                                Button(
+                                    onClick = { showChangelogModal = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.testTag("settings_changelog_button")
+                                ) {
+                                    Text("NOTAS DE VERSÃO", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, maxLines = 1)
+                                }
+                            }
+                            if (updateStatus is com.example.guitarlegends.data.UpdateCheckStatus.UpdateAvailable) {
+                                Button(
+                                    onClick = { viewModel.launchOfficialUpdate() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.fillMaxWidth().testTag("settings_launch_update_button")
+                                ) {
+                                    Text("ABRIR CANAL OFICIAL DE ATUALIZAÇÃO ▶", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 8.sp)
+                                }
+                            }
+                        }
+                        }
+                    }
+
                     RockButton(
                         text = "SALVAR E VOLTAR",
-                        onClick = { viewModel.navigateBack() },
+                        onClick = {
+                            viewModel.stopGamepadKeyCapture()
+                            viewModel.navigateBack()
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         testTag = "settings_save_button",
                         containerColor = RockAccentGreen,
@@ -1227,5 +987,27 @@ fun SplashScreen(viewModel: GameViewModel) {
                 contentColor = Color.Black
             )
         }
+    }
+}
+
+@Composable
+private fun VolumeMixerSlider(
+    label: String,
+    value: Float,
+    testTag: String,
+    onValueChange: (Float) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = label, color = Color.White.copy(alpha = 0.85f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(text = "${(value * 100).toInt()}%", color = RockAccentGold, fontSize = 10.sp, fontWeight = FontWeight.Black)
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 0f..1f,
+            colors = SliderDefaults.colors(thumbColor = RockAccentCyan, activeTrackColor = RockAccentCyan),
+            modifier = Modifier.height(26.dp).testTag(testTag)
+        )
     }
 }
