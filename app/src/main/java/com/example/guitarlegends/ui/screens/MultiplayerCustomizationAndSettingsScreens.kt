@@ -966,11 +966,32 @@ fun SettingsScreen(viewModel: GameViewModel) {
                         }
                     }
 
-                    Text(
-                        text = "Esquema Local v${stats.schemaVersion} • Otimizado para Android",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 9.sp
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(
+                            onClick = { viewModel.navigateTo(GameScreen.Profile) },
+                            shape = RoundedCornerShape(10.dp),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = Brush.horizontalGradient(listOf(RockAccentCyan, RockAccentGold))
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("settings_my_account_button")
+                        ) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = null, tint = RockAccentCyan, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "MINHA CONTA (LOGIN OPCIONAL / VISITANTE)",
+                                color = RockAccentCyan,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 10.sp
+                            )
+                        }
+                        Text(
+                            text = "Esquema Local v${stats.schemaVersion} • Otimizado para Android",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 9.sp
+                        )
+                    }
                 }
             }
 
@@ -1132,6 +1153,9 @@ fun SettingsScreen(viewModel: GameViewModel) {
 
 @Composable
 fun SplashScreen(viewModel: GameViewModel) {
+    val authState by viewModel.authUiState.collectAsState()
+    val stats by viewModel.playerStats.collectAsState()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1140,19 +1164,22 @@ fun SplashScreen(viewModel: GameViewModel) {
     ) {
         Image(
             painter = painterResource(id = R.drawable.stage_background_1794455515273),
-            contentDescription = null,
+            contentDescription = "Palco Principal do Guitar Legends",
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color(0xCC0F081D), Color(0xFA0F081D))))
+                .background(Brush.verticalGradient(listOf(Color(0x990F081D), Color(0xEE0F081D))))
         )
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .padding(horizontal = 24.dp)
         ) {
             Surface(
                 color = RockAccentRed,
@@ -1166,22 +1193,39 @@ fun SplashScreen(viewModel: GameViewModel) {
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "GUITAR LEGENDS",
                 color = Color.White,
                 fontWeight = FontWeight.Black,
-                fontSize = 38.sp,
-                letterSpacing = 2.sp
+                fontSize = 40.sp,
+                letterSpacing = 2.sp,
+                textAlign = TextAlign.Center
             )
             Text(
-                text = "Carregando amplificadores e palco...",
+                text = when (authState) {
+                    is com.example.guitarlegends.viewmodel.AuthUiState.Authenticated ->
+                        "Bem-vindo de volta, ${stats.nickname.ifBlank { "Lenda" }}!"
+                    else ->
+                        "Acesso imediato no Modo Visitante • Conta na nuvem opcional"
+                },
                 color = RockAccentGold,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            CircularProgressIndicator(color = RockAccentCyan, modifier = Modifier.size(28.dp))
+            Spacer(modifier = Modifier.height(22.dp))
+            RockButton(
+                text = "ENTRAR NO JOGO",
+                onClick = { viewModel.enterGame() },
+                modifier = Modifier
+                    .fillMaxWidth(0.75f)
+                    .height(54.dp),
+                testTag = "enter_game_button",
+                icon = Icons.Default.PlayArrow,
+                containerColor = RockAccentGold,
+                contentColor = Color.Black
+            )
         }
     }
 }

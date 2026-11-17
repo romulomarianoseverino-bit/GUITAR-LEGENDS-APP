@@ -1,12 +1,13 @@
 package com.example.guitarlegends.ui.screens
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,15 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
 import com.example.guitarlegends.data.GoogleCredentialResult
 import com.example.guitarlegends.data.GoogleSignInHelper
 import com.example.guitarlegends.data.UpdateCheckStatus
@@ -36,265 +33,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(viewModel: GameViewModel) {
-    val authState by viewModel.authUiState.collectAsState()
-    val authError by viewModel.authErrorMessage.collectAsState()
-    val isBusy by viewModel.isAuthBusy.collectAsState()
-    val nickAvail by viewModel.nicknameAvailability.collectAsState()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    var nicknameInput by remember { mutableStateOf("") }
-
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(RockPurpleBg)
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Painel Esquerdo: Identidade do Palco
-        Card(
-            modifier = Modifier
-                .weight(0.95f)
-                .fillMaxHeight(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = RockDarkCard),
-            border = ButtonDefaults.outlinedButtonBorder.copy(
-                brush = Brush.verticalGradient(listOf(RockAccentGold, RockAccentRed))
-            )
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Image(
-                    painter = painterResource(id = R.drawable.stage_background_1794455515273),
-                    contentDescription = "Palco do Show",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color(0x550F081D), Color(0xCC0F081D), Color(0xFA0F081D))
-                            )
-                        )
-                )
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.Bottom
-                ) {
-                    Surface(color = RockAccentRed, shape = RoundedCornerShape(8.dp)) {
-                        Text(
-                            text = "EDIÇÃO LENDÁRIA • CONTA & NUVEM",
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "GUITAR LEGENDS",
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 26.sp,
-                        letterSpacing = 1.5.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "• Nickname exclusivo reservado para sua lenda\n• Personagens, skins, moedas e carreira salvos na nuvem\n• Calendário de recompensas diárias sincronizado",
-                        color = Color(0xFFD9CCF2),
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp
-                    )
-                }
-            }
-        }
-
-        // Painel Direito: Login Google / Cadastro de Nickname
-        Card(
-            modifier = Modifier
-                .weight(1.1f)
-                .fillMaxHeight(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = RockDarkCard),
-            border = ButtonDefaults.outlinedButtonBorder.copy(
-                brush = Brush.verticalGradient(listOf(RockAccentCyan, RockCardBorder))
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                when (val state = authState) {
-                    is AuthUiState.NeedsNickname -> {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(
-                                text = "ESCOLHA SEU NICKNAME EXCLUSIVO",
-                                color = RockAccentGold,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 15.sp
-                            )
-                            Text(
-                                text = "Conta conectada: ${state.email}\nDefina seu nome público único de palco (3 a 24 caracteres: letras, números, _ ou -).",
-                                color = Color.White.copy(alpha = 0.78f),
-                                fontSize = 11.sp,
-                                lineHeight = 15.sp
-                            )
-
-                            OutlinedTextField(
-                                value = nicknameInput,
-                                onValueChange = { nicknameInput = it.take(24) },
-                                label = { Text("Nickname Exclusivo", fontSize = 12.sp) },
-                                singleLine = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("nickname_input"),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = RockAccentCyan,
-                                    unfocusedBorderColor = RockCardBorder,
-                                    focusedLabelColor = RockAccentCyan,
-                                    unfocusedLabelColor = Color.LightGray
-                                )
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedButton(
-                                    onClick = { viewModel.checkNicknameAvailability(nicknameInput) },
-                                    enabled = nicknameInput.trim().length >= 3 && !isBusy,
-                                    modifier = Modifier.testTag("check_nickname_button")
-                                ) {
-                                    Text("VERIFICAR DISPONIBILIDADE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RockAccentCyan)
-                                }
-                                if (nickAvail == true) {
-                                    Text("✔ DISPONÍVEL!", color = RockAccentGreen, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                } else if (nickAvail == false) {
-                                    Text("✖ INDISPONÍVEL", color = RockAccentRed, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                }
-                            }
-
-                            if (!authError.isNullOrBlank()) {
-                                Surface(color = RockAccentRed.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)) {
-                                    Text(
-                                        text = authError.orEmpty(),
-                                        color = RockAccentRed,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(10.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { viewModel.signOut() },
-                                enabled = !isBusy,
-                                modifier = Modifier.weight(0.45f)
-                            ) {
-                                Text("SAIR DA CONTA", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                            RockButton(
-                                text = if (isBusy) "RESERVANDO..." else "CONFIRMAR E ENTRAR",
-                                onClick = { viewModel.submitNickname(nicknameInput) },
-                                enabled = nicknameInput.trim().length >= 3 && !isBusy,
-                                modifier = Modifier.weight(0.95f),
-                                testTag = "confirm_nickname_button",
-                                containerColor = RockAccentGreen,
-                                contentColor = Color.Black
-                            )
-                        }
-                    }
-
-                    else -> {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(
-                                text = "ACESSO À CONTA DE JOGADOR",
-                                color = RockAccentCyan,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = "Entre com sua conta Google verificada para criar seu perfil exclusivo, salvar sua progressão na nuvem e sincronizar recompensas diárias entre dispositivos.",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                                lineHeight = 16.sp
-                            )
-
-                            Surface(
-                                color = Color(0x22FFFFFF),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("SEGURANÇA & RECUPERAÇÃO", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                    Text(
-                                        text = "• Autenticação segura via Credential Manager do Android\n• Recuperação automática de conta e progresso pelo seu e-mail\n• Proteção contra acessos não autorizados e perda de dados",
-                                        color = Color.White.copy(alpha = 0.78f),
-                                        fontSize = 10.sp,
-                                        lineHeight = 14.sp
-                                    )
-                                }
-                            }
-
-                            if (!authError.isNullOrBlank()) {
-                                Surface(color = RockAccentRed.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)) {
-                                    Text(
-                                        text = authError.orEmpty(),
-                                        color = RockAccentRed,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(10.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            RockButton(
-                                text = if (isBusy) "CONECTANDO..." else "ENTRAR COM CONTA GOOGLE",
-                                onClick = {
-                                    scope.launch {
-                                        viewModel.setAuthError(null)
-                                        when (val cred = GoogleSignInHelper.requestGoogleSignIn(context)) {
-                                            is GoogleCredentialResult.Success -> {
-                                                viewModel.signInWithGoogleIdToken(cred.idToken)
-                                            }
-                                            is GoogleCredentialResult.Cancelled -> {
-                                                viewModel.setAuthError("Login cancelado. Toque novamente para entrar.")
-                                            }
-                                            is GoogleCredentialResult.Error -> {
-                                                viewModel.setAuthError(cred.message)
-                                            }
-                                        }
-                                    }
-                                },
-                                enabled = !isBusy,
-                                modifier = Modifier.fillMaxWidth(),
-                                testTag = "google_sign_in_button",
-                                icon = Icons.Default.AccountCircle,
-                                containerColor = RockAccentCyan,
-                                contentColor = Color.Black
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+    ProfileScreen(viewModel = viewModel)
 }
 
 @Composable
@@ -304,30 +43,50 @@ fun ProfileScreen(viewModel: GameViewModel) {
     val stats by viewModel.playerStats.collectAsState()
     val authState by viewModel.authUiState.collectAsState()
     val cloudStatus by viewModel.cloudSyncStatus.collectAsState()
+    val hasUnlinkedGuest by viewModel.hasUnlinkedGuestProgress.collectAsState()
     val rewardHistory by viewModel.rewardHistory.collectAsState()
     val progressionHistory by viewModel.progressionHistory.collectAsState()
     val authError by viewModel.authErrorMessage.collectAsState()
     val isBusy by viewModel.isAuthBusy.collectAsState()
+    val nickAvail by viewModel.nicknameAvailability.collectAsState()
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var showEditNicknameDialog by remember { mutableStateOf(false) }
     var editedNickname by remember { mutableStateOf(stats.nickname) }
+    var cloudNicknameInput by remember { mutableStateOf(stats.nickname) }
+    var mergeGuestOnLink by remember(hasUnlinkedGuest) { mutableStateOf(true) }
 
     if (showEditNicknameDialog) {
+        val isAuthenticated = authState is AuthUiState.Authenticated
         AlertDialog(
             onDismissRequest = { showEditNicknameDialog = false },
-            title = { Text("Alterar Nickname Exclusivo", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp) },
+            title = {
+                Text(
+                    text = if (isAuthenticated) "Alterar Nickname Exclusivo" else "Alterar Apelido de Visitante",
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 16.sp
+                )
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Seu nickname anterior será liberado somente se o novo estiver disponível.",
+                        text = if (isAuthenticated) {
+                            "Seu nickname anterior será liberado somente se o novo estiver disponível na nuvem."
+                        } else {
+                            "Defina seu nome de palco local para jogar no modo visitante."
+                        },
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 11.sp
                     )
                     OutlinedTextField(
                         value = editedNickname,
                         onValueChange = { editedNickname = it.take(24) },
-                        label = { Text("Novo Nickname") },
+                        label = { Text(if (isAuthenticated) "Novo Nickname" else "Apelido no Palco") },
                         singleLine = true,
+                        modifier = Modifier.testTag("edit_nickname_dialog_input"),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
@@ -343,10 +102,14 @@ fun ProfileScreen(viewModel: GameViewModel) {
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.submitNickname(editedNickname)
+                        if (isAuthenticated) {
+                            viewModel.submitNickname(editedNickname)
+                        } else {
+                            viewModel.updateGuestNickname(editedNickname)
+                        }
                         showEditNicknameDialog = false
                     },
-                    enabled = editedNickname.trim().length >= 3 && !isBusy,
+                    enabled = editedNickname.trim().length >= (if (isAuthenticated) 3 else 2) && !isBusy,
                     colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan)
                 ) {
                     Text("SALVAR", color = Color.Black, fontWeight = FontWeight.Black)
@@ -370,7 +133,7 @@ fun ProfileScreen(viewModel: GameViewModel) {
             coins = stats.coins,
             stars = stats.unlockedStars,
             onBackClick = { viewModel.navigateBack() },
-            title = "Perfil da Lenda & Nuvem"
+            title = "Minha Conta & Perfil"
         )
 
         Row(
@@ -379,107 +142,349 @@ fun ProfileScreen(viewModel: GameViewModel) {
                 .padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Cartão Esquerdo: Identidade, E-mail, Sincronização e Sair
+            // Cartão Esquerdo: Minha Conta (Modo Visitante, Vincular/Entrar com Google, Gerenciar e Sair)
             Card(
                 modifier = Modifier
-                    .weight(0.95f)
+                    .weight(1.0f)
                     .fillMaxHeight(),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = RockDarkCard),
                 border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.verticalGradient(listOf(RockAccentGold, RockCardBorder))
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            if (authState is AuthUiState.Authenticated) RockAccentGreen else RockAccentGold,
+                            RockCardBorder
+                        )
+                    )
                 )
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(14.dp),
+                        .padding(14.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(color = RockAccentGold, shape = RoundedCornerShape(6.dp)) {
+                    when (val state = authState) {
+                        is AuthUiState.NeedsNickname -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Surface(color = RockAccentGold.copy(alpha = 0.22f), shape = RoundedCornerShape(6.dp)) {
+                                    Text(
+                                        text = "CRIAR PERFIL NA NUVEM",
+                                        color = RockAccentGold,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 9.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
                                 Text(
-                                    text = "IDENTIDADE VERIFICADA",
-                                    color = Color.Black,
+                                    text = "ESCOLHA SEU NICKNAME EXCLUSIVO",
+                                    color = Color.White,
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 9.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    fontSize = 14.sp
                                 )
-                            }
-                            TextButton(onClick = {
-                                editedNickname = stats.nickname
-                                showEditNicknameDialog = true
-                            }) {
-                                Text("EDITAR NICK", color = RockAccentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Text(
-                            text = stats.nickname.ifBlank { "Rocker sem Nickname" },
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 20.sp
-                        )
-                        val emailLabel = (authState as? AuthUiState.Authenticated)?.email ?: stats.email
-                        Text(
-                            text = "E-mail: ${emailLabel.ifBlank { "Não conectado" }}",
-                            color = RockAccentCyan,
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            text = "Nuvem: $cloudStatus • Revisão #${stats.syncRevision}",
-                            color = RockAccentGreen,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Surface(color = Color(0x18FFFFFF), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("RESUMO SINCRONIZADO", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 10.sp)
                                 Text(
-                                    text = "• Shows concluídos: ${stats.songsCompleted} | Vitórias Duelo: ${stats.competitiveWins}/${stats.competitiveMatches}\n• Itens cosméticos desbloqueados: ${stats.unlockedCosmetics.size}\n• Sequência diária atual: ${stats.rewardStreak} dias",
-                                    color = Color.White.copy(alpha = 0.85f),
+                                    text = "Conta conectada: ${state.email}\nSeu progresso local atual será salvo na nuvem ao confirmar (3 a 24 caracteres: letras, números, _ ou -).",
+                                    color = Color.White.copy(alpha = 0.78f),
                                     fontSize = 10.sp,
                                     lineHeight = 14.sp
                                 )
+
+                                OutlinedTextField(
+                                    value = cloudNicknameInput,
+                                    onValueChange = { cloudNicknameInput = it.take(24) },
+                                    label = { Text("Nickname Exclusivo", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("nickname_input"),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = RockAccentCyan,
+                                        unfocusedBorderColor = RockCardBorder,
+                                        focusedLabelColor = RockAccentCyan,
+                                        unfocusedLabelColor = Color.LightGray
+                                    )
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { viewModel.checkNicknameAvailability(cloudNicknameInput) },
+                                        enabled = cloudNicknameInput.trim().length >= 3 && !isBusy,
+                                        modifier = Modifier.testTag("check_nickname_button")
+                                    ) {
+                                        Text("VERIFICAR", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RockAccentCyan)
+                                    }
+                                    if (nickAvail == true) {
+                                        Text("✔ DISPONÍVEL!", color = RockAccentGreen, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                    } else if (nickAvail == false) {
+                                        Text("✖ INDISPONÍVEL", color = RockAccentRed, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                    }
+                                }
+
+                                if (!authError.isNullOrBlank()) {
+                                    Surface(color = RockAccentRed.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)) {
+                                        Text(
+                                            text = authError.orEmpty(),
+                                            color = RockAccentRed,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(8.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { viewModel.signOut() },
+                                    enabled = !isBusy,
+                                    modifier = Modifier.weight(0.45f)
+                                ) {
+                                    Text("VOLTAR", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                RockButton(
+                                    text = if (isBusy) "SALVANDO..." else "CONFIRMAR PERFIL",
+                                    onClick = { viewModel.submitNickname(cloudNicknameInput) },
+                                    enabled = cloudNicknameInput.trim().length >= 3 && !isBusy,
+                                    modifier = Modifier.weight(0.95f),
+                                    testTag = "confirm_nickname_button",
+                                    containerColor = RockAccentGreen,
+                                    contentColor = Color.Black
+                                )
                             }
                         }
-                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = { viewModel.syncCloudNow() },
-                            colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f).testTag("profile_sync_button")
-                        ) {
-                            Text("SINCRONIZAR", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                        is AuthUiState.Authenticated -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(color = RockAccentGreen, shape = RoundedCornerShape(6.dp)) {
+                                        Text(
+                                            text = "CONTA CONECTADA NA NUVEM",
+                                            color = Color.Black,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 9.sp,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            editedNickname = stats.nickname
+                                            showEditNicknameDialog = true
+                                        },
+                                        modifier = Modifier.testTag("edit_nickname_button")
+                                    ) {
+                                        Text("EDITAR NICK", color = RockAccentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Text(
+                                    text = stats.nickname.ifBlank { "Rocker" },
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 20.sp
+                                )
+                                Text(
+                                    text = "E-mail: ${state.email.ifBlank { stats.email.ifBlank { "Conta Google" } }}",
+                                    color = RockAccentCyan,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = "Nuvem: $cloudStatus • Revisão #${stats.syncRevision}",
+                                    color = RockAccentGreen,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Surface(color = Color(0x18FFFFFF), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("DADOS DA CONTA SINCRONIZADOS", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                        Text(
+                                            text = "• Shows concluídos: ${stats.songsCompleted} | Vitórias Duelo: ${stats.competitiveWins}/${stats.competitiveMatches}\n• Itens desbloqueados: ${stats.unlockedCosmetics.size} | Sequência diária: ${stats.rewardStreak}d",
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 10.sp,
+                                            lineHeight = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { viewModel.syncCloudNow() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f).testTag("profile_sync_button")
+                                ) {
+                                    Text("SINCRONIZAR", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                }
+                                Button(
+                                    onClick = { viewModel.signOut() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentRed),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f).testTag("profile_sign_out_button")
+                                ) {
+                                    Text("SAIR DA CONTA", color = Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                }
+                            }
                         }
-                        Button(
-                            onClick = { viewModel.signOut() },
-                            colors = ButtonDefaults.buttonColors(containerColor = RockAccentRed),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f).testTag("profile_sign_out_button")
-                        ) {
-                            Text("ENCERRAR SESSÃO", color = Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp)
+
+                        else -> {
+                            // Modo Visitante (SignedOut ou Loading transitório)
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(color = RockAccentGold, shape = RoundedCornerShape(6.dp)) {
+                                        Text(
+                                            text = "MODO VISITANTE ATIVO",
+                                            color = Color.Black,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 9.sp,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            editedNickname = stats.nickname
+                                            showEditNicknameDialog = true
+                                        },
+                                        modifier = Modifier.testTag("edit_nickname_button")
+                                    ) {
+                                        Text("EDITAR APELIDO", color = RockAccentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Text(
+                                    text = stats.nickname.ifBlank { "Visitante Lendário" },
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 19.sp
+                                )
+                                Text(
+                                    text = "Status: $cloudStatus",
+                                    color = RockAccentGold,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Você já tem acesso livre ao jogo! Se quiser salvar na nuvem ou recuperar progresso em outro aparelho, entre ou vincule sua conta Google opcionalmente.",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 10.sp,
+                                    lineHeight = 14.sp
+                                )
+
+                                Surface(color = Color(0x18FFFFFF), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("PROGRESSO LOCAL PRESERVADO", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                        Text(
+                                            text = "• Shows: ${stats.songsCompleted} | Estrelas: ${stats.unlockedStars} | Moedas: ${stats.coins} LC\n• Itens desbloqueados: ${stats.unlockedCosmetics.size} | Sequência diária: ${stats.rewardStreak}d",
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 10.sp,
+                                            lineHeight = 14.sp
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "Mesclar progresso local ao entrar/vincular",
+                                                color = RockAccentGreen,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Switch(
+                                                checked = mergeGuestOnLink,
+                                                onCheckedChange = { mergeGuestOnLink = it },
+                                                modifier = Modifier.testTag("merge_guest_progress_switch")
+                                            )
+                                        }
+                                    }
+                                }
+
+                                if (!authError.isNullOrBlank()) {
+                                    Surface(color = RockAccentRed.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)) {
+                                        Text(
+                                            text = authError.orEmpty(),
+                                            color = RockAccentRed,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(8.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                RockButton(
+                                    text = if (isBusy) "CONECTANDO..." else "ENTRAR / VINCULAR COM GOOGLE",
+                                    onClick = {
+                                        scope.launch {
+                                            viewModel.setAuthError(null)
+                                            when (val cred = GoogleSignInHelper.requestGoogleSignIn(context)) {
+                                                is GoogleCredentialResult.Success -> {
+                                                    viewModel.signInWithGoogleIdToken(
+                                                        idToken = cred.idToken,
+                                                        mergeGuestProgress = mergeGuestOnLink
+                                                    )
+                                                }
+                                                is GoogleCredentialResult.Cancelled -> {
+                                                    viewModel.setAuthError("Login cancelado. Você continua jogando normalmente como visitante.")
+                                                }
+                                                is GoogleCredentialResult.Error -> {
+                                                    viewModel.setAuthError(cred.message)
+                                                }
+                                            }
+                                        }
+                                    },
+                                    enabled = !isBusy,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    testTag = "google_sign_in_button",
+                                    icon = Icons.Default.AccountCircle,
+                                    containerColor = RockAccentCyan,
+                                    contentColor = Color.Black
+                                )
+                                Text(
+                                    text = "Usa sua conta Google (e-mail Google) para criar perfil ou vincular conta existente. Login separado por e-mail/senha requer ativação manual no Console Firebase.",
+                                    color = Color.White.copy(alpha = 0.58f),
+                                    fontSize = 8.sp,
+                                    lineHeight = 11.sp
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Painel Direito: Conquistas, Histórico de Progressão e Recompensas
+            // Painel Direito: Conquistas, Histórico de Progressão e Recompensas (Visitante ou Nuvem)
             Card(
                 modifier = Modifier
-                    .weight(1.25f)
+                    .weight(1.2f)
                     .fillMaxHeight(),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = RockDarkCard),
@@ -494,7 +499,12 @@ fun ProfileScreen(viewModel: GameViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item {
-                        Text("CONQUISTAS DESBLOQUEADAS (${stats.achievementsUnlocked.size}/${AchievementCatalog.all.size})", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                        Text(
+                            text = "CONQUISTAS DESBLOQUEADAS (${stats.achievementsUnlocked.size}/${AchievementCatalog.all.size})",
+                            color = RockAccentGold,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp
+                        )
                     }
                     items(AchievementCatalog.all) { ach ->
                         val unlocked = stats.achievementsUnlocked.contains(ach.id)
@@ -519,11 +529,16 @@ fun ProfileScreen(viewModel: GameViewModel) {
 
                     item {
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text("HISTÓRICO DE PROGRESSÃO (${progressionHistory.size})", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                        Text(
+                            text = "HISTÓRICO DE PROGRESSÃO (${progressionHistory.size})",
+                            color = RockAccentCyan,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp
+                        )
                     }
                     if (progressionHistory.isEmpty()) {
                         item {
-                            Text("Nenhuma apresentação registrada na nuvem ainda.", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp)
+                            Text("Nenhuma apresentação registrada ainda.", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp)
                         }
                     } else {
                         items(progressionHistory.take(6)) { entry ->
@@ -545,7 +560,12 @@ fun ProfileScreen(viewModel: GameViewModel) {
 
                     item {
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text("HISTÓRICO DE RECOMPENSAS DIÁRIAS (${rewardHistory.size})", color = RockAccentGold, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                        Text(
+                            text = "HISTÓRICO DE RECOMPENSAS DIÁRIAS (${rewardHistory.size})",
+                            color = RockAccentGold,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp
+                        )
                     }
                     if (rewardHistory.isEmpty()) {
                         item {

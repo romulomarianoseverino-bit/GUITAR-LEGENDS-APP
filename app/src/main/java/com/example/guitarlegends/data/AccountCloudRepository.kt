@@ -362,10 +362,15 @@ class AccountCloudRepository(
         }
     }
 
-    suspend fun recordProgressionMatch(result: MatchResult): Result<String> {
+    suspend fun recordProgressionMatch(
+        result: MatchResult,
+        entryIdOverride: String? = null
+    ): Result<String> {
         val uid = auth.currentUser?.uid
             ?: return Result.failure(IllegalStateException("Usuário não autenticado."))
-        val entryId = "match_${UUID.randomUUID().toString().take(12)}"
+        val safeIdRegex = Regex("^[a-zA-Z0-9_-]{1,128}$")
+        val entryId = entryIdOverride?.takeIf { safeIdRegex.matches(it) }
+            ?: "match_${UUID.randomUUID().toString().take(12)}"
         val path = "users/$uid/progression_history/$entryId"
         return try {
             val payload = mapOf(

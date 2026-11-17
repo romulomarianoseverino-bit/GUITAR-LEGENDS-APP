@@ -64,6 +64,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val particleSystem = ParticleSystem()
 
     val musicLibraryRepository = MusicLibraryRepository(context)
+    val localProgressRepository = LocalPlayerProgressRepository(context)
     val updateManager = UpdateManager(context)
 
     private val firebaseAuth: FirebaseAuth? = FirebaseClientProvider.getAuthOrNull(context)
@@ -78,8 +79,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val currentScreen: StateFlow<GameScreen> = _currentScreen.asStateFlow()
     private val screenStack = mutableListOf<GameScreen>()
 
-    // Autenticação & Nuvem
-    private val _authUiState = MutableStateFlow<AuthUiState>(AuthUiState.Loading)
+    // Autenticação & Nuvem (Opcional — Modo Visitante liberado por padrão)
+    private val _authUiState = MutableStateFlow<AuthUiState>(AuthUiState.SignedOut)
     val authUiState: StateFlow<AuthUiState> = _authUiState.asStateFlow()
 
     private val _authErrorMessage = MutableStateFlow<String?>(null)
@@ -91,8 +92,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _nicknameAvailability = MutableStateFlow<Boolean?>(null)
     val nicknameAvailability: StateFlow<Boolean?> = _nicknameAvailability.asStateFlow()
 
-    private val _cloudSyncStatus = MutableStateFlow("Aguardando sessão")
+    private val _cloudSyncStatus = MutableStateFlow("Modo Visitante (Salvamento Local)")
     val cloudSyncStatus: StateFlow<String> = _cloudSyncStatus.asStateFlow()
+
+    private val _hasUnlinkedGuestProgress = MutableStateFlow(false)
+    val hasUnlinkedGuestProgress: StateFlow<Boolean> = _hasUnlinkedGuestProgress.asStateFlow()
 
     private val _rewardHistory = MutableStateFlow<List<DailyRewardClaimCloud>>(emptyList())
     val rewardHistory: StateFlow<List<DailyRewardClaimCloud>> = _rewardHistory.asStateFlow()
@@ -412,6 +416,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private var previewProgressJob: Job? = null
 
     init {
+        val localSnapshot = localProgressRepository.loadSnapshot()
+        _playerStats.value = localSnapshot.stats
+        _hasUnlinkedGuestProgress.value = localSnapshot.hasUnlinkedGuestProgress
+        if (localSnapshot.localRewards.isNotEmpty()) {
+            _rewardHistory.value = localSnapshot.localRewards.map { it.toCloudClaim() }
+        }
+        if (localSnapshot.localMatches.isNotEmpty()) {
+            _progressionHistory.value = localSnapshot.localMatches.map { it.toCloudEntry() }
+        }
+
         viewModelScope.launch {
             updateManager.runDataMigrationIfNeeded()
         }
@@ -425,35 +439,34 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            delay(1400L)
-            resolveInitialAuthAndRoute()
+            resolveInitialAuthSilently()
         }
     }
 
-    private suspend fun resolveInitialAuthAndRoute() {
+    fun enterGame() {
+        navigateTo(GameScreen.MainMenu, pushStack = false)
+    }
+
+    private suspend fun resolveInitialAuthSilently() {
         val currentUser = firebaseAuth?.currentUser
-        if (firebaseAuth == null || accountRepo == null) {
+        if (firebaseAuth == null || accountRepo == null || currentUser == null) {
             _authUiState.value = AuthUiState.SignedOut
-            if (_currentScreen.value is GameScreen.Splash) {
-                navigateTo(GameScreen.Auth, pushStack = false)
-            }
+            _cloudSyncStatus.value = "Modo Visitante (Salvamento Local)"
             return
         }
 
-        if (currentUser == null) {
-            _authUiState.value = AuthUiState.SignedOut
-            if (_currentScreen.value is GameScreen.Splash) {
-                navigateTo(GameScreen.Auth, pushStack = false)
-            }
-        } else {
-            loadAuthenticatedAccount(currentUser.uid, currentUser.email.orEmpty(), navigateAfter = true)
-        }
+        // Mantém entrada livre sem redirecionamento forçado para tela de login
+        loadAuthenticatedAccount(
+            uid = currentUser.uid,
+            email = currentUser.email.orEmpty(),
+            mergeGuestProgress = false
+        )
     }
 
     private suspend fun loadAuthenticatedAccount(
         uid: String,
         email: String,
-        navigateAfter: Boolean
+        mergeGuestProgress: Boolean = true
     ) {
         _authUiState.value = AuthUiState.Loading
         val repo = accountRepo ?: return
@@ -462,23 +475,61 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (remote == null || remote.nickname.isBlank()) {
                 _authUiState.value = AuthUiState.NeedsNickname(uid, email)
                 _playerStats.value = _playerStats.value.copy(email = email)
-                if (navigateAfter) navigateTo(GameScreen.Auth, pushStack = false)
+                _cloudSyncStatus.value = "Defina um nickname para concluir a conta na nuvem"
             } else {
-                _playerStats.value = remote.toPlayerStats()
-                _authUiState.value = AuthUiState.Authenticated(uid, remote.email.ifBlank { email }, remote.nickname)
-                _cloudSyncStatus.value = "Sincronizado na nuvem"
+                val guestSnapshot = localProgressRepository.loadSnapshot()
+                val remoteStats = remote.toPlayerStats()
+                val finalStats = if (mergeGuestProgress && guestSnapshot.hasUnlinkedGuestProgress) {
+                    val merged = LocalPlayerProgressRepository.mergeGuestIntoCloud(remoteStats, guestSnapshot)
+                    val synced = repo.syncPlayerStats(merged).getOrNull()?.toPlayerStats() ?: merged
+                    uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
+                    _cloudSyncStatus.value = "Conta vinculada e progresso local preservado"
+                    synced
+                } else {
+                    _cloudSyncStatus.value = "Sincronizado na nuvem"
+                    remoteStats
+                }
+
+                _playerStats.value = finalStats
+                _hasUnlinkedGuestProgress.value = false
+                localProgressRepository.saveSnapshot(
+                    LocalProgressSnapshot(
+                        stats = finalStats,
+                        hasUnlinkedGuestProgress = false,
+                        hasLocalCustomizationChanges = false
+                    )
+                )
+                _authUiState.value = AuthUiState.Authenticated(
+                    uid = uid,
+                    email = remote.email.ifBlank { email },
+                    nickname = remote.nickname
+                )
                 refreshAccountSubcollections()
                 checkForUpdates(silent = true)
-                if (navigateAfter) navigateTo(GameScreen.MainMenu, pushStack = false)
             }
         }.onFailure { err ->
             _authErrorMessage.value = "Erro ao carregar conta na nuvem: ${err.message}"
             _authUiState.value = AuthUiState.NeedsNickname(uid, email)
-            if (navigateAfter) navigateTo(GameScreen.Auth, pushStack = false)
         }
     }
 
-    fun signInWithGoogleIdToken(idToken: String) {
+    private suspend fun uploadLocalMatchesToCloud(
+        repo: AccountCloudRepository,
+        localMatches: List<LocalMatchRecord>
+    ) {
+        if (localMatches.isEmpty()) return
+        val availableTracks = _tracks.value
+        for (record in localMatches.take(25)) {
+            val track = availableTracks.find { it.id == record.trackId }
+                ?: AudioAnalyzer.BUILT_IN_TRACKS.first().copy(
+                    id = record.trackId.ifBlank { "local_track" },
+                    title = record.trackTitle.ifBlank { "Música Local" }
+                )
+            repo.recordProgressionMatch(record.toMatchResult(track), entryIdOverride = record.id)
+        }
+    }
+
+    fun signInWithGoogleIdToken(idToken: String, mergeGuestProgress: Boolean = true) {
         val auth = firebaseAuth ?: run {
             _authErrorMessage.value = "Serviço Firebase não inicializado neste ambiente."
             return
@@ -493,7 +544,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 if (user == null) {
                     _authErrorMessage.value = "Falha ao obter dados do usuário autenticado."
                 } else {
-                    loadAuthenticatedAccount(user.uid, user.email.orEmpty(), navigateAfter = true)
+                    loadAuthenticatedAccount(
+                        uid = user.uid,
+                        email = user.email.orEmpty(),
+                        mergeGuestProgress = mergeGuestProgress
+                    )
                 }
             } catch (e: Exception) {
                 _authErrorMessage.value = "Falha na autenticação Google: ${e.message}"
@@ -531,19 +586,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isAuthBusy.value = true
             _authErrorMessage.value = null
+            val guestSnapshot = localProgressRepository.loadSnapshot()
             val res = repo.claimNicknameAndSaveAccount(nickname, _playerStats.value)
             res.onSuccess { cloud ->
-                _playerStats.value = cloud.toPlayerStats()
+                uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
+                val cloudStats = cloud.toPlayerStats()
+                _playerStats.value = cloudStats
+                _hasUnlinkedGuestProgress.value = false
+                localProgressRepository.saveSnapshot(
+                    LocalProgressSnapshot(
+                        stats = cloudStats,
+                        hasUnlinkedGuestProgress = false,
+                        hasLocalCustomizationChanges = false
+                    )
+                )
                 _authUiState.value = AuthUiState.Authenticated(cloud.userId, cloud.email, cloud.nickname)
-                _cloudSyncStatus.value = "Conta salva na nuvem"
+                _cloudSyncStatus.value = "Conta salva e sincronizada na nuvem"
                 refreshAccountSubcollections()
                 checkForUpdates(silent = true)
-                navigateTo(GameScreen.MainMenu, pushStack = false)
+                if (_currentScreen.value is GameScreen.Auth) {
+                    navigateTo(GameScreen.MainMenu, pushStack = false)
+                }
             }.onFailure { err ->
                 _authErrorMessage.value = err.message ?: "Não foi possível reservar este nickname."
             }
             _isAuthBusy.value = false
         }
+    }
+
+    fun updateGuestNickname(nickname: String) {
+        val clean = nickname.trim().take(24)
+        if (clean.length < 2) return
+        _playerStats.value = _playerStats.value.copy(nickname = clean)
+        persistLocalMutation(customizationChanged = true)
     }
 
     fun refreshAccountSubcollections() {
@@ -562,7 +637,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             _cloudSyncStatus.value = "Sincronizando..."
             val res = repo.syncPlayerStats(_playerStats.value)
             res.onSuccess { cloud ->
-                _playerStats.value = cloud.toPlayerStats()
+                val synced = cloud.toPlayerStats()
+                _playerStats.value = synced
+                _hasUnlinkedGuestProgress.value = false
+                localProgressRepository.saveSnapshot(
+                    localProgressRepository.loadSnapshot().copy(
+                        stats = synced,
+                        hasUnlinkedGuestProgress = false,
+                        hasLocalCustomizationChanges = false
+                    )
+                )
                 _cloudSyncStatus.value = "Sincronizado (rev. ${cloud.syncRevision})"
             }.onFailure { err ->
                 _cloudSyncStatus.value = "Falha na sincronização: ${err.message}"
@@ -570,32 +654,94 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun triggerBackgroundCloudSync() {
+    private fun persistLocalMutation(
+        customizationChanged: Boolean = false,
+        newMatchRecord: LocalMatchRecord? = null
+    ) {
+        val isSignedIn = accountRepo?.currentUidOrNull() != null &&
+            _authUiState.value is AuthUiState.Authenticated
+        val current = localProgressRepository.loadSnapshot()
+        val updatedMatches = if (newMatchRecord != null && !isSignedIn) {
+            (listOf(newMatchRecord) + current.localMatches).take(25)
+        } else {
+            current.localMatches
+        }
+        val nextUnlinked = if (isSignedIn) false else true
+        val nextCustomization = if (isSignedIn) false else (current.hasLocalCustomizationChanges || customizationChanged)
+        _hasUnlinkedGuestProgress.value = nextUnlinked
+
+        localProgressRepository.saveSnapshot(
+            current.copy(
+                stats = _playerStats.value,
+                hasUnlinkedGuestProgress = nextUnlinked,
+                hasLocalCustomizationChanges = nextCustomization,
+                localMatches = updatedMatches
+            )
+        )
+        if (!isSignedIn && newMatchRecord != null) {
+            _progressionHistory.value = updatedMatches.map { it.toCloudEntry() }
+        }
+    }
+
+    private fun triggerBackgroundCloudSync(customizationChanged: Boolean = false) {
+        persistLocalMutation(customizationChanged = customizationChanged)
         val repo = accountRepo ?: return
         if (repo.currentUidOrNull() == null || _playerStats.value.nickname.isBlank()) return
         viewModelScope.launch {
             repo.syncPlayerStats(_playerStats.value).onSuccess { cloud ->
-                _playerStats.value = cloud.toPlayerStats()
+                val synced = cloud.toPlayerStats()
+                _playerStats.value = synced
+                localProgressRepository.saveSnapshot(
+                    localProgressRepository.loadSnapshot().copy(
+                        stats = synced,
+                        hasUnlinkedGuestProgress = false,
+                        hasLocalCustomizationChanges = false
+                    )
+                )
                 _cloudSyncStatus.value = "Nuvem atualizada (rev. ${cloud.syncRevision})"
             }
         }
     }
 
     fun claimDailyReward() {
-        val repo = accountRepo ?: run {
-            _rewardActionMessage.value = "Conecte-se com sua conta para resgatar recompensas diárias."
+        val repo = accountRepo
+        val isCloudAuthenticated = repo != null &&
+            repo.currentUidOrNull() != null &&
+            _authUiState.value is AuthUiState.Authenticated
+
+        if (!isCloudAuthenticated) {
+            // Modo Visitante: resgate local com controle diário em UTC e persistência garantida
+            val helperRepo = repo ?: AccountCloudRepository(
+                firestore = FirebaseClientProvider.getFirestoreOrNull(context) ?: run {
+                    // Fallback seguro para datas UTC mesmo sem Firestore inicializado
+                    claimDailyRewardLocallyOnly()
+                    return
+                },
+                auth = firebaseAuth ?: run {
+                    claimDailyRewardLocallyOnly()
+                    return
+                }
+            )
+            claimDailyRewardLocallyOnly(
+                todayKey = helperRepo.utcTodayKey(),
+                yesterdayKey = helperRepo.utcYesterdayKey()
+            )
             return
         }
-        if (repo.currentUidOrNull() == null) {
-            _rewardActionMessage.value = "Faça login para resgatar recompensas diárias."
-            return
-        }
+
         viewModelScope.launch {
             _isAuthBusy.value = true
             _rewardActionMessage.value = null
-            val res = repo.claimDailyReward(_playerStats.value)
+            val res = repo!!.claimDailyReward(_playerStats.value)
             res.onSuccess { (claim, updatedUser) ->
-                _playerStats.value = updatedUser.toPlayerStats()
+                val updatedStats = updatedUser.toPlayerStats()
+                _playerStats.value = updatedStats
+                localProgressRepository.saveSnapshot(
+                    localProgressRepository.loadSnapshot().copy(
+                        stats = updatedStats,
+                        hasUnlinkedGuestProgress = false
+                    )
+                )
                 _rewardHistory.value = listOf(claim) + _rewardHistory.value.filter { it.dayKey != claim.dayKey }
                 _rewardActionMessage.value = "Dia ${claim.dayNumber} resgatado: ${claim.rewardTitle} (+${claim.coinsGranted} LC)!"
             }.onFailure { err ->
@@ -603,6 +749,33 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
             _isAuthBusy.value = false
         }
+    }
+
+    private fun claimDailyRewardLocallyOnly(
+        todayKey: String = utcDayKeyForOffset(0),
+        yesterdayKey: String = utcDayKeyForOffset(-1)
+    ) {
+        _rewardActionMessage.value = null
+        val res = localProgressRepository.claimGuestDailyReward(todayKey, yesterdayKey)
+        res.onSuccess { (record, snapshot) ->
+            _playerStats.value = snapshot.stats
+            _hasUnlinkedGuestProgress.value = snapshot.hasUnlinkedGuestProgress
+            _rewardHistory.value = snapshot.localRewards.map { it.toCloudClaim() }
+            _rewardActionMessage.value =
+                "Dia ${record.dayNumber} resgatado (Visitante): ${record.rewardTitle} (+${record.coinsGranted} LC)!"
+        }.onFailure { err ->
+            _rewardActionMessage.value = err.message ?: "Não foi possível resgatar a recompensa."
+        }
+    }
+
+    private fun utcDayKeyForOffset(daysOffset: Int): String {
+        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+            if (daysOffset != 0) add(java.util.Calendar.DAY_OF_YEAR, daysOffset)
+        }
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        return sdf.format(cal.time)
     }
 
     fun clearRewardActionMessage() {
@@ -615,13 +788,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             stopPreview()
             firebaseAuth?.signOut()
             GoogleSignInHelper.clearCredentials(context)
-            _playerStats.value = PlayerStats()
+            val freshGuest = PlayerStats()
+            _playerStats.value = freshGuest
+            _hasUnlinkedGuestProgress.value = false
+            localProgressRepository.saveSnapshot(
+                LocalProgressSnapshot(
+                    stats = freshGuest,
+                    hasUnlinkedGuestProgress = false,
+                    hasLocalCustomizationChanges = false
+                )
+            )
             _rewardHistory.value = emptyList()
             _progressionHistory.value = emptyList()
-            _cloudSyncStatus.value = "Sessão encerrada"
+            _cloudSyncStatus.value = "Modo Visitante (Sessão encerrada)"
             _authUiState.value = AuthUiState.SignedOut
-            screenStack.clear()
-            _currentScreen.value = GameScreen.Auth
+            if (_currentScreen.value is GameScreen.Auth) {
+                screenStack.clear()
+                _currentScreen.value = GameScreen.MainMenu
+            }
         }
     }
 
@@ -669,32 +853,32 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun equipCharacter(characterId: String) {
         _playerStats.value = _playerStats.value.copy(selectedCharacterId = characterId)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun equipGuitar(guitarId: String) {
         _playerStats.value = _playerStats.value.copy(selectedGuitarId = guitarId)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun equipBass(bassId: String) {
         _playerStats.value = _playerStats.value.copy(selectedBassId = bassId)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun equipDrums(drumsId: String) {
         _playerStats.value = _playerStats.value.copy(selectedDrumsId = drumsId)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun equipVocalMic(micId: String) {
         _playerStats.value = _playerStats.value.copy(selectedVocalMicId = micId)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun equipHighwayTheme(themeId: String) {
         _playerStats.value = _playerStats.value.copy(selectedHighwayThemeId = themeId)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun updateCustomRockerPhoto(uriString: String) {
@@ -702,7 +886,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _playerStats.value = _playerStats.value.copy(
             customRocker = current.copy(photoUri = uriString)
         )
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun updateCustomRockerMethod(method: CharacterCreationMethod) {
@@ -710,7 +894,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _playerStats.value = _playerStats.value.copy(
             customRocker = current.copy(creationMethod = method)
         )
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun updateCustomRockerStyle(style: CharacterArtStyle) {
@@ -718,7 +902,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _playerStats.value = _playerStats.value.copy(
             customRocker = current.copy(artStyle = style)
         )
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun updateCustomRockerAppearance(
@@ -740,7 +924,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 bodyTattoos = tattoos
             )
         )
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun navigateTo(screen: GameScreen, pushStack: Boolean = true) {
@@ -759,11 +943,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val prev = screenStack.removeAt(screenStack.size - 1)
             _currentScreen.value = prev
         } else {
-            _currentScreen.value = if (_authUiState.value is AuthUiState.Authenticated) {
-                GameScreen.MainMenu
-            } else {
-                GameScreen.Auth
-            }
+            _currentScreen.value = GameScreen.MainMenu
         }
     }
 
@@ -786,22 +966,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleAdaptiveSystem(enabled: Boolean) {
         _playerStats.value = _playerStats.value.copy(glassAdaptiveEnabled = enabled)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun setControlMode(mode: ControlMode) {
         _playerStats.value = _playerStats.value.copy(controlMode = mode)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun setGraphicsQuality(quality: GraphicsQuality) {
         _playerStats.value = _playerStats.value.copy(graphicsQuality = quality)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun setLatencyOffset(offsetMs: Long) {
         _playerStats.value = _playerStats.value.copy(audioLatencyOffsetMs = offsetMs)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun importAudioFile(uri: Uri) {
@@ -1244,12 +1424,32 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             achievementsUnlocked = newAchievements
         )
 
+        val localRecord = LocalMatchRecord(
+            trackId = selectedTrack.id,
+            trackTitle = selectedTrack.title,
+            instrument = selectedInstrument.name,
+            difficulty = selectedDifficulty.name,
+            score = _score.value,
+            stars = stars,
+            accuracyPercent = accuracy.toDouble(),
+            coinsEarned = coinsEarned,
+            isCompetitive = isCompetitiveMatch
+        )
+        persistLocalMutation(newMatchRecord = localRecord)
+
         val repo = accountRepo
         if (repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
             viewModelScope.launch {
-                repo.recordProgressionMatch(result)
+                repo.recordProgressionMatch(result, entryIdOverride = localRecord.id)
                 repo.syncPlayerStats(_playerStats.value).onSuccess { cloud ->
-                    _playerStats.value = cloud.toPlayerStats()
+                    val synced = cloud.toPlayerStats()
+                    _playerStats.value = synced
+                    localProgressRepository.saveSnapshot(
+                        localProgressRepository.loadSnapshot().copy(
+                            stats = synced,
+                            hasUnlinkedGuestProgress = false
+                        )
+                    )
                 }
                 refreshAccountSubcollections()
             }
@@ -1287,13 +1487,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 selectedCharacterId = id,
                 unlockedCosmetics = unlocked
             )
-            triggerBackgroundCloudSync()
+            triggerBackgroundCloudSync(customizationChanged = true)
         }
     }
 
     fun selectCharacter(id: String) {
         _playerStats.value = _playerStats.value.copy(selectedCharacterId = id)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun unlockGuitar(id: String, price: Int) {
@@ -1304,13 +1504,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 selectedGuitarId = id,
                 unlockedCosmetics = unlocked
             )
-            triggerBackgroundCloudSync()
+            triggerBackgroundCloudSync(customizationChanged = true)
         }
     }
 
     fun selectGuitar(id: String) {
         _playerStats.value = _playerStats.value.copy(selectedGuitarId = id)
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun unlockGear(instrumentType: Instrument, id: String, price: Int) {
@@ -1323,7 +1523,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 Instrument.DRUMS -> _playerStats.value.copy(coins = updatedCoins, selectedDrumsId = id, unlockedCosmetics = unlocked)
                 Instrument.VOCALS -> _playerStats.value.copy(coins = updatedCoins, selectedVocalMicId = id, unlockedCosmetics = unlocked)
             }
-            triggerBackgroundCloudSync()
+            triggerBackgroundCloudSync(customizationChanged = true)
         }
     }
 
@@ -1334,7 +1534,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             Instrument.DRUMS -> _playerStats.value.copy(selectedDrumsId = id)
             Instrument.VOCALS -> _playerStats.value.copy(selectedVocalMicId = id)
         }
-        triggerBackgroundCloudSync()
+        triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun stop() {

@@ -27,12 +27,14 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.guitarlegends.data.UpdateCheckStatus
 import com.example.guitarlegends.ui.components.*
+import com.example.guitarlegends.viewmodel.AuthUiState
 import com.example.guitarlegends.viewmodel.GameScreen
 import com.example.guitarlegends.viewmodel.GameViewModel
 
 @Composable
 fun MainMenuScreen(viewModel: GameViewModel) {
     val stats by viewModel.playerStats.collectAsState()
+    val authState by viewModel.authUiState.collectAsState()
     val updateStatus by viewModel.updateStatus.collectAsState()
 
     Column(
@@ -43,7 +45,10 @@ fun MainMenuScreen(viewModel: GameViewModel) {
         TopStatusBar(
             coins = stats.coins,
             stars = stats.unlockedStars,
-            title = if (stats.nickname.isNotBlank()) "Guitar Legends • ${stats.nickname}" else "Guitar Legends"
+            title = when (val auth = authState) {
+                is AuthUiState.Authenticated -> "Guitar Legends • ${auth.nickname}"
+                else -> if (stats.nickname.isNotBlank()) "Guitar Legends • ${stats.nickname} (Visitante)" else "Guitar Legends • Visitante"
+            }
         )
 
         Row(
@@ -105,11 +110,31 @@ fun MainMenuScreen(viewModel: GameViewModel) {
                             letterSpacing = 1.sp
                         )
                         Text(
-                            text = "Toque suas músicas em 60-90 FPS horizontal com conta na nuvem.",
+                            text = "Toque suas músicas em 60-90 FPS horizontal no modo visitante ou com conta na nuvem.",
                             color = Color(0xFFD4C8EA),
                             fontSize = 11.sp,
                             modifier = Modifier.padding(top = 2.dp)
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            color = if (authState is AuthUiState.Authenticated) RockAccentGreen.copy(alpha = 0.22f) else RockAccentGold.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .clickable { viewModel.navigateTo(GameScreen.Profile) }
+                                .testTag("hero_account_pill")
+                        ) {
+                            Text(
+                                text = when (val auth = authState) {
+                                    is AuthUiState.Authenticated -> "☁ CONTA CONECTADA: ${auth.nickname}"
+                                    is AuthUiState.NeedsNickname -> "⚙ FINALIZAR NICKNAME EM MINHA CONTA"
+                                    else -> "🎸 MODO VISITANTE • PROGRESSO LOCAL ATIVO"
+                                },
+                                color = if (authState is AuthUiState.Authenticated) RockAccentGreen else RockAccentGold,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 9.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                         if (updateStatus is UpdateCheckStatus.UpdateAvailable) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Surface(
@@ -213,8 +238,12 @@ fun MainMenuScreen(viewModel: GameViewModel) {
                     }
                     item {
                         MenuCard(
-                            title = "Perfil & Nuvem",
-                            subtitle = stats.nickname.ifBlank { "Conta, Histórico & Sair" },
+                            title = "Minha Conta",
+                            subtitle = when (val auth = authState) {
+                                is AuthUiState.Authenticated -> "${auth.nickname} • Nuvem Ativa"
+                                is AuthUiState.NeedsNickname -> "Finalizar Nickname"
+                                else -> "Visitante • Login Opcional"
+                            },
                             icon = Icons.Default.AccountCircle,
                             accentColor = Color(0xFF80D8FF),
                             testTag = "menu_profile",

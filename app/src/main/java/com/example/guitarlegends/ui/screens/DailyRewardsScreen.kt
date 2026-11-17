@@ -149,7 +149,7 @@ fun DailyRewardsScreen(viewModel: GameViewModel) {
                         }
 
                         Text(
-                            text = "Validação temporal protegida pelo servidor em UTC ($todayUtc), impedindo duplicações ou manipulação do relógio do aparelho.",
+                            text = "Controle diário em UTC ($todayUtc). No modo visitante o progresso fica salvo no aparelho; conecte uma conta em Minha Conta para sincronizar na nuvem.",
                             color = Color.White.copy(alpha = 0.55f),
                             fontSize = 9.sp,
                             lineHeight = 13.sp
