@@ -59,15 +59,30 @@ function getCosmeticPrice(cosmeticId) {
 const WEEKLY_REWARD_CAP = 100;
 const MATCH_REWARD_CAP = 50;
 
+const REWARD_TIME_ZONE = "America/Sao_Paulo";
+
+function getDateKeyInRewardTimeZone(date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: REWARD_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return values.year + "-" + values.month + "-" + values.day;
+}
+
 function getUtcWeekStart(date) {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = d.getUTCDay();
-  d.setUTCDate(d.getUTCDate() - ((day + 6) % 7));
-  return d.toISOString().slice(0, 10);
+  // O identificador é a segunda-feira do calendário brasileiro, não da semana UTC.
+  const [year, month, dayOfMonth] = getDateKeyInRewardTimeZone(date).split("-").map(Number);
+  const localCalendarDate = new Date(Date.UTC(year, month - 1, dayOfMonth));
+  const day = localCalendarDate.getUTCDay();
+  localCalendarDate.setUTCDate(localCalendarDate.getUTCDate() - ((day + 6) % 7));
+  return localCalendarDate.toISOString().slice(0, 10);
 }
 
 function getUtcDayKey(date) {
-  return date.toISOString().slice(0, 10);
+  return getDateKeyInRewardTimeZone(date);
 }
 
 function getDailyReward(dayNumber) {
