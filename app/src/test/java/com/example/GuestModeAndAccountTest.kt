@@ -207,8 +207,8 @@ class GuestModeAndAccountTest {
 
         val merged = LocalPlayerProgressRepository.mergeGuestIntoCloud(cloudStats, snapshot)
 
-        // 900 da nuvem + 200 ganhos como visitante (sem duplicar os 450 iniciais!)
-        assertEquals(1100, merged.coins)
+        // Guest coins are untrusted local data and are never transferred to the cloud account.
+        assertEquals(900, merged.coins)
         // 15 da nuvem + 3 ganhos como visitante (sem duplicar as 6 iniciais!)
         assertEquals(18, merged.unlockedStars)
         assertEquals(29000L, merged.totalScore)
