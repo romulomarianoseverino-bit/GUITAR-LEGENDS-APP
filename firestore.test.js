@@ -112,29 +112,20 @@ test("Unauthenticated user: denied across all collections", async () => {
   );
 });
 
-test("Owner: can create, read, and update own UserAccount profile", async () => {
+test("Owner: can read own account but all client writes are denied", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("users").doc(ALICE_UID)
+      .set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 1));
+  });
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const docRef = aliceDb.collection("users").doc(ALICE_UID);
-
-  await assertSucceeds(docRef.set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 1)));
   await assertSucceeds(docRef.get());
-
-  await assertSucceeds(
-    docRef.update({
-      coins: 600,
-      syncRevision: 2,
-      studioProfileJson: JSON.stringify({ audioSettings: { masterVolume: 0.9 } }),
-      updatedAt: serverTimestamp(),
-    })
-  );
-
-  await assertFails(
-    docRef.update({
-      syncRevision: 3,
-      studioProfileJson: "x".repeat(25000),
-      updatedAt: serverTimestamp(),
-    })
-  );
+  await assertFails(docRef.set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 2)));
+  await assertFails(docRef.update({ coins: 600 }));
+  await assertFails(docRef.update({
+    studioProfileJson: JSON.stringify({ audioSettings: { masterVolume: 0.9 } })
+  }));
+  await assertFails(docRef.delete());
 });
 
 test("Cross-user isolation: Bob cannot read or modify Alice profile or subcollections", async () => {
@@ -164,33 +155,29 @@ test("Cross-user isolation: Bob cannot read or modify Alice profile or subcollec
   );
 });
 
-test("Anti-tampering: rejects extra shadow fields and syncRevision rollback", async () => {
+test("Anti-tampering: client cannot create shadow fields or roll back account data", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const docRef = aliceDb.collection("users").doc(ALICE_UID);
-
   const invalidPayload = { ...makeValidUserAccount(ALICE_UID), isAdmin: true };
   await assertFails(docRef.set(invalidPayload));
-
-  await assertSucceeds(docRef.set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 3)));
-  await assertFails(
-    docRef.update({
-      syncRevision: 2,
-      updatedAt: serverTimestamp(),
-    })
-  );
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("users").doc(ALICE_UID)
+      .set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 3));
+  });
+  await assertFails(docRef.update({ syncRevision: 2, updatedAt: serverTimestamp() }));
 });
 
 test("Nicknames: unique claim enforcement, no open listing, no cross-user hijack", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
-  await assertSucceeds(
-    aliceDb.collection("nicknames").doc("slash_br").set({
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("nicknames").doc("slash_br").set({
       userId: ALICE_UID,
       nickname: "Slash_BR",
       createdAt: serverTimestamp(),
-    })
-  );
+    });
+  });
 
   // Availability lookup by signed-in user works on exact doc, list is denied
   await assertSucceeds(bobDb.collection("nicknames").doc("slash_br").get());
@@ -198,85 +185,57 @@ test("Nicknames: unique claim enforcement, no open listing, no cross-user hijack
 
   // Duplicate claim by Bob must fail
   await assertFails(
-    bobDb.collection("nicknames").doc("slash_br").set({
+    bobDb.collection("nicknames").doc("another_nick").set({
       userId: BOB_UID,
-      nickname: "Slash_BR",
+      nickname: "Another_Nick",
       createdAt: serverTimestamp(),
     })
   );
+  await assertFails(aliceDb.collection("nicknames").doc("slash_br").delete());
 
-  // Bob cannot delete Alice's nickname
+  // Clients cannot delete or change nickname reservations.
   await assertFails(bobDb.collection("nicknames").doc("slash_br").delete());
 });
 
-test("Daily Rewards: enforces UTC server dayKey and immutability", async () => {
-  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+test("Daily Rewards: clients can read but cannot create or modify claims", async () => {
   const today = utcTodayKey();
-  const claimsRef = aliceDb
-    .collection("users")
-    .doc(ALICE_UID)
-    .collection("reward_claims");
-
-  await assertSucceeds(
-    claimsRef.doc(today).set({
-      userId: ALICE_UID,
-      dayKey: today,
-      dayNumber: 1,
-      streakCount: 1,
-      rewardTitle: "100 Moedas de Lenda",
-      rewardType: "coins",
-      coinsGranted: 100,
-      cosmeticId: "",
-      claimedAt: serverTimestamp(),
-    })
-  );
-
-  // Updating or deleting an immutable claim is rejected
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("users").doc(ALICE_UID)
+      .collection("reward_claims").doc(today).set({
+        userId: ALICE_UID, dayKey: today, dayNumber: 1, streakCount: 1,
+        rewardTitle: "100 Moedas de Lenda", rewardType: "coins",
+        coinsGranted: 100, cosmeticId: "", claimedAt: serverTimestamp(),
+      });
+  });
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const claimsRef = aliceDb.collection("users").doc(ALICE_UID).collection("reward_claims");
+  await assertSucceeds(claimsRef.doc(today).get());
   await assertFails(claimsRef.doc(today).update({ coinsGranted: 5000 }));
+  await assertFails(claimsRef.doc("2099-01-01").set({
+    userId: ALICE_UID, dayKey: "2099-01-01", dayNumber: 2, streakCount: 2,
+    rewardTitle: "Recompensa Forjada", rewardType: "coins",
+    coinsGranted: 500, cosmeticId: "", claimedAt: serverTimestamp(),
+  }));
   await assertFails(claimsRef.doc(today).delete());
-
-  // Forging past/future date is rejected by utcDayKey(request.time)
-  await assertFails(
-    claimsRef.doc("2099-01-01").set({
-      userId: ALICE_UID,
-      dayKey: "2099-01-01",
-      dayNumber: 2,
-      streakCount: 2,
-      rewardTitle: "Recompensa Forjada",
-      rewardType: "coins",
-      coinsGranted: 500,
-      cosmeticId: "",
-      claimedAt: serverTimestamp(),
-    })
-  );
 });
 
-test("Progression history: append-only owner log", async () => {
+test("Progression history: owner can read, clients cannot append or edit", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("users").doc(ALICE_UID)
+      .collection("progression_history").doc("entry_1").set({
+        userId: ALICE_UID, trackId: "track_thunderstrike",
+        trackTitle: "Thunderstrike Anthem", instrument: "GUITAR",
+        difficulty: "HARD", score: 48500, stars: 5,
+        accuracyPercent: 98.4, coinsEarned: 50,
+        isCompetitive: false, createdAt: serverTimestamp(),
+      });
+  });
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const entryRef = aliceDb
-    .collection("users")
-    .doc(ALICE_UID)
-    .collection("progression_history")
-    .doc("entry_1");
-
-  await assertSucceeds(
-    entryRef.set({
-      userId: ALICE_UID,
-      trackId: "track_thunderstrike",
-      trackTitle: "Thunderstrike Anthem",
-      instrument: "GUITAR",
-      difficulty: "HARD",
-      score: 48500,
-      stars: 5,
-      accuracyPercent: 98.4,
-      coinsEarned: 360,
-      isCompetitive: false,
-      createdAt: serverTimestamp(),
-    })
-  );
-
-  await assertFails(entryRef.update({ score: 999999 }));
-  await assertFails(entryRef.delete());
+  const entries = aliceDb.collection("users").doc(ALICE_UID).collection("progression_history");
+  await assertSucceeds(entries.doc("entry_1").get());
+  await assertFails(entries.doc("entry_2").set({ score: 999 }));
+  await assertFails(entries.doc("entry_1").update({ score: 999999 }));
+  await assertFails(entries.doc("entry_1").delete());
 });
 
 test("App releases: authenticated read-only catalog", async () => {
