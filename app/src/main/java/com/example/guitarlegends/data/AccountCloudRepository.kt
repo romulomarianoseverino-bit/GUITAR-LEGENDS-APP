@@ -85,8 +85,10 @@ class AccountCloudRepository(
         return try {
             functions.getHttpsCallable("claimNicknameAndCreateAccount")
                 .call(mapOf("nickname" to trimmed)).await()
-            // O servidor cria contas novas com zero moedas e preserva integralmente
-            // o saldo, inventário e progresso de contas que já existiam.
+            // Migração única dos indicadores antigos: nunca importa moedas, inventário
+            // ou recompensas; contas já existentes mantêm seus dados econômicos.
+            importLegacyProgress(localStats).getOrThrow()
+            syncPlayerStats(localStats).getOrThrow()
             val account = fetchAccount().getOrThrow()
                 ?: throw IllegalStateException("O servidor não retornou o perfil criado.")
             Result.success(account)
@@ -107,6 +109,28 @@ class AccountCloudRepository(
             Result.success(obj)
         } catch (e: Exception) {
             Result.failure(runCatching { handleFirestoreError(e, OperationType.GET, path, auth) }.exceptionOrNull() ?: e)
+        }
+    }
+
+    suspend fun importLegacyProgress(localStats: PlayerStats): Result<UserAccountCloud> {
+        return try {
+            val legacyStats = mapOf(
+                "totalScore" to localStats.totalScore.coerceAtLeast(0L),
+                "notesHitTotal" to localStats.notesHitTotal.coerceAtLeast(0L),
+                "maxStreakOverall" to localStats.maxStreakOverall.coerceAtLeast(0),
+                "songsCompleted" to localStats.songsCompleted.coerceAtLeast(0),
+                "unlockedStars" to localStats.unlockedStars.coerceAtLeast(0),
+                "competitiveWins" to localStats.competitiveWins.coerceAtLeast(0),
+                "competitiveMatches" to localStats.competitiveMatches.coerceAtLeast(0),
+                "careerStageMax" to localStats.careerStageMax.coerceAtLeast(1),
+                "achievementsUnlocked" to localStats.achievementsUnlocked.distinct().take(60)
+            )
+            functions.getHttpsCallable("importLegacyProgress")
+                .call(mapOf("legacyStats" to legacyStats)).await()
+            fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após importar o progresso.")
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
