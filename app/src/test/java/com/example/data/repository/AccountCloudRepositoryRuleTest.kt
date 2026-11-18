@@ -180,6 +180,68 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
     }
 
     @Test
+    fun weeklyCapIsSharedAndImportedProgressCannotClaimChallenges() = runBlocking {
+        val tag = uniqueSuffix()
+        signInTestUser("weekly_$tag@test.com")
+        val repo = AccountCloudRepository(firestore, auth, functions)
+
+        // Dados antigos importados não viram progresso verificado nem trazem moedas.
+        val created = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(
+                "Weekly_$tag",
+                PlayerStats(coins = 5000, songsCompleted = 3)
+            ).getOrThrow()
+        }
+        assertEquals(0, created.coins)
+        assertEquals(3, created.songsCompleted)
+        assertEquals(0, created.toPlayerStats().verifiedSongsCompleted)
+
+        val legacyChallenge = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimChallengeReward("chl_first_3_shows")
+        }
+        assertTrue("Progresso legado não pode liberar recompensa de desafio", legacyChallenge.isFailure)
+
+        // O resgate diário usa todo o teto semanal de 100 moedas.
+        val daily = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimDailyReward(created.toPlayerStats())
+        }
+        assertTrue(daily.isSuccess)
+        assertEquals(100, daily.getOrThrow().second.coins)
+
+        // Três partidas registradas no servidor concluem o desafio, mas não ultrapassam o teto semanal.
+        repeat(3) {
+            val match = MatchResult(
+                track = AudioAnalyzer.BUILT_IN_TRACKS[0],
+                instrument = Instrument.GUITAR,
+                difficulty = Difficulty.MEDIUM,
+                score = 25000,
+                maxCombo = 40,
+                totalNotes = 100,
+                hitNotes = 100,
+                missedNotes = 0,
+                accuracyPercent = 100f,
+                stars = 5,
+                coinsEarned = 50,
+                isAdaptiveUsed = false
+            )
+            val saved = withTimeout(DEFAULT_TIMEOUT_MS) { repo.recordProgressionMatch(match) }
+            assertTrue("Partida deve ser registrada pelo servidor", saved.isSuccess)
+        }
+
+        val challenge = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimChallengeReward("chl_first_3_shows")
+        }
+        assertTrue("Desafio concluído por partidas verificadas deve ser resgatável", challenge.isSuccess)
+        assertEquals(0, challenge.getOrThrow().first)
+        assertEquals(100, challenge.getOrThrow().second.coins)
+
+        val replay = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimChallengeReward("chl_first_3_shows")
+        }
+        assertTrue("Desafio não pode ser resgatado duas vezes", replay.isFailure)
+    }
+
+    @Test
     fun progressionHistory_createAndQuery_succeedsForOwner() = runBlocking {
         val tag = uniqueSuffix()
         signInTestUser("prog_$tag@test.com")
