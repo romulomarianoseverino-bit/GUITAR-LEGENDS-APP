@@ -7,6 +7,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -22,6 +23,7 @@ class AccountCloudRepository(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth
 ) {
+    private val functions: FirebaseFunctions by lazy { FirebaseFunctions.getInstance() }
     private val nicknameRegex = Regex("^[a-zA-Z0-9_-]{3,24}$")
 
     fun currentUidOrNull(): String? = auth.currentUser?.uid
@@ -76,71 +78,22 @@ class AccountCloudRepository(
             ?: return Result.failure(IllegalStateException("Faça login antes de definir seu nickname."))
         val trimmed = nickname.trim()
         if (!isValidNicknameFormat(trimmed)) {
-            return Result.failure(
-                IllegalArgumentException("O nickname deve ter de 3 a 24 caracteres (letras, números, _ ou -).")
-            )
+            return Result.failure(IllegalArgumentException(
+                "O nickname deve ter de 3 a 24 caracteres (letras, números, _ ou -)."
+            ))
         }
-        val normalized = trimmed.lowercase()
-        val uid = user.uid
-        val email = user.email ?: localStats.email
-
         return try {
-            val saved = firestore.runTransaction { tx ->
-                val nickRef = firestore.collection("nicknames").document(normalized)
-                val userRef = firestore.collection("users").document(uid)
-
-                val nickSnap = tx.get(nickRef)
-                val userSnap = tx.get(userRef)
-
-                if (nickSnap.exists() && nickSnap.getString("userId") != uid) {
-                    throw IllegalStateException("O nickname '$trimmed' já está em uso por outro jogador.")
-                }
-
-                val existingUser = if (userSnap.exists()) {
-                    userSnap.toObject(UserAccountCloud::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                } else null
-
-                val oldNormalized = existingUser?.nicknameNormalized.orEmpty()
-                if (oldNormalized.isNotBlank() && oldNormalized != normalized) {
-                    val oldNickRef = firestore.collection("nicknames").document(oldNormalized)
-                    tx.delete(oldNickRef)
-                }
-
-                val nextRevision = maxOf(existingUser?.syncRevision ?: 0L, localStats.syncRevision) + 1L
-                val mergedStats = if (existingUser != null) {
-                    mergeStats(localStats, existingUser.toPlayerStats())
-                } else {
-                    localStats
-                }.copy(nickname = trimmed, email = email, syncRevision = nextRevision)
-
-                val cloudObj = UserAccountCloud.fromPlayerStats(
-                    uid = uid,
-                    email = email,
-                    nickname = trimmed,
-                    stats = mergedStats,
-                    syncRevision = nextRevision
-                )
-
-                tx.set(
-                    nickRef,
-                    mapOf(
-                        "userId" to uid,
-                        "nickname" to trimmed,
-                        "createdAt" to FieldValue.serverTimestamp()
-                    )
-                )
-
-                if (existingUser == null) {
-                    tx.set(userRef, cloudObj.toCreateMap())
-                } else {
-                    tx.update(userRef, cloudObj.toUpdateMap())
-                }
-                cloudObj
-            }.await()
-
-            Result.success(saved)
+            functions.getHttpsCallable("claimNicknameAndCreateAccount")
+                .call(mapOf("nickname" to trimmed)).await()
+            // Migração única dos indicadores antigos: nunca importa moedas, inventário
+            // ou recompensas; contas já existentes mantêm seus dados econômicos.
+            importLegacyProgress(localStats).getOrThrow()
+            syncPlayerStats(localStats).getOrThrow()
+            val account = fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("O servidor não retornou o perfil criado.")
+            Result.success(account)
         } catch (e: Exception) {
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.WRITE, "users/$uid", auth) }.exceptionOrNull() ?: e)
+            Result.failure(e)
         }
     }
 
@@ -159,70 +112,68 @@ class AccountCloudRepository(
         }
     }
 
+    suspend fun importLegacyProgress(localStats: PlayerStats): Result<UserAccountCloud> {
+        return try {
+            val legacyStats = mapOf(
+                "totalScore" to localStats.totalScore.coerceAtLeast(0L),
+                "notesHitTotal" to localStats.notesHitTotal.coerceAtLeast(0L),
+                "maxStreakOverall" to localStats.maxStreakOverall.coerceAtLeast(0),
+                "songsCompleted" to localStats.songsCompleted.coerceAtLeast(0),
+                "unlockedStars" to localStats.unlockedStars.coerceAtLeast(0),
+                "competitiveWins" to localStats.competitiveWins.coerceAtLeast(0),
+                "competitiveMatches" to localStats.competitiveMatches.coerceAtLeast(0),
+                "careerStageMax" to localStats.careerStageMax.coerceAtLeast(1),
+                "achievementsUnlocked" to localStats.achievementsUnlocked.distinct().take(60)
+            )
+            functions.getHttpsCallable("importLegacyProgress")
+                .call(mapOf("legacyStats" to legacyStats)).await()
+            fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após importar o progresso.")
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun syncPlayerStats(localStats: PlayerStats): Result<UserAccountCloud> {
         val user = auth.currentUser
             ?: return Result.failure(IllegalStateException("Usuário não autenticado para sincronização."))
-        val uid = user.uid
-        val email = user.email ?: localStats.email
-
         return try {
-            val synced = firestore.runTransaction { tx ->
-                val userRef = firestore.collection("users").document(uid)
-                val snap = tx.get(userRef)
-                val existing = if (snap.exists()) {
-                    snap.toObject(UserAccountCloud::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                } else null
-
-                if (existing == null) {
-                    val nick = localStats.nickname.trim()
-                    if (!isValidNicknameFormat(nick)) {
-                        throw IllegalStateException("Defina um nickname exclusivo antes de sincronizar na nuvem.")
-                    }
-                    val cloudObj = UserAccountCloud.fromPlayerStats(
-                        uid = uid,
-                        email = email,
-                        nickname = nick,
-                        stats = localStats,
-                        syncRevision = maxOf(1L, localStats.syncRevision)
-                    )
-                    val nickRef = firestore.collection("nicknames").document(nick.lowercase())
-                    val nickSnap = tx.get(nickRef)
-                    if (nickSnap.exists() && nickSnap.getString("userId") != uid) {
-                        throw IllegalStateException("Nickname já reservado por outra conta.")
-                    }
-                    tx.set(
-                        nickRef,
-                        mapOf(
-                            "userId" to uid,
-                            "nickname" to nick,
-                            "createdAt" to FieldValue.serverTimestamp()
-                        )
-                    )
-                    tx.set(userRef, cloudObj.toCreateMap())
-                    cloudObj
-                } else {
-                    // Resolução não destrutiva de conflitos por maior revisão e união de desbloqueios
-                    val resolved = if (existing.syncRevision > localStats.syncRevision) {
-                        mergeStats(existing.toPlayerStats(), localStats)
-                    } else {
-                        mergeStats(localStats, existing.toPlayerStats())
-                    }
-                    val nextRevision = maxOf(existing.syncRevision, localStats.syncRevision) + 1L
-                    val cloudObj = UserAccountCloud.fromPlayerStats(
-                        uid = uid,
-                        email = email,
-                        nickname = existing.nickname.ifBlank { resolved.nickname },
-                        stats = resolved.copy(syncRevision = nextRevision),
-                        syncRevision = nextRevision
-                    )
-                    tx.update(userRef, cloudObj.toUpdateMap())
-                    cloudObj
-                }
-            }.await()
-
-            Result.success(synced)
+            val cloud = UserAccountCloud.fromPlayerStats(
+                uid = user.uid,
+                email = user.email ?: localStats.email,
+                nickname = localStats.nickname,
+                stats = localStats
+            )
+            val payload = mapOf(
+                "selectedCharacterId" to cloud.selectedCharacterId,
+                "selectedGuitarId" to cloud.selectedGuitarId,
+                "selectedBassId" to cloud.selectedBassId,
+                "selectedDrumsId" to cloud.selectedDrumsId,
+                "selectedVocalMicId" to cloud.selectedVocalMicId,
+                "selectedHighwayThemeId" to cloud.selectedHighwayThemeId,
+                "customRocker" to cloud.customRocker.toMap(),
+                "glassAdaptiveEnabled" to cloud.glassAdaptiveEnabled,
+                "audioLatencyOffsetMs" to cloud.audioLatencyOffsetMs,
+                "controlMode" to cloud.controlMode,
+                "graphicsQuality" to cloud.graphicsQuality,
+                "studioProfileJson" to cloud.studioProfileJson
+            )
+            functions.getHttpsCallable("syncAccountProfile").call(payload).await()
+            fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após a sincronização.")
         } catch (e: Exception) {
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.UPDATE, "users/$uid", auth) }.exceptionOrNull() ?: e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun purchaseCosmetic(cosmeticId: String): Result<UserAccountCloud> {
+        return try {
+            functions.getHttpsCallable("purchaseCosmetic")
+                .call(mapOf("cosmeticId" to cosmeticId)).await()
+            fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após a compra.")
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -251,94 +202,44 @@ class AccountCloudRepository(
         localStats: PlayerStats,
         dayKeyOverride: String? = null
     ): Result<Pair<DailyRewardClaimCloud, UserAccountCloud>> {
-        val user = auth.currentUser
+        val uid = auth.currentUser?.uid
             ?: return Result.failure(IllegalStateException("Faça login para resgatar recompensas diárias."))
-        val uid = user.uid
-        val todayKey = dayKeyOverride ?: utcTodayKey()
-        val yesterdayKey = utcYesterdayKey()
-        val claimPath = "users/$uid/reward_claims/$todayKey"
-
         return try {
-            val resultPair = firestore.runTransaction { tx ->
-                val userRef = firestore.collection("users").document(uid)
-                val claimRef = userRef.collection("reward_claims").document(todayKey)
-
-                val userSnap = tx.get(userRef)
-                val claimSnap = tx.get(claimRef)
-
-                if (!userSnap.exists()) {
-                    throw IllegalStateException("Finalize a criação da sua conta com nickname antes de resgatar recompensas.")
-                }
-                if (claimSnap.exists()) {
-                    throw IllegalStateException("Você já resgatou a recompensa diária de hoje ($todayKey). Volte amanhã!")
-                }
-
-                val existingUser = userSnap.toObject(
-                    UserAccountCloud::class.java,
-                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-                ) ?: throw IllegalStateException("Perfil de conta inválido.")
-
-                val newStreak = if (existingUser.lastRewardDayKey == yesterdayKey) {
-                    existingUser.rewardStreak + 1
-                } else {
-                    1
-                }
-                val dayNumber = ((newStreak - 1) % 30) + 1
-                val rewardDef = DailyRewardCatalog.rewardForDay(dayNumber)
-
-                val claimPayload = mapOf(
-                    "userId" to uid,
-                    "dayKey" to todayKey,
-                    "dayNumber" to dayNumber,
-                    "streakCount" to newStreak,
-                    "rewardTitle" to rewardDef.title,
-                    "rewardType" to rewardDef.rewardType,
-                    "coinsGranted" to rewardDef.coinsGranted,
-                    "cosmeticId" to rewardDef.cosmeticId,
-                    "claimedAt" to FieldValue.serverTimestamp()
-                )
-
-                val updatedCosmetics = buildList {
-                    addAll(existingUser.unlockedCosmetics)
-                    if (rewardDef.cosmeticId.isNotBlank()) add(rewardDef.cosmeticId)
-                }.distinct()
-
-                val updatedAchievements = buildList {
-                    addAll(existingUser.achievementsUnlocked)
-                    if (newStreak >= 3) add("ach_streak_3")
-                }.distinct()
-
-                val nextRevision = maxOf(existingUser.syncRevision, localStats.syncRevision) + 1L
-                val updatedUser = existingUser.copy(
-                    coins = existingUser.coins + rewardDef.coinsGranted,
-                    unlockedCosmetics = updatedCosmetics,
-                    achievementsUnlocked = updatedAchievements,
-                    rewardStreak = newStreak,
-                    lastRewardDayKey = todayKey,
-                    syncRevision = nextRevision
-                )
-
-                tx.set(claimRef, claimPayload)
-                tx.update(userRef, updatedUser.toUpdateMap())
-
-                val claimModel = DailyRewardClaimCloud(
-                    id = todayKey,
-                    userId = uid,
-                    dayKey = todayKey,
-                    dayNumber = dayNumber,
-                    streakCount = newStreak,
-                    rewardTitle = rewardDef.title,
-                    rewardType = rewardDef.rewardType,
-                    coinsGranted = rewardDef.coinsGranted,
-                    cosmeticId = rewardDef.cosmeticId,
-                    claimedAt = Timestamp.now()
-                )
-                claimModel to updatedUser
-            }.await()
-
-            Result.success(resultPair)
+            // A data é determinada pelo servidor; dayKeyOverride é ignorado para impedir falsificação.
+            val response = functions.getHttpsCallable("claimDailyReward").call().await().data as? Map<*, *>
+                ?: throw IllegalStateException("Resposta inválida do servidor.")
+            val account = fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após o resgate.")
+            val dayKey = response["dayKey"] as? String ?: utcTodayKey()
+            val claim = DailyRewardClaimCloud(
+                id = dayKey,
+                userId = uid,
+                dayKey = dayKey,
+                dayNumber = (response["dayNumber"] as? Number)?.toInt() ?: 1,
+                streakCount = (response["streakCount"] as? Number)?.toInt() ?: 1,
+                rewardTitle = response["rewardTitle"] as? String ?: "Recompensa diária",
+                rewardType = response["rewardType"] as? String ?: "coins",
+                coinsGranted = (response["coinsGranted"] as? Number)?.toInt() ?: 0,
+                cosmeticId = response["cosmeticId"] as? String ?: "",
+                claimedAt = Timestamp.now()
+            )
+            Result.success(claim to account)
         } catch (e: Exception) {
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.WRITE, claimPath, auth) }.exceptionOrNull() ?: e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun claimChallengeReward(challengeId: String): Result<Pair<Int, UserAccountCloud>> {
+        return try {
+            val response = functions.getHttpsCallable("claimChallengeReward")
+                .call(mapOf("challengeId" to challengeId)).await().data as? Map<*, *>
+                ?: throw IllegalStateException("Resposta inválida do servidor.")
+            val granted = (response["coinsGranted"] as? Number)?.toInt() ?: 0
+            val account = fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após o resgate.")
+            Result.success(granted to account)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -364,17 +265,15 @@ class AccountCloudRepository(
 
     suspend fun recordProgressionMatch(
         result: MatchResult,
-        entryIdOverride: String? = null
+        entryIdOverride: String? = null,
+        failed: Boolean = false
     ): Result<String> {
-        val uid = auth.currentUser?.uid
-            ?: return Result.failure(IllegalStateException("Usuário não autenticado."))
         val safeIdRegex = Regex("^[a-zA-Z0-9_-]{1,128}$")
         val entryId = entryIdOverride?.takeIf { safeIdRegex.matches(it) }
             ?: "match_${UUID.randomUUID().toString().take(12)}"
-        val path = "users/$uid/progression_history/$entryId"
         return try {
             val payload = mapOf(
-                "userId" to uid,
+                "entryId" to entryId,
                 "trackId" to result.track.id.take(128),
                 "trackTitle" to result.track.title.take(160),
                 "instrument" to result.instrument.name,
@@ -382,17 +281,17 @@ class AccountCloudRepository(
                 "score" to result.score,
                 "stars" to result.stars.coerceIn(1, 5),
                 "accuracyPercent" to result.accuracyPercent.toDouble().coerceIn(0.0, 100.0),
-                "coinsEarned" to result.coinsEarned.coerceAtLeast(0),
-                "isCompetitive" to result.isCompetitive,
-                "createdAt" to FieldValue.serverTimestamp()
+                "hitNotes" to result.hitNotes.coerceAtLeast(0),
+                "maxCombo" to result.maxCombo.coerceAtLeast(0),
+                "durationMs" to result.track.durationMs.coerceAtLeast(0L),
+                "failed" to failed,
+                "isCompetitive" to result.isCompetitive
             )
-            firestore.collection("users").document(uid)
-                .collection("progression_history").document(entryId)
-                .set(payload)
-                .await()
-            Result.success(entryId)
+            val response = functions.getHttpsCallable("recordProgressionMatch").call(payload).await().data as? Map<*, *>
+                ?: throw IllegalStateException("Resposta inválida do servidor.")
+            Result.success(response["entryId"] as? String ?: entryId)
         } catch (e: Exception) {
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.CREATE, path, auth) }.exceptionOrNull() ?: e)
+            Result.failure(e)
         }
     }
 

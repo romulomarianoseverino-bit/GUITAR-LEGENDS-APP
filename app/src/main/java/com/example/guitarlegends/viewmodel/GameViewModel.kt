@@ -531,11 +531,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val guestSnapshot = localProgressRepository.loadSnapshot()
                 val remoteStats = remote.toPlayerStats()
                 val finalStats = if (mergeGuestProgress && guestSnapshot.hasUnlinkedGuestProgress) {
-                    val merged = LocalPlayerProgressRepository.mergeGuestIntoCloud(remoteStats, guestSnapshot)
-                    val synced = repo.syncPlayerStats(merged).getOrNull()?.toPlayerStats() ?: merged
-                    uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
-                    _cloudSyncStatus.value = "Conta vinculada e progresso local preservado"
-                    synced
+                    // Importação única dos indicadores legados; saldo e inventário permanecem
+                    // sob controle do servidor e não são aceitos do armazenamento local.
+                    repo.importLegacyProgress(guestSnapshot.stats).getOrNull()
+                    repo.syncPlayerStats(guestSnapshot.stats).getOrNull()
+                    val refreshed = repo.fetchAccount().getOrNull()
+                    _cloudSyncStatus.value = "Progresso antigo migrado; moedas e itens protegidos"
+                    refreshed?.toPlayerStats() ?: remoteStats
                 } else {
                     _cloudSyncStatus.value = "Sincronizado na nuvem"
                     remoteStats
@@ -545,7 +547,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 applyCurrentAudioSettings()
                 _hasUnlinkedGuestProgress.value = false
                 localProgressRepository.saveSnapshot(
-                    LocalProgressSnapshot(
+                    guestSnapshot.copy(
                         stats = finalStats,
                         hasUnlinkedGuestProgress = false,
                         hasLocalCustomizationChanges = false
@@ -655,12 +657,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val guestSnapshot = localProgressRepository.loadSnapshot()
             val res = repo.claimNicknameAndSaveAccount(nickname, _playerStats.value)
             res.onSuccess { cloud ->
-                uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
                 val cloudStats = cloud.toPlayerStats()
                 _playerStats.value = cloudStats
                 _hasUnlinkedGuestProgress.value = false
                 localProgressRepository.saveSnapshot(
-                    LocalProgressSnapshot(
+                    guestSnapshot.copy(
                         stats = cloudStats,
                         hasUnlinkedGuestProgress = false,
                         hasLocalCustomizationChanges = false
@@ -1080,49 +1081,108 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun unlockAndEquipCosmetic(item: CosmeticShopItem): Boolean {
         val current = _playerStats.value
         val alreadyUnlocked = item.unlockedByDefault || current.unlockedCosmetics.contains(item.id)
-        if (!alreadyUnlocked && current.coins < item.priceCoins) {
-            _studioActionMessage.value = "Moedas insuficientes (${item.priceCoins} LC necessários)."
-            return false
+        if (alreadyUnlocked) {
+            _playerStats.value = StudioCatalog.applyCosmeticLook(current, item.id)
+            _studioActionMessage.value = "${item.title} equipado!"
+            triggerBackgroundCloudSync(customizationChanged = true)
+            return true
         }
-        val nextCoins = if (alreadyUnlocked) current.coins else (current.coins - item.priceCoins)
-        val nextUnlocked = (current.unlockedCosmetics + item.id).distinct()
-        val withUnlock = current.copy(coins = nextCoins, unlockedCosmetics = nextUnlocked)
-        _playerStats.value = StudioCatalog.applyCosmeticLook(withUnlock, item.id)
-        soundFx.playUiClick(isConfirm = true)
-        _studioActionMessage.value = if (alreadyUnlocked) {
-            "${item.title} equipado!"
-        } else {
-            "${item.title} desbloqueado e equipado (-${item.priceCoins} LC)!"
+
+        val repo = accountRepo
+        val signedIn = repo?.currentUidOrNull() != null && _authUiState.value is AuthUiState.Authenticated
+        if (!signedIn) {
+            if (current.coins < item.priceCoins) {
+                _studioActionMessage.value = "Moedas insuficientes (${item.priceCoins} LC necessários)."
+                return false
+            }
+            val local = current.copy(
+                coins = current.coins - item.priceCoins,
+                unlockedCosmetics = (current.unlockedCosmetics + item.id).distinct()
+            )
+            _playerStats.value = StudioCatalog.applyCosmeticLook(local, item.id)
+            soundFx.playUiClick(isConfirm = true)
+            _studioActionMessage.value = "${item.title} desbloqueado e equipado!"
+            persistLocalMutation(customizationChanged = true)
+            return true
         }
-        triggerBackgroundCloudSync(customizationChanged = true)
+
+        viewModelScope.launch {
+            _studioActionMessage.value = "Validando compra no servidor..."
+            repo!!.purchaseCosmetic(item.id).onSuccess { cloud ->
+                val purchased = StudioCatalog.applyCosmeticLook(cloud.toPlayerStats(), item.id)
+                _playerStats.value = purchased
+                localProgressRepository.saveSnapshot(
+                    localProgressRepository.loadSnapshot().copy(
+                        stats = purchased,
+                        hasUnlinkedGuestProgress = false
+                    )
+                )
+                soundFx.playUiClick(isConfirm = true)
+                _studioActionMessage.value = "${item.title} desbloqueado e equipado!"
+                triggerBackgroundCloudSync(customizationChanged = true)
+            }.onFailure { error ->
+                _studioActionMessage.value = error.message ?: "Não foi possível concluir a compra."
+            }
+        }
         return true
     }
 
     fun unlockHighwayStamp(stamp: HighwayStampItem) {
         val current = _playerStats.value
-        val unlocked = stamp.unlockedByDefault || current.unlockedCosmetics.contains(stamp.id)
-        if (unlocked) {
+        val alreadyUnlocked = stamp.unlockedByDefault || current.unlockedCosmetics.contains(stamp.id)
+        if (alreadyUnlocked) {
             selectHighwayStamp(stamp.id)
             return
         }
-        if (current.coins < stamp.priceCoins) {
-            _studioActionMessage.value = "Moedas insuficientes para esta estampa (${stamp.priceCoins} LC)."
-            return
-        }
-        val studio = current.studioProfile
-        _playerStats.value = current.copy(
-            coins = current.coins - stamp.priceCoins,
-            unlockedCosmetics = (current.unlockedCosmetics + stamp.id).distinct(),
-            studioProfile = studio.copy(
-                highwayConfig = studio.highwayConfig.copy(
-                    selectedStampId = stamp.id,
-                    customImagePath = null
+
+        val repo = accountRepo
+        val signedIn = repo?.currentUidOrNull() != null && _authUiState.value is AuthUiState.Authenticated
+        if (!signedIn) {
+            if (current.coins < stamp.priceCoins) {
+                _studioActionMessage.value = "Moedas insuficientes para esta estampa (${stamp.priceCoins} LC)."
+                return
+            }
+            val updated = current.copy(
+                coins = current.coins - stamp.priceCoins,
+                unlockedCosmetics = (current.unlockedCosmetics + stamp.id).distinct(),
+                studioProfile = current.studioProfile.copy(
+                    highwayConfig = current.studioProfile.highwayConfig.copy(
+                        selectedStampId = stamp.id, customImagePath = null
+                    )
                 )
             )
-        )
-        soundFx.playUiClick(isConfirm = true)
-        _studioActionMessage.value = "Estampa '${stamp.title}' desbloqueada!"
-        triggerBackgroundCloudSync(customizationChanged = true)
+            _playerStats.value = updated
+            soundFx.playUiClick(isConfirm = true)
+            _studioActionMessage.value = "Estampa '${stamp.title}' desbloqueada!"
+            persistLocalMutation(customizationChanged = true)
+            return
+        }
+
+        viewModelScope.launch {
+            _studioActionMessage.value = "Validando compra da estampa no servidor..."
+            repo!!.purchaseCosmetic(stamp.id).onSuccess { cloud ->
+                val base = cloud.toPlayerStats()
+                val updated = base.copy(
+                    studioProfile = base.studioProfile.copy(
+                        highwayConfig = base.studioProfile.highwayConfig.copy(
+                            selectedStampId = stamp.id, customImagePath = null
+                        )
+                    )
+                )
+                _playerStats.value = updated
+                localProgressRepository.saveSnapshot(
+                    localProgressRepository.loadSnapshot().copy(
+                        stats = updated,
+                        hasUnlinkedGuestProgress = false
+                    )
+                )
+                soundFx.playUiClick(isConfirm = true)
+                _studioActionMessage.value = "Estampa '${stamp.title}' desbloqueada!"
+                triggerBackgroundCloudSync(customizationChanged = true)
+            }.onFailure { error ->
+                _studioActionMessage.value = error.message ?: "Não foi possível comprar a estampa."
+            }
+        }
     }
 
     fun selectHighwayStamp(stampId: String) {
@@ -1253,21 +1313,37 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun claimChallengeReward(challenge: ChallengeItem) {
-        val cur = _playerStats.value
-        if (cur.studioProfile.claimedChallenges.contains(challenge.id)) return
-        val progress = challenge.progressProvider(cur)
+        val current = _playerStats.value
+        if (current.studioProfile.claimedChallenges.contains(challenge.id)) return
+        val progress = challenge.progressProvider(current)
         if (progress < challenge.targetValue) {
             _studioActionMessage.value = "Progresso insuficiente: $progress/${challenge.targetValue}"
             return
         }
-        val updatedClaimed = (cur.studioProfile.claimedChallenges + challenge.id).distinct()
-        _playerStats.value = cur.copy(
-            coins = cur.coins + challenge.rewardCoins,
-            studioProfile = cur.studioProfile.copy(claimedChallenges = updatedClaimed)
-        )
-        soundFx.playUiClick(isConfirm = true)
-        _studioActionMessage.value = "Desafio '${challenge.title}' resgatado: +${challenge.rewardCoins} LC!"
-        triggerBackgroundCloudSync(customizationChanged = true)
+        val repo = accountRepo
+        if (repo == null || repo.currentUidOrNull() == null ||
+            _authUiState.value !is AuthUiState.Authenticated
+        ) {
+            _studioActionMessage.value = "Entre na sua conta para resgatar desafios com segurança."
+            return
+        }
+        viewModelScope.launch {
+            _studioActionMessage.value = "Validando desafio no servidor..."
+            repo.claimChallengeReward(challenge.id).onSuccess { (coinsGranted, cloud) ->
+                val cloudStats = cloud.toPlayerStats()
+                val updated = cloudStats.copy(
+                    studioProfile = cloudStats.studioProfile.copy(
+                        claimedChallenges = (cloudStats.studioProfile.claimedChallenges + challenge.id).distinct()
+                    )
+                )
+                _playerStats.value = updated
+                localProgressRepository.saveSnapshot(localProgressRepository.loadSnapshot().copy(stats = updated))
+                soundFx.playUiClick(isConfirm = true)
+                _studioActionMessage.value = "Desafio '${challenge.title}' resgatado: +${coinsGranted} LC!"
+            }.onFailure { error ->
+                _studioActionMessage.value = error.message ?: "Não foi possível validar o desafio."
+            }
+        }
     }
 
     // ---- Mixer de Áudio & Volume ----
@@ -1894,7 +1970,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             else -> 1
         }
 
-        val coinsEarned = if (failed) 20 else (stars * 60 + (_score.value / 800)).coerceAtLeast(40)
+        val coinsEarned = MatchRewardCalculator.calculate(
+            accuracyPercent = accuracy,
+            difficulty = selectedDifficulty,
+            durationMs = selectedTrack.durationMs,
+            failed = failed
+        )
 
         val result = MatchResult(
             track = selectedTrack,
@@ -1983,16 +2064,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val repo = accountRepo
         if (repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
             viewModelScope.launch {
-                repo.recordProgressionMatch(result, entryIdOverride = localRecord.id)
-                repo.syncPlayerStats(_playerStats.value).onSuccess { cloud ->
-                    val synced = cloud.toPlayerStats()
-                    _playerStats.value = synced
-                    localProgressRepository.saveSnapshot(
-                        localProgressRepository.loadSnapshot().copy(
-                            stats = synced,
-                            hasUnlinkedGuestProgress = false
-                        )
-                    )
+                val saved = repo.recordProgressionMatch(
+                    result,
+                    entryIdOverride = localRecord.id,
+                    failed = failed
+                )
+                if (saved.isSuccess) {
+                    repo.fetchAccount().onSuccess { cloud ->
+                        if (cloud != null) {
+                            val synced = cloud.toPlayerStats()
+                            _playerStats.value = synced
+                            localProgressRepository.saveSnapshot(
+                                localProgressRepository.loadSnapshot().copy(
+                                    stats = synced,
+                                    hasUnlinkedGuestProgress = false
+                                )
+                            )
+                        }
+                    }
                 }
                 refreshAccountSubcollections()
             }

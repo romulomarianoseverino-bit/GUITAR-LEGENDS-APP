@@ -5,6 +5,11 @@
       "rules": "firestore.rules"
     }
   ],
+  "functions": {
+    "source": "functions",
+    "codebase": "default",
+    "runtime": "nodejs22"
+  },
   "emulators": {
     "firestore": {
       "host": "127.0.0.1",
@@ -13,6 +18,10 @@
     "auth": {
       "host": "127.0.0.1",
       "port": 9099
+    },
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5001
     },
     "ui": {
       "enabled": false

@@ -351,7 +351,7 @@ object StudioCatalog {
             id = "chl_first_3_shows",
             title = "Aquecimento da Turnê",
             description = "Conclua 3 apresentações no palco em qualquer modo.",
-            rewardCoins = 180,
+            rewardCoins = 100,
             targetValue = 3,
             progressProvider = { it.songsCompleted }
         ),
@@ -359,7 +359,7 @@ object StudioCatalog {
             id = "chl_hit_250_notes",
             title = "Dedos Incansáveis",
             description = "Acerte um total de 250 notas acumuladas.",
-            rewardCoins = 220,
+            rewardCoins = 100,
             targetValue = 250,
             progressProvider = { it.notesHitTotal.toInt() }
         ),
@@ -367,7 +367,7 @@ object StudioCatalog {
             id = "chl_combo_35",
             title = "Ritmo Inabalável",
             description = "Atinja um combo contínuo de 35+ notas.",
-            rewardCoins = 260,
+            rewardCoins = 100,
             targetValue = 35,
             progressProvider = { it.maxStreakOverall }
         ),
@@ -375,7 +375,7 @@ object StudioCatalog {
             id = "chl_stars_12",
             title = "Caçador de Estrelas",
             description = "Acumule 12 estrelas de carreira.",
-            rewardCoins = 320,
+            rewardCoins = 100,
             targetValue = 12,
             progressProvider = { it.unlockedStars }
         ),
@@ -383,7 +383,7 @@ object StudioCatalog {
             id = "chl_duel_win",
             title = "Rei do Duelo 1v1",
             description = "Vença 1 partida no modo Batalha Competitiva.",
-            rewardCoins = 250,
+            rewardCoins = 100,
             targetValue = 1,
             progressProvider = { it.competitiveWins }
         )

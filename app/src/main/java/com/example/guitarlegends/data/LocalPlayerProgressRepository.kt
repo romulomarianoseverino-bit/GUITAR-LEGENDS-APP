@@ -80,7 +80,8 @@ data class LocalProgressSnapshot(
     val hasUnlinkedGuestProgress: Boolean = false,
     val hasLocalCustomizationChanges: Boolean = false,
     val localMatches: List<LocalMatchRecord> = emptyList(),
-    val localRewards: List<LocalRewardRecord> = emptyList()
+    val localRewards: List<LocalRewardRecord> = emptyList(),
+    val startingCoinsBaseline: Int = 0
 )
 
 /**
@@ -107,7 +108,8 @@ class LocalPlayerProgressRepository(private val context: Context) {
                 hasUnlinkedGuestProgress = root.optBoolean("hasUnlinkedGuestProgress", false),
                 hasLocalCustomizationChanges = root.optBoolean("hasLocalCustomizationChanges", false),
                 localMatches = matches,
-                localRewards = rewards
+                localRewards = rewards,
+                startingCoinsBaseline = root.optInt("startingCoinsBaseline", LEGACY_DEFAULT_STARTING_COINS)
             )
         } catch (_: Exception) {
             LocalProgressSnapshot()
@@ -123,6 +125,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
                 put("stats", statsToJson(snapshot.stats))
                 put("localMatches", matchesToJson(snapshot.localMatches.take(25)))
                 put("localRewards", rewardsToJson(snapshot.localRewards.take(30)))
+                put("startingCoinsBaseline", snapshot.startingCoinsBaseline.coerceAtLeast(0))
             }
             val payload = root.toString()
             tempFile.writeText(payload)
@@ -199,7 +202,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
     }
 
     companion object {
-        private val BASELINE_DEFAULT_STATS = PlayerStats()
+        private const val LEGACY_DEFAULT_STARTING_COINS = 450
 
         /**
          * Mescla o progresso obtido no modo visitante com uma conta existente na nuvem
@@ -212,7 +215,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
             if (!guestSnapshot.hasUnlinkedGuestProgress) return cloudStats
 
             val guest = guestSnapshot.stats
-            val extraGuestCoins = (guest.coins - BASELINE_DEFAULT_STATS.coins).coerceAtLeast(0)
+            val extraGuestCoins = (guest.coins - guestSnapshot.startingCoinsBaseline).coerceAtLeast(0)
             val extraGuestStars = (guest.unlockedStars - BASELINE_DEFAULT_STATS.unlockedStars).coerceAtLeast(0)
             val mergedCosmetics = (cloudStats.unlockedCosmetics + guest.unlockedCosmetics + DEFAULT_UNLOCKED_COSMETICS).distinct()
             val mergedAchievements = (cloudStats.achievementsUnlocked + guest.achievementsUnlocked).distinct()

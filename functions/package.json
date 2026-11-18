@@ -1,0 +1,16 @@
+{
+  "name": "guitar-legends-functions",
+  "private": true,
+  "description": "Operações econômicas autoritativas do Guitar Legends",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.4.0"
+  }
+}

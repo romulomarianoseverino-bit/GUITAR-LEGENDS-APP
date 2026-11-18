@@ -127,7 +127,7 @@ val DEFAULT_UNLOCKED_COSMETICS = listOf(
 )
 
 data class PlayerStats(
-    val coins: Int = 450,
+    val coins: Int = 0,
     val totalScore: Long = 0L,
     val notesHitTotal: Long = 0L,
     val maxStreakOverall: Int = 0,
@@ -190,3 +190,30 @@ data class MatchResult(
     val isAdaptiveUsed: Boolean,
     val isCompetitive: Boolean = false
 )
+
+
+/** Balanceia a recompensa da partida por precisão, dificuldade e duração real da faixa. */
+object MatchRewardCalculator {
+    fun calculate(
+        accuracyPercent: Float,
+        difficulty: Difficulty,
+        durationMs: Long,
+        failed: Boolean = false
+    ): Int {
+        if (failed) return 0
+
+        val durationMinutes = (durationMs.coerceAtLeast(30_000L) / 60_000f).coerceIn(0.5f, 6f)
+        val difficultyFactor = when (difficulty) {
+            Difficulty.EASY -> 0.75f
+            Difficulty.MEDIUM -> 0.90f
+            Difficulty.HARD -> 1.05f
+            Difficulty.EXPERT -> 1.20f
+        }
+        val accuracyFactor = 0.25f + (accuracyPercent.coerceIn(0f, 100f) / 100f) * 0.75f
+        val durationBase = 4f + durationMinutes * 5.5f
+
+        return (durationBase * difficultyFactor * accuracyFactor * 1.13f)
+            .toInt()
+            .coerceIn(1, 50)
+    }
+}

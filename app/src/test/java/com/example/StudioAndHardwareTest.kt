@@ -9,6 +9,8 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.example.guitarlegends.data.HighwayImageManager
+import com.example.guitarlegends.data.LocalPlayerProgressRepository
+import com.example.guitarlegends.data.LocalProgressSnapshot
 import com.example.guitarlegends.model.*
 import com.example.guitarlegends.ui.screens.CustomizationScreen
 import com.example.guitarlegends.ui.screens.LiveStageGameplayScreen
@@ -96,35 +98,65 @@ class StudioAndHardwareTest {
     }
 
     @Test
-    fun `02 - shop unlock deducts coins when affordable and challenges reward coins cleanly once`() {
+    fun `02 - new players start with zero coins and reward claims stay capped`() {
         val vm = GameViewModel(app)
-        val initialCoins = vm.playerStats.value.coins // 450 LC
+        val initialCoins = vm.playerStats.value.coins
 
-        val expensiveSkin = StudioCatalog.shopCosmetics.first { it.id == "kai_cyber" } // 600 LC
-        assertFalse("Item mais caro que saldo deve ser bloqueado", vm.unlockAndEquipCosmetic(expensiveSkin))
+        assertEquals("Conta nova deve começar sem moedas", 0, initialCoins)
+
+        val expensiveSkin = StudioCatalog.shopCosmetics.first { it.id == "kai_cyber" }
+        assertFalse("Item sem saldo deve ser bloqueado", vm.unlockAndEquipCosmetic(expensiveSkin))
         assertEquals(initialCoins, vm.playerStats.value.coins)
 
-        val affordableHair = StudioCatalog.shopCosmetics.first { it.id == "hair_moicano_turquesa" } // 150 LC
-        assertTrue(vm.unlockAndEquipCosmetic(affordableHair))
-        assertEquals(initialCoins - 150, vm.playerStats.value.coins)
-        assertTrue(vm.playerStats.value.unlockedCosmetics.contains("hair_moicano_turquesa"))
+        val affordableHair = StudioCatalog.shopCosmetics.first { it.id == "hair_moicano_turquesa" }
+        assertFalse("Jogador sem moedas não deve comprar item de 150 LC", vm.unlockAndEquipCosmetic(affordableHair))
 
-        // Desafio não atingido ainda não pode liberar moedas
-        val showChallenge = StudioCatalog.challenges.first { it.id == "chl_first_3_shows" }
-        val coinsBeforeAttempt = vm.playerStats.value.coins
-        vm.claimChallengeReward(showChallenge)
-        assertEquals(coinsBeforeAttempt, vm.playerStats.value.coins)
-
-        // Simula 3 partidas concluídas e resgata recompensa uma única vez
+        // Três partidas liberam o desafio, mas não devem alterar o saldo inicial da conta.
         repeat(3) { vm.finishMatch(failed = false) }
-        val coinsAfterMatches = vm.playerStats.value.coins
+        val showChallenge = StudioCatalog.challenges.first { it.id == "chl_first_3_shows" }
+        val coinsBeforeClaim = vm.playerStats.value.coins
         vm.claimChallengeReward(showChallenge)
-        assertEquals(coinsAfterMatches + showChallenge.rewardCoins, vm.playerStats.value.coins)
+        assertEquals(coinsBeforeClaim + 100, vm.playerStats.value.coins)
 
-        // Replay do mesmo desafio deve ser bloqueado
+        // O mesmo desafio não pode ser resgatado novamente.
         val coinsAfterClaim = vm.playerStats.value.coins
         vm.claimChallengeReward(showChallenge)
         assertEquals(coinsAfterClaim, vm.playerStats.value.coins)
+
+        assertTrue("Nenhuma recompensa de desafio pode exceder 100 moedas",
+            StudioCatalog.challenges.all { it.rewardCoins in 0..100 })
+        assertTrue("Nenhuma recompensa diária pode exceder 100 moedas",
+            DailyRewardCatalog.cycleRewards.all { it.coinsGranted in 0..100 })
+        assertEquals("Modelo de jogador novo deve iniciar zerado", 0, PlayerStats().coins)
+        assertEquals("Modelo de conta novo deve iniciar zerado", 0, UserAccountCloud().coins)
+
+        val mediumPerfect = MatchRewardCalculator.calculate(100f, Difficulty.MEDIUM, 240_000L)
+        val expertPerfect = MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 240_000L)
+        val mediumLowerAccuracy = MatchRewardCalculator.calculate(60f, Difficulty.MEDIUM, 240_000L)
+        val maximumSongReward = MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 360_000L)
+        assertTrue("Uma música completa deve respeitar o teto de 50 moedas", mediumPerfect in 1..50)
+        assertEquals("Uma faixa longa no Especialista pode atingir o teto exato de 50 moedas", 50, maximumSongReward)
+        assertTrue("Maior dificuldade deve pagar mais que a média", expertPerfect > mediumPerfect)
+        assertTrue("Precisão menor deve reduzir a premiação", mediumLowerAccuracy < mediumPerfect)
+        assertEquals("Partida abandonada/falha não deve gerar moedas", 0,
+            MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 240_000L, failed = true))
+
+        // Saldos antigos de visitantes continuam sendo tratados como saldo inicial histórico,
+        // enquanto snapshots novos usam baseline zero.
+        val existingCloud = PlayerStats(coins = 200)
+        val legacyGuest = LocalProgressSnapshot(
+            stats = PlayerStats(coins = 550),
+            hasUnlinkedGuestProgress = true,
+            startingCoinsBaseline = 450
+        )
+        assertEquals(300, LocalPlayerProgressRepository.mergeGuestIntoCloud(existingCloud, legacyGuest).coins)
+
+        val newGuest = LocalProgressSnapshot(
+            stats = PlayerStats(coins = 100),
+            hasUnlinkedGuestProgress = true,
+            startingCoinsBaseline = 0
+        )
+        assertEquals(300, LocalPlayerProgressRepository.mergeGuestIntoCloud(existingCloud, newGuest).coins)
     }
 
     @Test
