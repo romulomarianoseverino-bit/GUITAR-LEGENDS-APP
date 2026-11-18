@@ -81,6 +81,7 @@ before(async () => {
       rules,
       host: emulatorHost,
       port: emulatorPort,
+      databaseId: "ai-studio-android-guitarle-43a8bf45-7a84-48fd-9eb3-437bcb0e82ad",
     },
   });
 });
