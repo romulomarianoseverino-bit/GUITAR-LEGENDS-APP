@@ -366,10 +366,10 @@ exports.syncAccountProfile = onCall(async (request) => {
       if (Number.isInteger(data.audioLatencyOffsetMs)) {
         update.audioLatencyOffsetMs = Math.max(-500, Math.min(500, data.audioLatencyOffsetMs));
       }
-      if (["DIRECT_TOUCH", "BLUETOOTH_GAMEPAD", "HYBRID"].includes(data.controlMode)) {
+      if (["DIRECT_TOUCH", "FRET_AND_STRUM"].includes(data.controlMode)) {
         update.controlMode = data.controlMode;
       }
-      if (["LOW", "MEDIUM", "HIGH", "ULTRA"].includes(data.graphicsQuality)) {
+      if (["HIGH", "BALANCED", "BATTERY_SAVER"].includes(data.graphicsQuality)) {
         update.graphicsQuality = data.graphicsQuality;
       }
       if (typeof data.studioProfileJson === "string" && data.studioProfileJson.length <= 24576) {
