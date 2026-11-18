@@ -1080,49 +1080,108 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun unlockAndEquipCosmetic(item: CosmeticShopItem): Boolean {
         val current = _playerStats.value
         val alreadyUnlocked = item.unlockedByDefault || current.unlockedCosmetics.contains(item.id)
-        if (!alreadyUnlocked && current.coins < item.priceCoins) {
-            _studioActionMessage.value = "Moedas insuficientes (${item.priceCoins} LC necessários)."
-            return false
+        if (alreadyUnlocked) {
+            _playerStats.value = StudioCatalog.applyCosmeticLook(current, item.id)
+            _studioActionMessage.value = "${item.title} equipado!"
+            triggerBackgroundCloudSync(customizationChanged = true)
+            return true
         }
-        val nextCoins = if (alreadyUnlocked) current.coins else (current.coins - item.priceCoins)
-        val nextUnlocked = (current.unlockedCosmetics + item.id).distinct()
-        val withUnlock = current.copy(coins = nextCoins, unlockedCosmetics = nextUnlocked)
-        _playerStats.value = StudioCatalog.applyCosmeticLook(withUnlock, item.id)
-        soundFx.playUiClick(isConfirm = true)
-        _studioActionMessage.value = if (alreadyUnlocked) {
-            "${item.title} equipado!"
-        } else {
-            "${item.title} desbloqueado e equipado (-${item.priceCoins} LC)!"
+
+        val repo = accountRepo
+        val signedIn = repo?.currentUidOrNull() != null && _authUiState.value is AuthUiState.Authenticated
+        if (!signedIn) {
+            if (current.coins < item.priceCoins) {
+                _studioActionMessage.value = "Moedas insuficientes (${item.priceCoins} LC necessários)."
+                return false
+            }
+            val local = current.copy(
+                coins = current.coins - item.priceCoins,
+                unlockedCosmetics = (current.unlockedCosmetics + item.id).distinct()
+            )
+            _playerStats.value = StudioCatalog.applyCosmeticLook(local, item.id)
+            soundFx.playUiClick(isConfirm = true)
+            _studioActionMessage.value = "${item.title} desbloqueado e equipado!"
+            persistLocalMutation(customizationChanged = true)
+            return true
         }
-        triggerBackgroundCloudSync(customizationChanged = true)
+
+        viewModelScope.launch {
+            _studioActionMessage.value = "Validando compra no servidor..."
+            repo!!.purchaseCosmetic(item.id).onSuccess { cloud ->
+                val purchased = StudioCatalog.applyCosmeticLook(cloud.toPlayerStats(), item.id)
+                _playerStats.value = purchased
+                localProgressRepository.saveSnapshot(
+                    localProgressRepository.loadSnapshot().copy(
+                        stats = purchased,
+                        hasUnlinkedGuestProgress = false
+                    )
+                )
+                soundFx.playUiClick(isConfirm = true)
+                _studioActionMessage.value = "${item.title} desbloqueado e equipado!"
+                triggerBackgroundCloudSync(customizationChanged = true)
+            }.onFailure { error ->
+                _studioActionMessage.value = error.message ?: "Não foi possível concluir a compra."
+            }
+        }
         return true
     }
 
     fun unlockHighwayStamp(stamp: HighwayStampItem) {
         val current = _playerStats.value
-        val unlocked = stamp.unlockedByDefault || current.unlockedCosmetics.contains(stamp.id)
-        if (unlocked) {
+        val alreadyUnlocked = stamp.unlockedByDefault || current.unlockedCosmetics.contains(stamp.id)
+        if (alreadyUnlocked) {
             selectHighwayStamp(stamp.id)
             return
         }
-        if (current.coins < stamp.priceCoins) {
-            _studioActionMessage.value = "Moedas insuficientes para esta estampa (${stamp.priceCoins} LC)."
-            return
-        }
-        val studio = current.studioProfile
-        _playerStats.value = current.copy(
-            coins = current.coins - stamp.priceCoins,
-            unlockedCosmetics = (current.unlockedCosmetics + stamp.id).distinct(),
-            studioProfile = studio.copy(
-                highwayConfig = studio.highwayConfig.copy(
-                    selectedStampId = stamp.id,
-                    customImagePath = null
+
+        val repo = accountRepo
+        val signedIn = repo?.currentUidOrNull() != null && _authUiState.value is AuthUiState.Authenticated
+        if (!signedIn) {
+            if (current.coins < stamp.priceCoins) {
+                _studioActionMessage.value = "Moedas insuficientes para esta estampa (${stamp.priceCoins} LC)."
+                return
+            }
+            val updated = current.copy(
+                coins = current.coins - stamp.priceCoins,
+                unlockedCosmetics = (current.unlockedCosmetics + stamp.id).distinct(),
+                studioProfile = current.studioProfile.copy(
+                    highwayConfig = current.studioProfile.highwayConfig.copy(
+                        selectedStampId = stamp.id, customImagePath = null
+                    )
                 )
             )
-        )
-        soundFx.playUiClick(isConfirm = true)
-        _studioActionMessage.value = "Estampa '${stamp.title}' desbloqueada!"
-        triggerBackgroundCloudSync(customizationChanged = true)
+            _playerStats.value = updated
+            soundFx.playUiClick(isConfirm = true)
+            _studioActionMessage.value = "Estampa '${stamp.title}' desbloqueada!"
+            persistLocalMutation(customizationChanged = true)
+            return
+        }
+
+        viewModelScope.launch {
+            _studioActionMessage.value = "Validando compra da estampa no servidor..."
+            repo!!.purchaseCosmetic(stamp.id).onSuccess { cloud ->
+                val base = cloud.toPlayerStats()
+                val updated = base.copy(
+                    studioProfile = base.studioProfile.copy(
+                        highwayConfig = base.studioProfile.highwayConfig.copy(
+                            selectedStampId = stamp.id, customImagePath = null
+                        )
+                    )
+                )
+                _playerStats.value = updated
+                localProgressRepository.saveSnapshot(
+                    localProgressRepository.loadSnapshot().copy(
+                        stats = updated,
+                        hasUnlinkedGuestProgress = false
+                    )
+                )
+                soundFx.playUiClick(isConfirm = true)
+                _studioActionMessage.value = "Estampa '${stamp.title}' desbloqueada!"
+                triggerBackgroundCloudSync(customizationChanged = true)
+            }.onFailure { error ->
+                _studioActionMessage.value = error.message ?: "Não foi possível comprar a estampa."
+            }
+        }
     }
 
     fun selectHighwayStamp(stampId: String) {
