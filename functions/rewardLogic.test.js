@@ -7,6 +7,7 @@ const {
   getDailyReward,
   grantWithinWeeklyCap,
   calculateMatchCoins,
+  calculateMatchStars,
   getCosmeticPrice,
   CHALLENGES
 } = require("./rewardLogic");
@@ -54,4 +55,12 @@ test("desafios usam indicadores atualizados pelo servidor após partidas", () =>
   assert.equal(CHALLENGES.chl_combo_35.progressField, "verifiedMaxStreakOverall");
   assert.equal(CHALLENGES.chl_stars_12.progressField, "verifiedUnlockedStars");
   assert.equal(CHALLENGES.chl_duel_win.progressField, "verifiedCompetitiveWins");
+});
+
+test("estrelas são calculadas no servidor pela precisão, sem confiar no app", () => {
+  assert.equal(calculateMatchStars({ accuracyPercent: 99, failed: false }), 5);
+  assert.equal(calculateMatchStars({ accuracyPercent: 92, failed: false }), 4);
+  assert.equal(calculateMatchStars({ accuracyPercent: 80, failed: false }), 3);
+  assert.equal(calculateMatchStars({ accuracyPercent: 60, failed: false }), 2);
+  assert.equal(calculateMatchStars({ accuracyPercent: 100, failed: true }), 1);
 });
