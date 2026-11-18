@@ -212,7 +212,7 @@ object MatchRewardCalculator {
         val accuracyFactor = 0.25f + (accuracyPercent.coerceIn(0f, 100f) / 100f) * 0.75f
         val durationBase = 4f + durationMinutes * 5.5f
 
-        return (durationBase * difficultyFactor * accuracyFactor)
+        return (durationBase * difficultyFactor * accuracyFactor * 1.13f)
             .toInt()
             .coerceIn(1, 50)
     }
