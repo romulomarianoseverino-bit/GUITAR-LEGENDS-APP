@@ -216,7 +216,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
 
             val guest = guestSnapshot.stats
             val extraGuestCoins = (guest.coins - guestSnapshot.startingCoinsBaseline).coerceAtLeast(0)
-            val extraGuestStars = (guest.unlockedStars - BASELINE_DEFAULT_STATS.unlockedStars).coerceAtLeast(0)
+            val extraGuestStars = (guest.unlockedStars - PlayerStats().unlockedStars).coerceAtLeast(0)
             val mergedCosmetics = (cloudStats.unlockedCosmetics + guest.unlockedCosmetics + DEFAULT_UNLOCKED_COSMETICS).distinct()
             val mergedAchievements = (cloudStats.achievementsUnlocked + guest.achievementsUnlocked).distinct()
 
