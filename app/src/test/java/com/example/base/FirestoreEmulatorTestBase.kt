@@ -29,6 +29,7 @@ abstract class FirestoreEmulatorTestBase {
 
     protected lateinit var firestore: FirebaseFirestore
     protected lateinit var auth: FirebaseAuth
+    protected lateinit var functions: FirebaseFunctions
     protected lateinit var databaseId: String
 
     @Before
@@ -37,31 +38,31 @@ abstract class FirestoreEmulatorTestBase {
         val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
         databaseId = if (resId != 0) context.getString(resId) else "demo-database"
 
-        val app = if (FirebaseApp.getApps(context).isEmpty()) {
-            val newApp = FirebaseApp.initializeApp(
+        val app = try {
+            FirebaseApp.getInstance(TEST_APP_NAME)
+        } catch (_: IllegalStateException) {
+            FirebaseApp.initializeApp(
                 context,
                 FirebaseOptions.Builder()
                     .setApplicationId("com.aistudio.applet.kpfcic")
                     .setProjectId(PROJECT_ID)
                     .setApiKey("fake-api-key-for-emulator")
-                    .build()
+                    .build(),
+                TEST_APP_NAME
             )
-            val newFirestore = FirebaseFirestore.getInstance(newApp, databaseId)
-            newFirestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-            newFirestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                .build()
-
-            val newAuth = FirebaseAuth.getInstance(newApp)
-            newAuth.useEmulator(EMULATOR_HOST, AUTH_PORT)
-            FirebaseFunctions.getInstance(newApp).useEmulator(EMULATOR_HOST, FUNCTIONS_PORT)
-            newApp
-        } else {
-            FirebaseApp.getInstance()
         }
 
         firestore = FirebaseFirestore.getInstance(app, databaseId)
+        firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+        firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+            .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
+            .build()
+
         auth = FirebaseAuth.getInstance(app)
+        auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
+
+        functions = FirebaseFunctions.getInstance(app)
+        functions.useEmulator(EMULATOR_HOST, FUNCTIONS_PORT)
     }
 
     @After
@@ -91,6 +92,7 @@ abstract class FirestoreEmulatorTestBase {
     }
 
     private companion object {
+        const val TEST_APP_NAME = "guitar-legends-test"
         const val EMULATOR_HOST = "127.0.0.1"
         const val FIRESTORE_PORT = 8085
         const val AUTH_PORT = 9099
