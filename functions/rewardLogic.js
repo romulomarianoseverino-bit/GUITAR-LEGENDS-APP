@@ -28,6 +28,11 @@ const CHALLENGES = {
 
 const COSMETIC_PRICES = Object.freeze({
   hair_moicano_turquesa: 150,
+  roxie_riot: 350,
+  void_v: 250,
+  skull_bass: 300,
+  punk_garage_kit: 250,
+  golden_supreme_mic: 350,
   outfit_chamas_palco: 220,
   acc_oculos_neon: 180,
   tattoo_raio_carmesim: 160,
