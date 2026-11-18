@@ -54,9 +54,11 @@ abstract class FirestoreEmulatorTestBase {
             firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
                 .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
                 .build()
-            firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-            auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
         }
+        // A instância padrão pode ter sido criada pelo FirebaseInitProvider antes do teste.
+        // Mesmo nesse caso, force os serviços para os emuladores antes da primeira operação.
+        firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+        auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
     }
 
     @After
