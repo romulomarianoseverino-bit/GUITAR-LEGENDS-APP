@@ -44,6 +44,17 @@ class GuestModeAndAccountTest {
     }
 
     @Test
+    fun `weekly reward window follows Monday to Sunday in Brasilia time`() {
+        val repository = LocalPlayerProgressRepository(app)
+        fun millis(value: String) = java.time.Instant.parse(value).toEpochMilli()
+
+        assertEquals("2026-11-09", repository.rewardWeekStartKey(millis("2026-11-16T02:59:59Z")))
+        assertEquals("2026-11-16", repository.rewardWeekStartKey(millis("2026-11-16T03:00:00Z")))
+        assertEquals("2026-11-16", repository.rewardWeekStartKey(millis("2026-11-23T02:59:59Z")))
+        assertEquals("2026-11-23", repository.rewardWeekStartKey(millis("2026-11-23T03:00:00Z")))
+    }
+
+    @Test
     fun `01 - app opens without authentication and never auto redirects to Auth`() = runBlocking {
         val vm = GameViewModel(app)
         delay(1600L) // garante que mesmo após tempo de splash não há redirecionamento para Auth
