@@ -172,20 +172,24 @@ exports.recordProgressionMatch = onCall(async (request) => {
   if (!allowedDifficulties.includes(difficulty) || !allowedInstruments.includes(instrument)) {
     throw new HttpsError("invalid-argument", "Instrumento ou dificuldade inválidos.");
   }
-  const accuracyPercent = Number(data.accuracyPercent);
   const durationMs = Number(data.durationMs);
   const score = Number(data.score);
-  const stars = Number(data.stars);
+  const totalNotes = Number(data.totalNotes);
   const hitNotes = Number(data.hitNotes);
   const maxCombo = Number(data.maxCombo);
   const failed = data.failed === true;
   const isCompetitive = data.isCompetitive === true;
-  if (![accuracyPercent, durationMs, score, stars, hitNotes, maxCombo].every(Number.isFinite) ||
-      accuracyPercent < 0 || accuracyPercent > 100 || durationMs < 0 ||
-      score < 0 || score > 50000000 || stars < 1 || stars > 5 ||
-      hitNotes < 0 || hitNotes > 1000000 || maxCombo < 0 || maxCombo > 100000) {
+  if (![durationMs, score, totalNotes, hitNotes, maxCombo].every(Number.isFinite) ||
+      durationMs < 0 || score < 0 || score > 50000000 ||
+      totalNotes < 1 || totalNotes > 1000000 || hitNotes < 0 || hitNotes > totalNotes ||
+      maxCombo < 0 || maxCombo > 100000 || maxCombo > hitNotes) {
     throw new HttpsError("invalid-argument", "Dados da partida fora dos limites permitidos.");
   }
+  // A precisão e as estrelas são recalculadas no servidor; não aceitamos estrelas enviadas pelo app.
+  const accuracyPercent = (hitNotes / totalNotes) * 100;
+  const stars = failed ? 1 : accuracyPercent >= 98 ? 5
+    : accuracyPercent >= 90 ? 4 : accuracyPercent >= 75 ? 3
+    : accuracyPercent >= 55 ? 2 : 1;
   const calculatedCoins = calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed });
   const { userRef, weekStart, weekRef } = getWeekRefs(uid, new Date());
   const entryRef = userRef.collection("progression_history").doc(entryId);
