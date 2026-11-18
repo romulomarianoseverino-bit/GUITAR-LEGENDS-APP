@@ -1186,6 +1186,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectHighwayStamp(stampId: String) {
+        if (!_playerStats.value.unlockedCosmetics.contains(stampId)) return
         val studio = _playerStats.value.studioProfile
         _playerStats.value = _playerStats.value.copy(
             studioProfile = studio.copy(
@@ -2205,6 +2206,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectGear(instrumentType: Instrument, id: String) {
+        if (!_playerStats.value.unlockedCosmetics.contains(id)) return
         _playerStats.value = when (instrumentType) {
             Instrument.GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
             Instrument.BASS -> _playerStats.value.copy(selectedBassId = id)
