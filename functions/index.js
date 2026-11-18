@@ -173,23 +173,30 @@ exports.recordProgressionMatch = onCall(async (request) => {
       hitNotes < 0 || hitNotes > 1000000 || maxCombo < 0 || maxCombo > 100000) {
     throw new HttpsError("invalid-argument", "Dados da partida fora dos limites permitidos.");
   }
-  const coinsEarned = calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed });
-  const userRef = db.collection("users").doc(uid);
+  const calculatedCoins = calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed });
+  const { userRef, weekStart, weekRef } = getWeekRefs(uid, new Date());
   const entryRef = userRef.collection("progression_history").doc(entryId);
 
   try {
     return await db.runTransaction(async (tx) => {
-      const [userSnap, entrySnap] = await Promise.all([tx.get(userRef), tx.get(entryRef)]);
+      const [userSnap, entrySnap, weekSnap] = await Promise.all([
+        tx.get(userRef), tx.get(entryRef), tx.get(weekRef)
+      ]);
       if (!userSnap.exists) throw new HttpsError("failed-precondition", "Conta não encontrada.");
       if (entrySnap.exists) return { entryId, coinsEarned: entrySnap.get("coinsEarned") || 0, duplicate: true };
       const user = userSnap.data();
+      const weekly = grantWithinWeeklyCap(calculatedCoins, weekSnap.exists ? weekSnap.get("coinsGranted") : 0);
+      const coinsEarned = weekly.granted;
 
       tx.create(entryRef, {
         userId: uid, trackId, trackTitle: String(data.trackTitle || "Música").slice(0, 160),
         instrument, difficulty, score: Math.floor(score), stars: Math.floor(stars),
-        accuracyPercent, coinsEarned, isCompetitive,
+        accuracyPercent, coinsEarned, calculatedCoins, isCompetitive,
         createdAt: FieldValue.serverTimestamp()
       });
+      tx.set(weekRef, {
+        weekStart, coinsGranted: weekly.total, updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
       tx.update(userRef, {
         coins: Number(user.coins || 0) + coinsEarned,
         totalScore: Number(user.totalScore || 0) + Math.floor(score),
