@@ -345,12 +345,12 @@ exports.claimNicknameAndCreateAccount = onCall(async (request) => {
         });
         if (oldNicknameRef) tx.delete(oldNicknameRef);
         tx.update(userRef, {
-          email, nickname, nicknameNormalized: normalized,
+          email: email || String(existing.email || "").slice(0, 200), nickname, nicknameNormalized: normalized,
           syncRevision: Number(existing.syncRevision || 0) + 1,
           updatedAt: now
         });
       } else {
-        tx.create(nicknameRef, { userId: uid, nickname, createdAt: now });
+        tx.set(nicknameRef, { userId: uid, nickname, createdAt: now });
         tx.create(userRef, {
           userId: uid, email, nickname, nicknameNormalized: normalized,
           coins: 0, totalScore: 0, notesHitTotal: 0, maxStreakOverall: 0,
