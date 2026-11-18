@@ -549,7 +549,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         mergeGuestProgress: Boolean = true
     ) {
         _authUiState.value = AuthUiState.Loading
-        val repo = accountRepo ?: return
+        val repo = accountRepo
+        if (repo == null) {
+            val safeNickname = _playerStats.value.nickname.ifBlank { "Rockstar" }
+            _playerStats.value = _playerStats.value.copy(email = email)
+            _authUiState.value = AuthUiState.Authenticated(uid, email, safeNickname)
+            _cloudSyncStatus.value = "Conta conectada; serviço de sincronização indisponível"
+            _authErrorMessage.value = "Você entrou na conta, mas a sincronização na nuvem não está disponível agora."
+            return
+        }
         val accountRes = repo.fetchAccount()
         accountRes.onSuccess { remote ->
             if (remote == null || remote.nickname.isBlank()) {
@@ -589,9 +597,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 checkForUpdates(silent = true)
             }
         }.onFailure { err ->
-            _authErrorMessage.value = "Erro ao carregar conta na nuvem: ${err.message}"
-            _authUiState.value = AuthUiState.SignedOut
-            _cloudSyncStatus.value = "Modo Visitante (Falha na rede ao consultar nuvem)"
+            // A falha ao consultar o perfil não desfaz a autenticação válida do Firebase.
+            // Mantém a conta identificada e informa separadamente a falha de sincronização.
+            val safeNickname = _playerStats.value.nickname.ifBlank { "Rockstar" }
+            _playerStats.value = _playerStats.value.copy(email = email)
+            _authUiState.value = AuthUiState.Authenticated(uid, email, safeNickname)
+            _authErrorMessage.value = "Conta conectada, mas não foi possível sincronizar os dados: ${err.message}"
+            _cloudSyncStatus.value = "Conta conectada; falha ao consultar a nuvem"
         }
     }
 
