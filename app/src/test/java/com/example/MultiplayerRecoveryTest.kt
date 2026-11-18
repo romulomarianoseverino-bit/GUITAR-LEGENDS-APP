@@ -59,7 +59,7 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
             ?: FirebaseApp.initializeApp(
                 context,
                 FirebaseOptions.Builder()
-                    .setApplicationId("com.aistudio.applet.kpfcic")
+                    .setApplicationId("1:1234567890:android:abcdef123456")
                     .setProjectId("demo-no-project")
                     .setApiKey("fake-api-key-for-emulator")
                     .build(),
