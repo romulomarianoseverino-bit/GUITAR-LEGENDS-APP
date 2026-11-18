@@ -10,6 +10,7 @@ const {
   getDailyReward,
   grantWithinWeeklyCap,
   calculateMatchCoins,
+  calculateMatchStars,
   COSMETIC_PRICES,
   getCosmeticPrice
 } = require("./rewardLogic");
@@ -187,9 +188,7 @@ exports.recordProgressionMatch = onCall(async (request) => {
   }
   // A precisão e as estrelas são recalculadas no servidor; não aceitamos estrelas enviadas pelo app.
   const accuracyPercent = (hitNotes / totalNotes) * 100;
-  const stars = failed ? 1 : accuracyPercent >= 98 ? 5
-    : accuracyPercent >= 90 ? 4 : accuracyPercent >= 75 ? 3
-    : accuracyPercent >= 55 ? 2 : 1;
+  const stars = calculateMatchStars({ accuracyPercent, failed });
   const calculatedCoins = calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed });
   const { userRef, weekStart, weekRef } = getWeekRefs(uid, new Date());
   const entryRef = userRef.collection("progression_history").doc(entryId);
