@@ -111,17 +111,16 @@ class StudioAndHardwareTest {
         val affordableHair = StudioCatalog.shopCosmetics.first { it.id == "hair_moicano_turquesa" }
         assertFalse("Jogador sem moedas não deve comprar item de 150 LC", vm.unlockAndEquipCosmetic(affordableHair))
 
-        // Três partidas liberam o desafio, mas não devem alterar o saldo inicial da conta.
+        // Progresso local de visitante não é aceito como progresso verificado para resgatar moedas.
         repeat(3) { vm.finishMatch(failed = false) }
         val showChallenge = StudioCatalog.challenges.first { it.id == "chl_first_3_shows" }
         val coinsBeforeClaim = vm.playerStats.value.coins
+        assertEquals(0, showChallenge.progressProvider(vm.playerStats.value))
         vm.claimChallengeReward(showChallenge)
-        assertEquals(coinsBeforeClaim + 100, vm.playerStats.value.coins)
+        assertEquals(coinsBeforeClaim, vm.playerStats.value.coins)
 
-        // O mesmo desafio não pode ser resgatado novamente.
-        val coinsAfterClaim = vm.playerStats.value.coins
-        vm.claimChallengeReward(showChallenge)
-        assertEquals(coinsAfterClaim, vm.playerStats.value.coins)
+        // O visitante não pode resgatar desafios sem validação da conta no servidor.
+        assertEquals(0, PlayerStats().verifiedSongsCompleted)
 
         assertTrue("Nenhuma recompensa de desafio pode exceder 100 moedas",
             StudioCatalog.challenges.all { it.rewardCoins in 0..100 })
