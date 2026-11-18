@@ -1261,12 +1261,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val updatedClaimed = (cur.studioProfile.claimedChallenges + challenge.id).distinct()
+        val coinsGranted = challenge.rewardCoins.coerceIn(0, 100)
         _playerStats.value = cur.copy(
-            coins = cur.coins + challenge.rewardCoins,
+            coins = cur.coins + coinsGranted,
             studioProfile = cur.studioProfile.copy(claimedChallenges = updatedClaimed)
         )
         soundFx.playUiClick(isConfirm = true)
-        _studioActionMessage.value = "Desafio '${challenge.title}' resgatado: +${challenge.rewardCoins} LC!"
+        _studioActionMessage.value = "Desafio '${challenge.title}' resgatado: +${coinsGranted} LC!"
         triggerBackgroundCloudSync(customizationChanged = true)
     }
 
