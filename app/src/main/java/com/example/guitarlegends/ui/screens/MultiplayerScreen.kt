@@ -60,7 +60,7 @@ fun MultiplayerScreen(viewModel: GameViewModel) {
     var inviteCopiedNotice by remember { mutableStateOf(false) }
 
     val selfUid = viewModel.currentMultiplayerUid()
-    val isSignedIn = selfUid != null && (authState is AuthUiState.Authenticated || authState is AuthUiState.NeedsNickname)
+    val isSignedIn = selfUid != null
     val isHost = room != null && selfUid != null && room!!.hostUid == selfUid
     val selfParticipant = participants.find { it.userId == selfUid }
 
@@ -112,7 +112,7 @@ fun MultiplayerScreen(viewModel: GameViewModel) {
                             val connectedEmail = when (val state = authState) {
                                 is AuthUiState.Authenticated -> state.email
                                 is AuthUiState.NeedsNickname -> state.email
-                                else -> stats.email
+                                else -> viewModel.currentAuthEmail().orEmpty().ifBlank { stats.email }
                             }
                             Surface(
                                 color = RockAccentGreen.copy(alpha = 0.14f),
