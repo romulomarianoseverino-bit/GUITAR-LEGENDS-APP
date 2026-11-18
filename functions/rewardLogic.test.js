@@ -12,10 +12,11 @@ const {
   CHALLENGES
 } = require("./rewardLogic");
 
-test("semana começa na segunda-feira e termina no domingo", () => {
-  assert.equal(getUtcWeekStart(new Date("2026-11-16T12:00:00Z")), "2026-11-16");
-  assert.equal(getUtcWeekStart(new Date("2026-11-22T12:00:00Z")), "2026-11-16");
-  assert.equal(getUtcWeekStart(new Date("2026-11-23T00:00:00Z")), "2026-11-23");
+test("semana começa segunda-feira e termina domingo no horário de Brasília", () => {
+  assert.equal(getUtcWeekStart(new Date("2026-11-16T02:59:59Z")), "2026-11-09"); // domingo 23:59
+  assert.equal(getUtcWeekStart(new Date("2026-11-16T03:00:00Z")), "2026-11-16"); // segunda 00:00
+  assert.equal(getUtcWeekStart(new Date("2026-11-23T02:59:59Z")), "2026-11-16"); // domingo 23:59
+  assert.equal(getUtcWeekStart(new Date("2026-11-23T03:00:00Z")), "2026-11-23"); // segunda 00:00
 });
 
 test("limite semanal soma recompensas e nunca ultrapassa 100 moedas", () => {
