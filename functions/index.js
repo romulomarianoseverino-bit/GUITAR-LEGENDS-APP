@@ -10,6 +10,7 @@ const {
   getDailyReward,
   grantWithinWeeklyCap,
   calculateMatchCoins,
+  COSMETIC_PRICES,
   getCosmeticPrice
 } = require("./rewardLogic");
 
@@ -238,6 +239,50 @@ const DEFAULT_UNLOCKED_COSMETICS = [
   "stamp_none", "stamp_ps2_flames", "stamp_checker_punk"
 ];
 
+
+const KNOWN_COSMETICS = new Set([
+  ...DEFAULT_UNLOCKED_COSMETICS,
+  ...Object.keys(COSMETIC_PRICES)
+]);
+const STUDIO_SELECTION_FIELDS = new Set([
+  "selectedCharacterId", "selectedGuitarId", "selectedBassId",
+  "selectedDrumsId", "selectedVocalMicId", "selectedHighwayThemeId",
+  "fullOutfitSkinId", "fullSkinId", "selectedStampId"
+]);
+const STUDIO_SELECTION_DEFAULTS = {
+  selectedCharacterId: "axel_rocker",
+  selectedGuitarId: "flame_caster",
+  selectedBassId: "thunder_bass",
+  selectedDrumsId: "arena_beast_kit",
+  selectedVocalMicId: "vintage_shure_55s",
+  selectedHighwayThemeId: "theme_ps2_wood",
+  fullOutfitSkinId: "outfit_skin_none",
+  fullSkinId: "skin_none",
+  selectedStampId: "stamp_ps2_flames"
+};
+
+function sanitizeStudioSelections(incoming, existing, unlocked) {
+  if (Array.isArray(incoming)) {
+    return incoming.map((value, index) =>
+      sanitizeStudioSelections(value, Array.isArray(existing) ? existing[index] : undefined, unlocked)
+    );
+  }
+  if (!incoming || typeof incoming !== "object") return incoming;
+  const result = {};
+  for (const [key, value] of Object.entries(incoming)) {
+    const previous = existing && typeof existing === "object" ? existing[key] : undefined;
+    if (STUDIO_SELECTION_FIELDS.has(key) && typeof value === "string" &&
+        KNOWN_COSMETICS.has(value) && !unlocked.has(value)) {
+      result[key] = typeof previous === "string" &&
+        (!KNOWN_COSMETICS.has(previous) || unlocked.has(previous))
+        ? previous : (STUDIO_SELECTION_DEFAULTS[key] || "");
+    } else {
+      result[key] = sanitizeStudioSelections(value, previous, unlocked);
+    }
+  }
+  return result;
+}
+
 function parseStudioProfile(value) {
   if (typeof value !== "string" || !value) return {};
   try {
@@ -375,9 +420,10 @@ exports.syncAccountProfile = onCall(async (request) => {
       if (typeof data.studioProfileJson === "string" && data.studioProfileJson.length <= 24576) {
         const incomingStudio = parseStudioProfile(data.studioProfileJson);
         const existingStudio = parseStudioProfile(user.studioProfileJson);
-        incomingStudio.claimedChallenges = Array.isArray(existingStudio.claimedChallenges)
+        const sanitizedStudio = sanitizeStudioSelections(incomingStudio, existingStudio, unlocked);
+        sanitizedStudio.claimedChallenges = Array.isArray(existingStudio.claimedChallenges)
           ? existingStudio.claimedChallenges : [];
-        update.studioProfileJson = JSON.stringify(incomingStudio);
+        update.studioProfileJson = JSON.stringify(sanitizedStudio);
       }
       tx.update(userRef, update);
     });
