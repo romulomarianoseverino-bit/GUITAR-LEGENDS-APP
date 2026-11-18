@@ -28,7 +28,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         val nick = "Rocker_$tag"
         val uid = signInTestUser(aliceEmail)
 
-        val repo = AccountCloudRepository(firestore, auth)
+        val repo = AccountCloudRepository(firestore, auth, functions)
         val availBefore = withTimeout(DEFAULT_TIMEOUT_MS) { repo.isNicknameAvailable(nick) }
         assertTrue("Nickname should be available before claiming", availBefore.getOrNull() == true)
 
@@ -77,7 +77,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         val sharedNick = "Legend_$tag"
 
         signInTestUser("alice_$tag@test.com")
-        val aliceRepo = AccountCloudRepository(firestore, auth)
+        val aliceRepo = AccountCloudRepository(firestore, auth, functions)
         val aliceClaim = withTimeout(DEFAULT_TIMEOUT_MS) {
             aliceRepo.claimNicknameAndSaveAccount(sharedNick, PlayerStats())
         }
@@ -85,7 +85,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
 
         // Segundo jogador tenta usar exatamente o mesmo nickname (case-insensitive)
         signInTestUser("bob_$tag@test.com")
-        val bobRepo = AccountCloudRepository(firestore, auth)
+        val bobRepo = AccountCloudRepository(firestore, auth, functions)
         val bobCheck = withTimeout(DEFAULT_TIMEOUT_MS) {
             bobRepo.isNicknameAvailable(sharedNick.uppercase())
         }
@@ -101,7 +101,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
     fun crossUserReadWrite_usersDocument_failsWithPermissionDenied() = runBlocking {
         val tag = uniqueSuffix()
         val aliceUid = signInTestUser("alice_iso_$tag@test.com")
-        val aliceRepo = AccountCloudRepository(firestore, auth)
+        val aliceRepo = AccountCloudRepository(firestore, auth, functions)
         withTimeout(DEFAULT_TIMEOUT_MS) {
             aliceRepo.claimNicknameAndSaveAccount("Alice_$tag", PlayerStats()).getOrThrow()
         }
@@ -135,7 +135,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
     @Test
     fun observeUserAccount_unauthenticatedCaller_failsAccess() = runBlocking {
         auth.signOut()
-        val repo = AccountCloudRepository(firestore, auth)
+        val repo = AccountCloudRepository(firestore, auth, functions)
 
         val exception = try {
             withTimeout(FLOW_TIMEOUT_MS) {
@@ -152,7 +152,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
     fun dailyReward_validUtcClaimSucceedsOnce_tamperedDateAndReplayRejected() = runBlocking {
         val tag = uniqueSuffix()
         signInTestUser("daily_$tag@test.com")
-        val repo = AccountCloudRepository(firestore, auth)
+        val repo = AccountCloudRepository(firestore, auth, functions)
         val created = withTimeout(DEFAULT_TIMEOUT_MS) {
             repo.claimNicknameAndSaveAccount("Daily_$tag", PlayerStats(coins = 100)).getOrThrow()
         }
@@ -183,7 +183,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
     fun progressionHistory_createAndQuery_succeedsForOwner() = runBlocking {
         val tag = uniqueSuffix()
         signInTestUser("prog_$tag@test.com")
-        val repo = AccountCloudRepository(firestore, auth)
+        val repo = AccountCloudRepository(firestore, auth, functions)
         withTimeout(DEFAULT_TIMEOUT_MS) {
             repo.claimNicknameAndSaveAccount("Prog_$tag", PlayerStats()).getOrThrow()
         }
