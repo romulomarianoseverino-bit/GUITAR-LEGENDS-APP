@@ -131,107 +131,37 @@ service cloud.firestore {
              data.createdAt is timestamp && data.createdAt <= request.time;
     }
 
-    // 1. Perfil privado e salvamento completo na nuvem
+    // 1. Perfil privado: clientes só podem ler a própria conta.
+    // Toda alteração econômica, perfil e nickname é executada por Cloud Functions (Admin SDK).
     match /users/{userId} {
-      allow get: if isOwner(userId) && isValidId(userId);
-      allow list: if isOwner(userId);
+      allow get, list: if isOwner(userId) && isValidId(userId);
+      allow create, update, delete: if false;
 
-      allow create: if isOwner(userId) &&
-                       isValidId(userId) &&
-                       incoming().userId == request.auth.uid &&
-                       incoming().keys().hasAll([
-                         'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
-                         'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
-                         'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                         'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
-                         'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
-                         'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
-                         'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
-                         'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
-                         'schemaVersion', 'syncRevision', 'createdAt', 'updatedAt'
-                       ]) &&
-                       incoming().keys().hasOnly([
-                         'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
-                         'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
-                         'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                         'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
-                         'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
-                         'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
-                         'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
-                         'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
-                         'schemaVersion', 'syncRevision', 'studioProfileJson', 'createdAt', 'updatedAt'
-                       ]) &&
-                       isValidUserAccount(incoming());
-
-      allow update: if isOwner(userId) &&
-                       isValidId(userId) &&
-                       isValidUserAccount(incoming()) &&
-                       incoming().userId == existing().userId &&
-                       incoming().createdAt == existing().createdAt &&
-                       incoming().syncRevision >= existing().syncRevision &&
-                       (
-                         // Ação 1: Sincronização de progresso, inventário, personalização e configurações
-                         incoming().diff(existing()).affectedKeys().hasOnly([
-                           'email', 'nickname', 'nicknameNormalized', 'coins',
-                           'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
-                           'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                           'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
-                           'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
-                           'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
-                           'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
-                           'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
-                           'schemaVersion', 'syncRevision', 'studioProfileJson', 'updatedAt'
-                         ])
-                       );
-
-      allow delete: if isOwner(userId) && isValidId(userId);
-
-      // Subcoleção: Recompensas diárias imutáveis com validação temporal no servidor
       match /reward_claims/{claimId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) &&
-                         isValidId(claimId) &&
-                         incoming().keys().hasAll([
-                           'userId', 'dayKey', 'dayNumber', 'streakCount',
-                           'rewardTitle', 'rewardType', 'coinsGranted', 'cosmeticId', 'claimedAt'
-                         ]) &&
-                         incoming().keys().hasOnly([
-                           'userId', 'dayKey', 'dayNumber', 'streakCount',
-                           'rewardTitle', 'rewardType', 'coinsGranted', 'cosmeticId', 'claimedAt'
-                         ]) &&
-                         isValidDailyRewardClaim(incoming(), userId, claimId);
-        allow update, delete: if false;
+        allow get, list: if isOwner(userId) && isValidId(claimId);
+        allow create, update, delete: if false;
       }
 
-      // Subcoleção: Histórico de progressão e partidas
       match /progression_history/{entryId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) &&
-                         isValidId(entryId) &&
-                         incoming().keys().hasAll([
-                           'userId', 'trackId', 'trackTitle', 'instrument', 'difficulty',
-                           'score', 'stars', 'accuracyPercent', 'coinsEarned', 'isCompetitive', 'createdAt'
-                         ]) &&
-                         incoming().keys().hasOnly([
-                           'userId', 'trackId', 'trackTitle', 'instrument', 'difficulty',
-                           'score', 'stars', 'accuracyPercent', 'coinsEarned', 'isCompetitive', 'createdAt'
-                         ]) &&
-                         isValidProgressionEntry(incoming(), userId);
-        allow update, delete: if false;
+        allow get, list: if isOwner(userId) && isValidId(entryId);
+        allow create, update, delete: if false;
+      }
+
+      match /challenge_claims/{claimId} {
+        allow get, list: if isOwner(userId) && isValidId(claimId);
+        allow create, update, delete: if false;
+      }
+
+      match /weekly_reward_totals/{weekId} {
+        allow read, write: if false;
       }
     }
 
-    // 2. Reserva de nicknames exclusivos (sem exposição de PII nem listagem aberta)
+    // 2. Reserva de nicknames: consulta exata autenticada; alterações somente no servidor.
     match /nicknames/{normalizedNickname} {
       allow get: if isSignedIn() && isValidNicknameKey(normalizedNickname);
       allow list: if false;
-      allow create: if isSignedIn() &&
-                       isValidNicknameKey(normalizedNickname) &&
-                       incoming().keys().hasAll(['userId', 'nickname', 'createdAt']) &&
-                       incoming().keys().hasOnly(['userId', 'nickname', 'createdAt']) &&
-                       isValidNicknameClaim(incoming());
-      allow update: if false;
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow create, update, delete: if false;
     }
 
     // 3. Catálogo de versões/atualizações (somente leitura para clientes autenticados)
