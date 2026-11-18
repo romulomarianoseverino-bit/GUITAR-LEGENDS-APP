@@ -153,6 +153,7 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
         val roomCode = "ROCK-$tag"
         val aliceUid = signInTestUser("mp_alice_$tag@test.com")
 
+        assertEquals("Alice deve estar autenticada na instância padrão", aliceUid, auth.currentUser?.uid)
         val vm = GameViewModel(app)
         vm.updateGuestNickname("AliceLead")
         vm.enterGame()
@@ -173,8 +174,12 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
 
         vm.createMultiplayerRoom(MultiplayerMode.BATTLE_1V1, customRoomCode = roomCode)
         withTimeout(6000L) {
-            while (vm.multiplayerRoom.value == null) delay(60L)
+            while (vm.multiplayerRoom.value == null && vm.multiplayerError.value == null) delay(60L)
         }
+        assertNotNull(
+            "A criação da sala falhou ou ficou sem resposta: ${vm.multiplayerError.value}",
+            vm.multiplayerRoom.value
+        )
         composeTestRule.waitForIdle()
         assertEquals(roomCode, vm.multiplayerRoom.value?.roomCode)
         composeTestRule.onNodeWithTag("multiplayer_room_code_card").assertIsDisplayed()
