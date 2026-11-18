@@ -23,7 +23,7 @@ import org.robolectric.annotation.LooperMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
-@LooperMode(LooperMode.Mode.INSTRUMENTATION_TEST)
+@LooperMode(LooperMode.Mode.PAUSED)
 abstract class FirestoreEmulatorTestBase {
 
     protected lateinit var firestore: FirebaseFirestore
