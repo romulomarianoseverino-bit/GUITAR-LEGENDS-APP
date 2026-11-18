@@ -2281,6 +2281,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     // ---- Multiplayer Online (Salas, Convite, Sync & Desconexão) ----
 
     fun currentMultiplayerUid(): String? = multiplayerRepo?.currentUidOrNull()
+    fun currentAuthEmail(): String? = firebaseAuth?.currentUser?.email
 
     fun clearMultiplayerError() {
         _multiplayerError.value = null
