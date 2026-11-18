@@ -34,10 +34,6 @@ jobs:
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
           /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
-      - name: Criar chave de assinatura de depuração temporária
-        run: |
-          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -61,4 +57,4 @@ jobs:
         env:
           CI: true
         run: |
-          firebase emulators:exec --project demo-no-project --only auth,firestore,functions "npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon testDebugUnitTest assembleDebug"
+          firebase emulators:exec --project demo-no-project --only auth,firestore,functions "npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon testDebugUnitTest compileDebugKotlin"
