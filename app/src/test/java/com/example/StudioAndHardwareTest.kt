@@ -9,6 +9,8 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.example.guitarlegends.data.HighwayImageManager
+import com.example.guitarlegends.data.LocalPlayerProgressRepository
+import com.example.guitarlegends.data.LocalProgressSnapshot
 import com.example.guitarlegends.model.*
 import com.example.guitarlegends.ui.screens.CustomizationScreen
 import com.example.guitarlegends.ui.screens.LiveStageGameplayScreen
@@ -125,6 +127,25 @@ class StudioAndHardwareTest {
             StudioCatalog.challenges.all { it.rewardCoins in 0..100 })
         assertTrue("Nenhuma recompensa diária pode exceder 100 moedas",
             DailyRewardCatalog.cycleRewards.all { it.coinsGranted in 0..100 })
+        assertEquals("Modelo de jogador novo deve iniciar zerado", 0, PlayerStats().coins)
+        assertEquals("Modelo de conta novo deve iniciar zerado", 0, UserAccountCloud().coins)
+
+        // Saldos antigos de visitantes continuam sendo tratados como saldo inicial histórico,
+        // enquanto snapshots novos usam baseline zero.
+        val existingCloud = PlayerStats(coins = 200)
+        val legacyGuest = LocalProgressSnapshot(
+            stats = PlayerStats(coins = 550),
+            hasUnlinkedGuestProgress = true,
+            startingCoinsBaseline = 450
+        )
+        assertEquals(300, LocalPlayerProgressRepository.mergeGuestIntoCloud(existingCloud, legacyGuest).coins)
+
+        val newGuest = LocalProgressSnapshot(
+            stats = PlayerStats(coins = 100),
+            hasUnlinkedGuestProgress = true,
+            startingCoinsBaseline = 0
+        )
+        assertEquals(300, LocalPlayerProgressRepository.mergeGuestIntoCloud(existingCloud, newGuest).coins)
     }
 
     @Test
