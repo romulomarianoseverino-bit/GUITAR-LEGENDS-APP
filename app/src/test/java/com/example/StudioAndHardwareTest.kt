@@ -130,6 +130,15 @@ class StudioAndHardwareTest {
         assertEquals("Modelo de jogador novo deve iniciar zerado", 0, PlayerStats().coins)
         assertEquals("Modelo de conta novo deve iniciar zerado", 0, UserAccountCloud().coins)
 
+        val mediumPerfect = MatchRewardCalculator.calculate(100f, Difficulty.MEDIUM, 240_000L)
+        val expertPerfect = MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 240_000L)
+        val mediumLowerAccuracy = MatchRewardCalculator.calculate(60f, Difficulty.MEDIUM, 240_000L)
+        assertTrue("Uma música completa não deve pagar centenas de moedas", mediumPerfect in 1..45)
+        assertTrue("Maior dificuldade deve pagar mais que a média", expertPerfect > mediumPerfect)
+        assertTrue("Precisão menor deve reduzir a premiação", mediumLowerAccuracy < mediumPerfect)
+        assertEquals("Partida abandonada/falha não deve gerar moedas", 0,
+            MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 240_000L, failed = true))
+
         // Saldos antigos de visitantes continuam sendo tratados como saldo inicial histórico,
         // enquanto snapshots novos usam baseline zero.
         val existingCloud = PlayerStats(coins = 200)
