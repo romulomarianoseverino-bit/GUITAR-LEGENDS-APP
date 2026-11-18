@@ -96,35 +96,35 @@ class StudioAndHardwareTest {
     }
 
     @Test
-    fun `02 - shop unlock deducts coins when affordable and challenges reward coins cleanly once`() {
+    fun `02 - new players start with zero coins and reward claims stay capped`() {
         val vm = GameViewModel(app)
-        val initialCoins = vm.playerStats.value.coins // 0 LC
+        val initialCoins = vm.playerStats.value.coins
 
-        val expensiveSkin = StudioCatalog.shopCosmetics.first { it.id == "kai_cyber" } // 600 LC
-        assertFalse("Item mais caro que saldo deve ser bloqueado", vm.unlockAndEquipCosmetic(expensiveSkin))
+        assertEquals("Conta nova deve começar sem moedas", 0, initialCoins)
+
+        val expensiveSkin = StudioCatalog.shopCosmetics.first { it.id == "kai_cyber" }
+        assertFalse("Item sem saldo deve ser bloqueado", vm.unlockAndEquipCosmetic(expensiveSkin))
         assertEquals(initialCoins, vm.playerStats.value.coins)
 
-        val affordableHair = StudioCatalog.shopCosmetics.first { it.id == "hair_moicano_turquesa" } // 150 LC
-        assertTrue(vm.unlockAndEquipCosmetic(affordableHair))
-        assertEquals(initialCoins - 150, vm.playerStats.value.coins)
-        assertTrue(vm.playerStats.value.unlockedCosmetics.contains("hair_moicano_turquesa"))
+        val affordableHair = StudioCatalog.shopCosmetics.first { it.id == "hair_moicano_turquesa" }
+        assertFalse("Jogador sem moedas não deve comprar item de 150 LC", vm.unlockAndEquipCosmetic(affordableHair))
 
-        // Desafio não atingido ainda não pode liberar moedas
-        val showChallenge = StudioCatalog.challenges.first { it.id == "chl_first_3_shows" }
-        val coinsBeforeAttempt = vm.playerStats.value.coins
-        vm.claimChallengeReward(showChallenge)
-        assertEquals(coinsBeforeAttempt, vm.playerStats.value.coins)
-
-        // Simula 3 partidas concluídas e resgata recompensa uma única vez
+        // Três partidas liberam o desafio, mas não devem alterar o saldo inicial da conta.
         repeat(3) { vm.finishMatch(failed = false) }
-        val coinsAfterMatches = vm.playerStats.value.coins
+        val showChallenge = StudioCatalog.challenges.first { it.id == "chl_first_3_shows" }
+        val coinsBeforeClaim = vm.playerStats.value.coins
         vm.claimChallengeReward(showChallenge)
-        assertEquals(coinsAfterMatches + showChallenge.rewardCoins, vm.playerStats.value.coins)
+        assertEquals(coinsBeforeClaim + 100, vm.playerStats.value.coins)
 
-        // Replay do mesmo desafio deve ser bloqueado
+        // O mesmo desafio não pode ser resgatado novamente.
         val coinsAfterClaim = vm.playerStats.value.coins
         vm.claimChallengeReward(showChallenge)
         assertEquals(coinsAfterClaim, vm.playerStats.value.coins)
+
+        assertTrue("Nenhuma recompensa de desafio pode exceder 100 moedas",
+            StudioCatalog.challenges.all { it.rewardCoins in 0..100 })
+        assertTrue("Nenhuma recompensa diária pode exceder 100 moedas",
+            DailyRewardCatalog.cycleRewards.all { it.coinsGranted in 0..100 })
     }
 
     @Test
