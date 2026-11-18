@@ -115,8 +115,11 @@ class ExampleRobolectricTest {
         )
         assertEquals("Metalhead Longo", vm.playerStats.value.customRocker.hairStyle)
 
+        // Itens bloqueados não podem ser equipados antes da compra; o padrão já é desbloqueado.
         vm.selectGear(Instrument.GUITAR, "neon_thunder")
-        assertEquals("neon_thunder", vm.playerStats.value.selectedGuitarId)
+        assertEquals("flame_caster", vm.playerStats.value.selectedGuitarId)
+        vm.selectGear(Instrument.GUITAR, "flame_caster")
+        assertEquals("flame_caster", vm.playerStats.value.selectedGuitarId)
 
         vm.selectGear(Instrument.BASS, "skull_bass")
         assertEquals("skull_bass", vm.playerStats.value.selectedBassId)
