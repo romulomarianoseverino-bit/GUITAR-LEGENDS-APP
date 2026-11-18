@@ -418,3 +418,61 @@ exports.purchaseCosmetic = onCall(async (request) => {
     throw new HttpsError("internal", "Não foi possível concluir a compra.");
   }
 });
+
+exports.importLegacyProgress = onCall(async (request) => {
+  const uid = requireUid(request);
+  const legacy = request.data && request.data.legacyStats || {};
+  const numericLimits = {
+    totalScore: 50000000000,
+    notesHitTotal: 10000000,
+    maxStreakOverall: 100000,
+    songsCompleted: 100000,
+    unlockedStars: 1000000,
+    competitiveWins: 100000,
+    competitiveMatches: 100000,
+    careerStageMax: 1000
+  };
+  const imported = {};
+  for (const [field, limit] of Object.entries(numericLimits)) {
+    const value = Number(legacy[field] || 0);
+    if (!Number.isFinite(value) || value < 0) {
+      throw new HttpsError("invalid-argument", "Progresso legado inválido.");
+    }
+    imported[field] = Math.min(limit, Math.floor(value));
+  }
+  const achievements = Array.isArray(legacy.achievementsUnlocked)
+    ? legacy.achievementsUnlocked.filter(x => typeof x === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(x)).slice(0, 60)
+    : [];
+  const userRef = db.collection("users").doc(uid);
+  try {
+    return await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists) throw new HttpsError("failed-precondition", "Conta não encontrada.");
+      const user = snap.data();
+      if (user.legacyProgressImportedAt) {
+        return { imported: false, alreadyImported: true };
+      }
+      const update = {
+        totalScore: Math.max(Number(user.totalScore || 0), imported.totalScore),
+        notesHitTotal: Math.max(Number(user.notesHitTotal || 0), imported.notesHitTotal),
+        maxStreakOverall: Math.max(Number(user.maxStreakOverall || 0), imported.maxStreakOverall),
+        songsCompleted: Math.max(Number(user.songsCompleted || 0), imported.songsCompleted),
+        unlockedStars: Math.max(Number(user.unlockedStars || 0), imported.unlockedStars),
+        competitiveWins: Math.max(Number(user.competitiveWins || 0), imported.competitiveWins),
+        competitiveMatches: Math.max(Number(user.competitiveMatches || 0), imported.competitiveMatches),
+        careerStageMax: Math.max(Number(user.careerStageMax || 1), imported.careerStageMax),
+        achievementsUnlocked: [...new Set([...(user.achievementsUnlocked || []), ...achievements])].slice(0, 60),
+        legacyProgressImportedAt: FieldValue.serverTimestamp(),
+        legacyProgressImportVersion: 1,
+        syncRevision: Number(user.syncRevision || 0) + 1,
+        updatedAt: FieldValue.serverTimestamp()
+      };
+      // Moedas, inventário, recompensas e desafios já resgatados nunca são importados do cliente.
+      tx.update(userRef, update);
+      return { imported: true, alreadyImported: false };
+    });
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Não foi possível importar o progresso antigo.");
+  }
+});
