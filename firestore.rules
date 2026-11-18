@@ -112,7 +112,7 @@ service cloud.firestore {
              data.streakCount is int && data.streakCount >= 1 &&
              data.rewardTitle is string && data.rewardTitle.size() >= 1 && data.rewardTitle.size() <= 100 &&
              data.rewardType is string && data.rewardType in ['coins', 'cosmetic', 'skin', 'bundle'] &&
-             data.coinsGranted is int && data.coinsGranted >= 0 && data.coinsGranted <= 5000 &&
+             data.coinsGranted is int && data.coinsGranted >= 0 && data.coinsGranted <= 100 &&
              data.cosmeticId is string && data.cosmeticId.size() <= 64 &&
              data.claimedAt is timestamp && data.claimedAt <= request.time;
     }
