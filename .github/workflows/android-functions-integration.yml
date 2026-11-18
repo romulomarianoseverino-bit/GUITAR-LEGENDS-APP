@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/zero-start-rewards-security
+      - fix/full-launch-scope-on-rewards-branch
   pull_request:
     branches:
       - main
