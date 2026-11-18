@@ -9,7 +9,8 @@ const {
   getUtcDayKey,
   getDailyReward,
   grantWithinWeeklyCap,
-  calculateMatchCoins
+  calculateMatchCoins,
+  getCosmeticPrice
 } = require("./rewardLogic");
 
 initializeApp();
@@ -225,5 +226,195 @@ exports.recordProgressionMatch = onCall(async (request) => {
   } catch (error) {
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "Não foi possível registrar a partida.");
+  }
+});
+
+const DEFAULT_UNLOCKED_COSMETICS = [
+  "axel_rocker", "roxie_riot", "flame_caster", "void_v",
+  "thunder_bass", "skull_bass", "arena_beast_kit", "punk_garage_kit",
+  "vintage_shure_55s", "golden_supreme_mic", "theme_ps2_wood",
+  "theme_neon_cyber", "theme_inferno_flame", "theme_galactic_star",
+  "outfit_skin_none", "outfit_skin_ps2_legend", "skin_none",
+  "stamp_none", "stamp_ps2_flames", "stamp_checker_punk"
+];
+
+function parseStudioProfile(value) {
+  if (typeof value !== "string" || !value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function cleanCustomRocker(value, fallback) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  const out = { ...fallback };
+  const stringFields = [
+    "creationMethod", "artStyle", "hairStyle", "topClothing",
+    "pantsClothing", "shoesClothing", "accessories", "bodyTattoos"
+  ];
+  for (const key of stringFields) {
+    if (typeof value[key] === "string") out[key] = value[key].slice(0, 120);
+  }
+  if (typeof value.photoUri === "string" || value.photoUri === null) {
+    out.photoUri = typeof value.photoUri === "string" ? value.photoUri.slice(0, 512) : null;
+  }
+  if (Number.isFinite(Number(value.hairColorHex))) {
+    out.hairColorHex = Math.max(0, Math.min(0xFFFFFFFF, Math.floor(Number(value.hairColorHex))));
+  }
+  return out;
+}
+
+exports.claimNicknameAndCreateAccount = onCall(async (request) => {
+  const uid = requireUid(request);
+  const nickname = String(request.data && request.data.nickname || "").trim();
+  if (!/^[a-zA-Z0-9_-]{3,24}$/.test(nickname)) {
+    throw new HttpsError("invalid-argument", "O nickname deve ter de 3 a 24 caracteres (letras, números, _ ou -).");
+  }
+  const normalized = nickname.toLowerCase();
+  const email = String(request.auth.token.email || "").slice(0, 200);
+  const userRef = db.collection("users").doc(uid);
+  const nicknameRef = db.collection("nicknames").doc(normalized);
+
+  try {
+    return await db.runTransaction(async (tx) => {
+      const [userSnap, nicknameSnap] = await Promise.all([tx.get(userRef), tx.get(nicknameRef)]);
+      if (nicknameSnap.exists && nicknameSnap.get("userId") !== uid) {
+        throw new HttpsError("already-exists", "Este nickname já está em uso.");
+      }
+      const existing = userSnap.exists ? userSnap.data() : null;
+      const oldNormalized = existing ? String(existing.nicknameNormalized || "") : "";
+      let oldNicknameRef = null;
+      if (oldNormalized && oldNormalized !== normalized) {
+        oldNicknameRef = db.collection("nicknames").doc(oldNormalized);
+        await tx.get(oldNicknameRef);
+      }
+
+      const now = FieldValue.serverTimestamp();
+      if (existing) {
+        tx.set(nicknameRef, {
+          userId: uid, nickname, createdAt: nicknameSnap.exists
+            ? (nicknameSnap.get("createdAt") || now) : now
+        });
+        if (oldNicknameRef) tx.delete(oldNicknameRef);
+        tx.update(userRef, {
+          email, nickname, nicknameNormalized: normalized,
+          syncRevision: Number(existing.syncRevision || 0) + 1,
+          updatedAt: now
+        });
+      } else {
+        tx.create(nicknameRef, { userId: uid, nickname, createdAt: now });
+        tx.create(userRef, {
+          userId: uid, email, nickname, nicknameNormalized: normalized,
+          coins: 0, totalScore: 0, notesHitTotal: 0, maxStreakOverall: 0,
+          songsCompleted: 0, unlockedStars: 6, competitiveWins: 0,
+          competitiveMatches: 0, careerStageMax: 1,
+          selectedCharacterId: "axel_rocker", selectedGuitarId: "flame_caster",
+          selectedBassId: "thunder_bass", selectedDrumsId: "arena_beast_kit",
+          selectedVocalMicId: "vintage_shure_55s", selectedHighwayThemeId: "theme_ps2_wood",
+          unlockedCosmetics: DEFAULT_UNLOCKED_COSMETICS,
+          achievementsUnlocked: [], customRocker: {},
+          glassAdaptiveEnabled: true, audioLatencyOffsetMs: 0,
+          controlMode: "DIRECT_TOUCH", graphicsQuality: "HIGH",
+          rewardStreak: 0, lastRewardDayKey: "", schemaVersion: 3,
+          syncRevision: 1, studioProfileJson: "",
+          createdAt: now, updatedAt: now
+        });
+      }
+      return { userId: uid, nickname, nicknameNormalized: normalized, created: !existing };
+    });
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Não foi possível salvar o nickname.");
+  }
+});
+
+exports.syncAccountProfile = onCall(async (request) => {
+  const uid = requireUid(request);
+  const data = request.data || {};
+  const userRef = db.collection("users").doc(uid);
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists) throw new HttpsError("failed-precondition", "Conclua o cadastro antes de sincronizar o perfil.");
+      const user = snap.data();
+      const unlocked = new Set(user.unlockedCosmetics || []);
+      const selections = {
+        selectedCharacterId: ["axel_rocker", "roxie_riot", "kai_cyber", "custom_rocker"],
+        selectedGuitarId: ["flame_caster", "void_v", "neon_thunder"],
+        selectedBassId: ["thunder_bass", "skull_bass", "cyber_bass"],
+        selectedDrumsId: ["arena_beast_kit", "punk_garage_kit", "electronic_neon_kit"],
+        selectedVocalMicId: ["vintage_shure_55s", "golden_supreme_mic", "punk_distress_mic"],
+        selectedHighwayThemeId: ["theme_ps2_wood", "theme_neon_cyber", "theme_inferno_flame", "theme_galactic_star"]
+      };
+      const update = {
+        email: String(request.auth.token.email || user.email || "").slice(0, 200),
+        syncRevision: Number(user.syncRevision || 0) + 1,
+        updatedAt: FieldValue.serverTimestamp()
+      };
+      for (const [field, allowed] of Object.entries(selections)) {
+        const candidate = data[field];
+        if (typeof candidate === "string" && allowed.includes(candidate) &&
+            (candidate === "custom_rocker" || unlocked.has(candidate))) {
+          update[field] = candidate;
+        }
+      }
+      update.customRocker = cleanCustomRocker(data.customRocker, user.customRocker || {});
+      if (typeof data.glassAdaptiveEnabled === "boolean") update.glassAdaptiveEnabled = data.glassAdaptiveEnabled;
+      if (Number.isInteger(data.audioLatencyOffsetMs)) {
+        update.audioLatencyOffsetMs = Math.max(-500, Math.min(500, data.audioLatencyOffsetMs));
+      }
+      if (["DIRECT_TOUCH", "BLUETOOTH_GAMEPAD", "HYBRID"].includes(data.controlMode)) {
+        update.controlMode = data.controlMode;
+      }
+      if (["LOW", "MEDIUM", "HIGH", "ULTRA"].includes(data.graphicsQuality)) {
+        update.graphicsQuality = data.graphicsQuality;
+      }
+      if (typeof data.studioProfileJson === "string" && data.studioProfileJson.length <= 24576) {
+        const incomingStudio = parseStudioProfile(data.studioProfileJson);
+        const existingStudio = parseStudioProfile(user.studioProfileJson);
+        incomingStudio.claimedChallenges = Array.isArray(existingStudio.claimedChallenges)
+          ? existingStudio.claimedChallenges : [];
+        update.studioProfileJson = JSON.stringify(incomingStudio);
+      }
+      tx.update(userRef, update);
+    });
+    return { success: true };
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Não foi possível sincronizar as configurações do perfil.");
+  }
+});
+
+exports.purchaseCosmetic = onCall(async (request) => {
+  const uid = requireUid(request);
+  const cosmeticId = safeId(request.data && request.data.cosmeticId, "Item");
+  const price = getCosmeticPrice(cosmeticId);
+  if (price === null) throw new HttpsError("not-found", "Este item não está disponível na loja.");
+  const userRef = db.collection("users").doc(uid);
+  try {
+    return await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists) throw new HttpsError("failed-precondition", "Conta não encontrada.");
+      const user = snap.data();
+      const unlocked = Array.isArray(user.unlockedCosmetics) ? user.unlockedCosmetics : [];
+      if (unlocked.includes(cosmeticId)) {
+        return { cosmeticId, price, coins: Number(user.coins || 0), alreadyOwned: true };
+      }
+      const coins = Number(user.coins || 0);
+      if (coins < price) throw new HttpsError("failed-precondition", "Moedas insuficientes.");
+      tx.update(userRef, {
+        coins: coins - price,
+        unlockedCosmetics: [...unlocked, cosmeticId],
+        syncRevision: Number(user.syncRevision || 0) + 1,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      return { cosmeticId, price, coins: coins - price, alreadyOwned: false };
+    });
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Não foi possível concluir a compra.");
   }
 });
