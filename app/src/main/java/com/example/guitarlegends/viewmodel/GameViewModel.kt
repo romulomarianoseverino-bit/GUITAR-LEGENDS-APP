@@ -1895,7 +1895,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             else -> 1
         }
 
-        val coinsEarned = if (failed) 20 else (stars * 60 + (_score.value / 800)).coerceAtLeast(40)
+        val coinsEarned = MatchRewardCalculator.calculate(
+            accuracyPercent = accuracy,
+            difficulty = selectedDifficulty,
+            durationMs = selectedTrack.durationMs,
+            failed = failed
+        )
 
         val result = MatchResult(
             track = selectedTrack,
