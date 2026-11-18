@@ -81,7 +81,9 @@ data class LocalProgressSnapshot(
     val hasLocalCustomizationChanges: Boolean = false,
     val localMatches: List<LocalMatchRecord> = emptyList(),
     val localRewards: List<LocalRewardRecord> = emptyList(),
-    val startingCoinsBaseline: Int = 0
+    val startingCoinsBaseline: Int = 0,
+    val localRewardWeekStart: String = "",
+    val localWeeklyCoinsGranted: Int = 0
 )
 
 /**
@@ -109,7 +111,9 @@ class LocalPlayerProgressRepository(private val context: Context) {
                 hasLocalCustomizationChanges = root.optBoolean("hasLocalCustomizationChanges", false),
                 localMatches = matches,
                 localRewards = rewards,
-                startingCoinsBaseline = root.optInt("startingCoinsBaseline", LEGACY_DEFAULT_STARTING_COINS)
+                startingCoinsBaseline = root.optInt("startingCoinsBaseline", LEGACY_DEFAULT_STARTING_COINS),
+                localRewardWeekStart = root.optString("localRewardWeekStart", ""),
+                localWeeklyCoinsGranted = root.optInt("localWeeklyCoinsGranted", 0).coerceIn(0, WEEKLY_REWARD_CAP)
             )
         } catch (_: Exception) {
             LocalProgressSnapshot()
@@ -126,6 +130,8 @@ class LocalPlayerProgressRepository(private val context: Context) {
                 put("localMatches", matchesToJson(snapshot.localMatches.take(25)))
                 put("localRewards", rewardsToJson(snapshot.localRewards.take(30)))
                 put("startingCoinsBaseline", snapshot.startingCoinsBaseline.coerceAtLeast(0))
+                put("localRewardWeekStart", snapshot.localRewardWeekStart)
+                put("localWeeklyCoinsGranted", snapshot.localWeeklyCoinsGranted.coerceIn(0, WEEKLY_REWARD_CAP))
             }
             val payload = root.toString()
             tempFile.writeText(payload)
@@ -141,6 +147,32 @@ class LocalPlayerProgressRepository(private val context: Context) {
             runCatching { tempFile.delete() }
             Result.failure(e)
         }
+    }
+
+    fun rewardWeekStartKey(nowMillis: Long = System.currentTimeMillis()): String {
+        val zone = java.util.TimeZone.getTimeZone("America/Sao_Paulo")
+        val calendar = java.util.Calendar.getInstance(zone).apply {
+            timeInMillis = nowMillis
+            val dayOfWeek = get(java.util.Calendar.DAY_OF_WEEK)
+            val daysSinceMonday = (dayOfWeek + 5) % 7
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+            add(java.util.Calendar.DAY_OF_MONTH, -daysSinceMonday)
+        }
+        return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = zone
+        }.format(calendar.time)
+    }
+
+    fun weeklyCoinsAvailable(nowMillis: Long = System.currentTimeMillis()): Int {
+        val snapshot = loadSnapshot()
+        val weekStart = rewardWeekStartKey(nowMillis)
+        val used = if (snapshot.localRewardWeekStart == weekStart) {
+            snapshot.localWeeklyCoinsGranted.coerceIn(0, WEEKLY_REWARD_CAP)
+        } else 0
+        return (WEEKLY_REWARD_CAP - used).coerceAtLeast(0)
     }
 
     fun claimGuestDailyReward(
@@ -174,8 +206,14 @@ class LocalPlayerProgressRepository(private val context: Context) {
             if (newStreak >= 3) add("ach_streak_3")
         }.distinct()
 
+        val weekStart = rewardWeekStartKey()
+        val weeklyUsed = if (current.localRewardWeekStart == weekStart) {
+            current.localWeeklyCoinsGranted.coerceIn(0, WEEKLY_REWARD_CAP)
+        } else 0
+        val coinsGranted = minOf(rewardDef.coinsGranted.coerceAtLeast(0), WEEKLY_REWARD_CAP - weeklyUsed)
+
         val updatedStats = current.stats.copy(
-            coins = current.stats.coins + rewardDef.coinsGranted,
+            coins = current.stats.coins + coinsGranted,
             unlockedCosmetics = updatedCosmetics,
             achievementsUnlocked = updatedAchievements,
             rewardStreak = newStreak,
@@ -188,14 +226,16 @@ class LocalPlayerProgressRepository(private val context: Context) {
             streakCount = newStreak,
             rewardTitle = rewardDef.title,
             rewardType = rewardDef.rewardType,
-            coinsGranted = rewardDef.coinsGranted,
+            coinsGranted = coinsGranted,
             cosmeticId = rewardDef.cosmeticId
         )
 
         val nextSnapshot = current.copy(
             stats = updatedStats,
             hasUnlinkedGuestProgress = true,
-            localRewards = (listOf(record) + current.localRewards.filter { it.dayKey != todayKey }).take(30)
+            localRewards = (listOf(record) + current.localRewards.filter { it.dayKey != todayKey }).take(30),
+            localRewardWeekStart = weekStart,
+            localWeeklyCoinsGranted = weeklyUsed + coinsGranted
         )
         saveSnapshot(nextSnapshot)
         return Result.success(record to nextSnapshot)
@@ -203,6 +243,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
 
     companion object {
         private const val LEGACY_DEFAULT_STARTING_COINS = 450
+        private const val WEEKLY_REWARD_CAP = 100
 
         /**
          * Mescla o progresso obtido no modo visitante com uma conta existente na nuvem
