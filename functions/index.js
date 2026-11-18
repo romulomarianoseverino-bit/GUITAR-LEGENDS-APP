@@ -59,8 +59,7 @@ exports.claimDailyReward = onCall(async (request) => {
       if (claimSnap.exists) throw new HttpsError("already-exists", "A recompensa diária de hoje já foi resgatada.");
 
       const user = userSnap.data();
-      const previousDay = new Date(now);
-      previousDay.setUTCDate(previousDay.getUTCDate() - 1);
+      const previousDay = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const yesterdayKey = getUtcDayKey(previousDay);
       const streak = user.lastRewardDayKey === yesterdayKey ? Number(user.rewardStreak || 0) + 1 : 1;
       const dayNumber = ((streak - 1) % 30) + 1;
