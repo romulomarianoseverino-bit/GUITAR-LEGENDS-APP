@@ -2111,51 +2111,96 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         } catch (_: Exception) {}
     }
 
-    fun unlockCharacter(id: String, price: Int) {
-        if (_playerStats.value.coins >= price) {
-            val unlocked = (_playerStats.value.unlockedCosmetics + id).distinct()
-            _playerStats.value = _playerStats.value.copy(
-                coins = _playerStats.value.coins - price,
-                selectedCharacterId = id,
-                unlockedCosmetics = unlocked
-            )
+    private fun purchaseAndEquipItem(
+        id: String,
+        localPrice: Int,
+        insufficientMessage: String,
+        selectItem: (PlayerStats) -> PlayerStats
+    ) {
+        val current = _playerStats.value
+        if (current.unlockedCosmetics.contains(id)) {
+            _playerStats.value = selectItem(current)
             triggerBackgroundCloudSync(customizationChanged = true)
+            return
+        }
+
+        val repo = accountRepo
+        val signedIn = repo?.currentUidOrNull() != null && _authUiState.value is AuthUiState.Authenticated
+        if (!signedIn) {
+            if (current.coins < localPrice) {
+                _studioActionMessage.value = insufficientMessage
+                return
+            }
+            val localPurchase = current.copy(
+                coins = current.coins - localPrice,
+                unlockedCosmetics = (current.unlockedCosmetics + id).distinct()
+            )
+            _playerStats.value = selectItem(localPurchase)
+            soundFx.playUiClick(isConfirm = true)
+            persistLocalMutation(customizationChanged = true)
+            return
+        }
+
+        viewModelScope.launch {
+            _studioActionMessage.value = "Validando compra no servidor..."
+            repo!!.purchaseCosmetic(id).onSuccess { cloud ->
+                val updated = selectItem(cloud.toPlayerStats())
+                _playerStats.value = updated
+                localProgressRepository.saveSnapshot(
+                    localProgressRepository.loadSnapshot().copy(
+                        stats = updated,
+                        hasUnlinkedGuestProgress = false
+                    )
+                )
+                soundFx.playUiClick(isConfirm = true)
+                _studioActionMessage.value = "Item desbloqueado e equipado!"
+                triggerBackgroundCloudSync(customizationChanged = true)
+            }.onFailure { error ->
+                _studioActionMessage.value = error.message ?: "Não foi possível concluir a compra."
+            }
         }
     }
 
+    fun unlockCharacter(id: String, price: Int) {
+        purchaseAndEquipItem(
+            id = id,
+            localPrice = price,
+            insufficientMessage = "Moedas insuficientes para desbloquear este personagem."
+        ) { it.copy(selectedCharacterId = id) }
+    }
+
     fun selectCharacter(id: String) {
+        if (id != "custom_rocker" && !_playerStats.value.unlockedCosmetics.contains(id)) return
         _playerStats.value = _playerStats.value.copy(selectedCharacterId = id)
         triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun unlockGuitar(id: String, price: Int) {
-        if (_playerStats.value.coins >= price) {
-            val unlocked = (_playerStats.value.unlockedCosmetics + id).distinct()
-            _playerStats.value = _playerStats.value.copy(
-                coins = _playerStats.value.coins - price,
-                selectedGuitarId = id,
-                unlockedCosmetics = unlocked
-            )
-            triggerBackgroundCloudSync(customizationChanged = true)
-        }
+        purchaseAndEquipItem(
+            id = id,
+            localPrice = price,
+            insufficientMessage = "Moedas insuficientes para desbloquear esta guitarra."
+        ) { it.copy(selectedGuitarId = id) }
     }
 
     fun selectGuitar(id: String) {
+        if (!_playerStats.value.unlockedCosmetics.contains(id)) return
         _playerStats.value = _playerStats.value.copy(selectedGuitarId = id)
         triggerBackgroundCloudSync(customizationChanged = true)
     }
 
     fun unlockGear(instrumentType: Instrument, id: String, price: Int) {
-        if (_playerStats.value.coins >= price) {
-            val updatedCoins = _playerStats.value.coins - price
-            val unlocked = (_playerStats.value.unlockedCosmetics + id).distinct()
-            _playerStats.value = when (instrumentType) {
-                Instrument.GUITAR -> _playerStats.value.copy(coins = updatedCoins, selectedGuitarId = id, unlockedCosmetics = unlocked)
-                Instrument.BASS -> _playerStats.value.copy(coins = updatedCoins, selectedBassId = id, unlockedCosmetics = unlocked)
-                Instrument.DRUMS -> _playerStats.value.copy(coins = updatedCoins, selectedDrumsId = id, unlockedCosmetics = unlocked)
-                Instrument.VOCALS -> _playerStats.value.copy(coins = updatedCoins, selectedVocalMicId = id, unlockedCosmetics = unlocked)
+        purchaseAndEquipItem(
+            id = id,
+            localPrice = price,
+            insufficientMessage = "Moedas insuficientes para desbloquear este equipamento."
+        ) { stats ->
+            when (instrumentType) {
+                Instrument.GUITAR -> stats.copy(selectedGuitarId = id)
+                Instrument.BASS -> stats.copy(selectedBassId = id)
+                Instrument.DRUMS -> stats.copy(selectedDrumsId = id)
+                Instrument.VOCALS -> stats.copy(selectedVocalMicId = id)
             }
-            triggerBackgroundCloudSync(customizationChanged = true)
         }
     }
 
