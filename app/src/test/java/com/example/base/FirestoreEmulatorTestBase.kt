@@ -36,29 +36,25 @@ abstract class FirestoreEmulatorTestBase {
         val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
         databaseId = if (resId != 0) context.getString(resId) else "demo-database"
 
-        // App nomeado e isolado: evita reutilizar o Firebase padrão inicializado por outra classe.
-        val existingApp = runCatching { FirebaseApp.getInstance(TEST_APP_NAME) }.getOrNull()
-        val app = existingApp ?: FirebaseApp.initializeApp(
-            context,
-            FirebaseOptions.Builder()
-                .setApplicationId("1:1234567890:android:abcdef123456")
-                .setProjectId(PROJECT_ID)
-                .setApiKey("fake-api-key-for-emulator")
-                .build(),
-            TEST_APP_NAME
-        )
+        // Usa o Firebase padrão, o mesmo que FirebaseClientProvider injeta no GameViewModel.
+        // O app nomeado isolava o login do teste e fazia o ViewModel parecer desautenticado.
+        val app = FirebaseApp.getApps(context).firstOrNull()
+            ?: FirebaseApp.initializeApp(
+                context,
+                FirebaseOptions.Builder()
+                    .setApplicationId("1:1234567890:android:abcdef123456")
+                    .setProjectId(PROJECT_ID)
+                    .setApiKey("fake-api-key-for-emulator")
+                    .build()
+            )
 
         firestore = FirebaseFirestore.getInstance(app, databaseId)
         auth = FirebaseAuth.getInstance(app)
-
-        // Configura os emuladores uma única vez, antes de qualquer operação nos serviços.
-        if (existingApp == null) {
-            firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                .build()
-            firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-            auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
-        }
+        firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+            .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
+            .build()
+        firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+        auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
     }
 
     @After
