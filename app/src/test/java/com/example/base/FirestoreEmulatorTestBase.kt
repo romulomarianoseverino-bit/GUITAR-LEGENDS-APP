@@ -23,7 +23,7 @@ import org.robolectric.annotation.LooperMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
-@LooperMode(LooperMode.Mode.PAUSED)
+@LooperMode(LooperMode.Mode.INSTRUMENTATION_TEST)
 abstract class FirestoreEmulatorTestBase {
 
     protected lateinit var firestore: FirebaseFirestore
@@ -90,7 +90,6 @@ abstract class FirestoreEmulatorTestBase {
         const val FIRESTORE_PORT = 8085
         const val AUTH_PORT = 9099
         const val PROJECT_ID = "demo-no-project"
-        const val TEST_APP_NAME = "guitar-legends-tests"
         const val DEFAULT_PASSWORD = "password123"
         const val AUTH_TIMEOUT_MS = 5000L
     }
