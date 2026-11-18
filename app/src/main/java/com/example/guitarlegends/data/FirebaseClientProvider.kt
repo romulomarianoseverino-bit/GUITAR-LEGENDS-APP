@@ -10,7 +10,7 @@ object FirebaseClientProvider {
 
     fun ensureInitialized(context: Context): FirebaseApp? {
         return runCatching {
-            FirebaseApp.getApps(context).firstOrNull() ?: FirebaseApp.initializeApp(context)
+            runCatching { FirebaseApp.getInstance() }.getOrNull() ?: FirebaseApp.initializeApp(context)
         }.getOrNull()
     }
 
