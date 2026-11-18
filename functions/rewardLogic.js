@@ -19,11 +19,12 @@ const DAILY_REWARDS = [
 ];
 
 const CHALLENGES = {
-  chl_first_3_shows: { title: "Aquecimento da Turnê", progressField: "songsCompleted", targetValue: 3, rewardCoins: 100 },
-  chl_hit_250_notes: { title: "Dedos Incansáveis", progressField: "notesHitTotal", targetValue: 250, rewardCoins: 100 },
-  chl_combo_35: { title: "Ritmo Inabalável", progressField: "maxStreakOverall", targetValue: 35, rewardCoins: 100 },
-  chl_stars_12: { title: "Caçador de Estrelas", progressField: "unlockedStars", targetValue: 12, rewardCoins: 100 },
-  chl_duel_win: { title: "Rei do Duelo 1v1", progressField: "competitiveWins", targetValue: 1, rewardCoins: 100 }
+  // Indicadores separados do progresso histórico importado do dispositivo.
+  chl_first_3_shows: { title: "Aquecimento da Turnê", progressField: "verifiedSongsCompleted", targetValue: 3, rewardCoins: 100 },
+  chl_hit_250_notes: { title: "Dedos Incansáveis", progressField: "verifiedNotesHitTotal", targetValue: 250, rewardCoins: 100 },
+  chl_combo_35: { title: "Ritmo Inabalável", progressField: "verifiedMaxStreakOverall", targetValue: 35, rewardCoins: 100 },
+  chl_stars_12: { title: "Caçador de Estrelas", progressField: "verifiedUnlockedStars", targetValue: 12, rewardCoins: 100 },
+  chl_duel_win: { title: "Rei do Duelo 1v1", progressField: "verifiedCompetitiveWins", targetValue: 1, rewardCoins: 100 }
 };
 
 const COSMETIC_PRICES = Object.freeze({
