@@ -214,6 +214,6 @@ object MatchRewardCalculator {
 
         return (durationBase * difficultyFactor * accuracyFactor)
             .toInt()
-            .coerceIn(1, 45)
+            .coerceIn(1, 50)
     }
 }
