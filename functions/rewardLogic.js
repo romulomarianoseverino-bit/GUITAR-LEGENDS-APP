@@ -82,6 +82,16 @@ function grantWithinWeeklyCap(requestedCoins, alreadyGranted) {
   return { granted, total: used + granted };
 }
 
+function calculateMatchStars({ accuracyPercent, failed = false }) {
+  if (failed) return 1;
+  const accuracy = Math.max(0, Math.min(100, Number(accuracyPercent) || 0));
+  if (accuracy >= 98) return 5;
+  if (accuracy >= 90) return 4;
+  if (accuracy >= 75) return 3;
+  if (accuracy >= 55) return 2;
+  return 1;
+}
+
 function calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed = false }) {
   if (failed) return 0;
   const accuracy = Math.max(0, Math.min(100, Number(accuracyPercent) || 0));
@@ -106,5 +116,6 @@ module.exports = {
   getUtcDayKey,
   getDailyReward,
   grantWithinWeeklyCap,
-  calculateMatchCoins
+  calculateMatchCoins,
+  calculateMatchStars
 };
