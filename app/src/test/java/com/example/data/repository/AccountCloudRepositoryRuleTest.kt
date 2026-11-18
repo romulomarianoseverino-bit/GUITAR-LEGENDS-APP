@@ -36,7 +36,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
             coins = 1200,
             totalScore = 54000L,
             unlockedStars = 14,
-            selectedGuitarId = "neon_thunder",
+            selectedGuitarId = "flame_caster",
             controlMode = ControlMode.FRET_AND_STRUM,
             glassAdaptiveEnabled = false
         )
@@ -48,7 +48,8 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         val created = claimRes.getOrThrow()
         assertEquals(uid, created.userId)
         assertEquals(nick, created.nickname)
-        assertEquals(1200, created.coins)
+        assertEquals("New accounts must start with zero coins", 0, created.coins)
+        assertEquals(54000L, created.totalScore)
 
         // Atualiza e sincroniza sem destruir progresso
         val updatedStats = created.toPlayerStats().copy(coins = 1550, songsCompleted = 3)
@@ -56,7 +57,8 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
             repo.syncPlayerStats(updatedStats)
         }
         assertTrue("Cloud sync must succeed: ${syncRes.exceptionOrNull()?.message}", syncRes.isSuccess)
-        assertEquals(1550, syncRes.getOrThrow().coins)
+        assertEquals("Client sync cannot overwrite the server balance", 0, syncRes.getOrThrow().coins)
+        assertEquals("Client sync cannot overwrite server progression", 0, syncRes.getOrThrow().songsCompleted)
         assertTrue("Sync revision must advance", syncRes.getOrThrow().syncRevision > created.syncRevision)
 
         // Simula login em novo dispositivo com a mesma conta e restauração dos dados
@@ -65,7 +67,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         val restored = withTimeout(DEFAULT_TIMEOUT_MS) { repo.fetchAccount().getOrNull() }
         assertNotNull("Account must be restored from Firestore", restored)
         assertEquals(nick, restored!!.nickname)
-        assertEquals(1550, restored.coins)
+        assertEquals(0, restored.coins)
         assertEquals(ControlMode.FRET_AND_STRUM.name, restored.controlMode)
     }
 
@@ -155,26 +157,17 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
             repo.claimNicknameAndSaveAccount("Daily_$tag", PlayerStats(coins = 100)).getOrThrow()
         }
 
-        // 1. Tentativa de burlar data com dia futuro deve ser barrada pelas Firestore Rules
-        val spoofRes = withTimeout(DEFAULT_TIMEOUT_MS) {
+        // A data enviada pelo cliente é ignorada; o servidor usa o dia UTC real.
+        val claimRes = withTimeout(DEFAULT_TIMEOUT_MS) {
             repo.claimDailyReward(created.toPlayerStats(), dayKeyOverride = "2099-01-01")
         }
-        assertTrue("Spoofed UTC date must be rejected by security rules", spoofRes.isFailure)
-        assertEquals(
-            FirebaseFirestoreException.Code.PERMISSION_DENIED,
-            spoofRes.exceptionOrNull()?.unwrapFirestoreException()?.code
-        )
-
-        // 2. Resgate legítimo na data UTC atual deve funcionar
-        val claimRes = withTimeout(DEFAULT_TIMEOUT_MS) {
-            repo.claimDailyReward(created.toPlayerStats())
-        }
-        assertTrue("Legitimate UTC daily reward claim must succeed: ${claimRes.exceptionOrNull()?.message}", claimRes.isSuccess)
+        assertTrue("Server-validated daily reward claim must succeed: ${claimRes.exceptionOrNull()?.message}", claimRes.isSuccess)
         val (claim, updatedUser) = claimRes.getOrThrow()
         assertEquals(1, claim.dayNumber)
-        assertEquals(250, updatedUser.coins) // 100 iniciais + 150 dia 1
+        assertNotEquals("2099-01-01", claim.dayKey)
+        assertEquals(100, updatedUser.coins)
 
-        // 3. Segundo resgate no mesmo dia UTC deve ser bloqueado
+        // Segundo resgate no mesmo dia UTC deve ser bloqueado
         val replayRes = withTimeout(DEFAULT_TIMEOUT_MS) {
             repo.claimDailyReward(updatedUser.toPlayerStats())
         }
