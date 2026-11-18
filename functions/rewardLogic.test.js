@@ -6,7 +6,8 @@ const {
   getUtcWeekStart,
   getDailyReward,
   grantWithinWeeklyCap,
-  calculateMatchCoins
+  calculateMatchCoins,
+  getCosmeticPrice
 } = require("./rewardLogic");
 
 test("semana começa na segunda-feira e termina no domingo", () => {
@@ -37,4 +38,11 @@ test("recompensa de música tem teto exato de 50 e falha paga zero", () => {
   assert.ok(calculateMatchCoins({
     accuracyPercent: 60, difficulty: "MEDIUM", durationMs: 120000, failed: false
   }) < 50);
+});
+
+test("preços de cosméticos são definidos pelo catálogo do servidor", () => {
+  assert.equal(getCosmeticPrice("hair_moicano_turquesa"), 150);
+  assert.equal(getCosmeticPrice("kai_cyber"), 600);
+  assert.equal(getCosmeticPrice("stamp_skull_stage"), 260);
+  assert.equal(getCosmeticPrice("item_inexistente"), null);
 });
