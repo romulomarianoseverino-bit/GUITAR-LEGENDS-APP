@@ -9,6 +9,7 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.FirebaseFirestoreSettings
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.firestore.MemoryCacheSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -53,6 +54,7 @@ abstract class FirestoreEmulatorTestBase {
 
             val newAuth = FirebaseAuth.getInstance(newApp)
             newAuth.useEmulator(EMULATOR_HOST, AUTH_PORT)
+            FirebaseFunctions.getInstance(newApp).useEmulator(EMULATOR_HOST, FUNCTIONS_PORT)
             newApp
         } else {
             FirebaseApp.getInstance()
@@ -92,6 +94,7 @@ abstract class FirestoreEmulatorTestBase {
         const val EMULATOR_HOST = "127.0.0.1"
         const val FIRESTORE_PORT = 8085
         const val AUTH_PORT = 9099
+        const val FUNCTIONS_PORT = 5001
         const val PROJECT_ID = "demo-no-project"
         const val DEFAULT_PASSWORD = "password123"
         const val AUTH_TIMEOUT_MS = 5000L
