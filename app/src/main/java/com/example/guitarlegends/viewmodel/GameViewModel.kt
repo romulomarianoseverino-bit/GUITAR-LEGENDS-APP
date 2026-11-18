@@ -733,6 +733,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             current.localMatches
         }
+        val rewardWeekStart = localProgressRepository.rewardWeekStartKey()
+        val weeklyUsed = if (current.localRewardWeekStart == rewardWeekStart) {
+            current.localWeeklyCoinsGranted.coerceIn(0, 100)
+        } else 0
+        val nextWeeklyCoins = if (newMatchRecord != null && !isSignedIn) {
+            (weeklyUsed + newMatchRecord.coinsEarned).coerceIn(0, 100)
+        } else if (current.localRewardWeekStart == rewardWeekStart) weeklyUsed else 0
         val nextUnlinked = if (isSignedIn) false else true
         val nextCustomization = if (isSignedIn) false else (current.hasLocalCustomizationChanges || customizationChanged)
         _hasUnlinkedGuestProgress.value = nextUnlinked
@@ -742,7 +749,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 stats = _playerStats.value,
                 hasUnlinkedGuestProgress = nextUnlinked,
                 hasLocalCustomizationChanges = nextCustomization,
-                localMatches = updatedMatches
+                localMatches = updatedMatches,
+                localRewardWeekStart = rewardWeekStart,
+                localWeeklyCoinsGranted = nextWeeklyCoins
             )
         )
         if (!isSignedIn && newMatchRecord != null) {
@@ -777,7 +786,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             _authUiState.value is AuthUiState.Authenticated
 
         if (!isCloudAuthenticated) {
-            // Modo Visitante: resgate local com controle diário em UTC e persistência garantida
+            // Modo Visitante: resgate local com teto semanal e calendário de Brasília.
             val helperRepo = repo ?: AccountCloudRepository(
                 firestore = FirebaseClientProvider.getFirestoreOrNull(context) ?: run {
                     // Fallback seguro para datas UTC mesmo sem Firestore inicializado
@@ -836,11 +845,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun utcDayKeyForOffset(daysOffset: Int): String {
-        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+        val zone = java.util.TimeZone.getTimeZone("America/Sao_Paulo")
+        val cal = java.util.Calendar.getInstance(zone).apply {
             if (daysOffset != 0) add(java.util.Calendar.DAY_OF_YEAR, daysOffset)
         }
         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
-            timeZone = java.util.TimeZone.getTimeZone("UTC")
+            timeZone = java.util.TimeZone.getTimeZone("America/Sao_Paulo")
         }
         return sdf.format(cal.time)
     }
@@ -1971,12 +1981,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             else -> 1
         }
 
-        val coinsEarned = MatchRewardCalculator.calculate(
+        val current = _playerStats.value
+        val cloudAccount = accountRepo?.currentUidOrNull() != null &&
+            _authUiState.value is AuthUiState.Authenticated
+        val calculatedCoins = MatchRewardCalculator.calculate(
             accuracyPercent = accuracy,
             difficulty = selectedDifficulty,
             durationMs = selectedTrack.durationMs,
             failed = failed
         )
+        val coinsEarned = if (cloudAccount) calculatedCoins else {
+            minOf(calculatedCoins, localProgressRepository.weeklyCoinsAvailable())
+        }
 
         val result = MatchResult(
             track = selectedTrack,
@@ -1996,7 +2012,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         lastMatchResult = result
 
-        val current = _playerStats.value
         val newAchievements = buildList {
             addAll(current.achievementsUnlocked)
             add("ach_first_show")
@@ -2005,9 +2020,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }.distinct()
 
         val unlockedStageCount = careerVenues.count { (current.unlockedStars + stars) >= it.requiredStars }
-        val cloudAccount = accountRepo?.currentUidOrNull() != null &&
-            _authUiState.value is AuthUiState.Authenticated
-
         _playerStats.value = current.copy(
             // Em conta autenticada, o saldo só muda após confirmação do servidor.
             coins = current.coins + if (cloudAccount) 0 else coinsEarned,
