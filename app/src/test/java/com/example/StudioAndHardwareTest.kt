@@ -98,7 +98,7 @@ class StudioAndHardwareTest {
     @Test
     fun `02 - shop unlock deducts coins when affordable and challenges reward coins cleanly once`() {
         val vm = GameViewModel(app)
-        val initialCoins = vm.playerStats.value.coins // 450 LC
+        val initialCoins = vm.playerStats.value.coins // 0 LC
 
         val expensiveSkin = StudioCatalog.shopCosmetics.first { it.id == "kai_cyber" } // 600 LC
         assertFalse("Item mais caro que saldo deve ser bloqueado", vm.unlockAndEquipCosmetic(expensiveSkin))
