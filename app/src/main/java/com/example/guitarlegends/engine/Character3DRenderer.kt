@@ -571,6 +571,16 @@ fun InteractiveCharacter3DViewer(
     var yawDeg by remember { mutableFloatStateOf(18f) }
     var pitchDeg by remember { mutableFloatStateOf(5f) }
     var zoom by remember { mutableFloatStateOf(1.0f) }
+    var previewTimeSec by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        val startTime = withFrameNanos { it }
+        while (true) {
+            withFrameNanos { frameTime ->
+                previewTimeSec = (frameTime - startTime) / 1_000_000_000f
+            }
+        }
+    }
 
     Column(modifier = modifier) {
         Box(
@@ -609,7 +619,7 @@ fun InteractiveCharacter3DViewer(
                     scale = charScale,
                     yawDeg = yawDeg,
                     pitchDeg = pitchDeg,
-                    animTimeSec = 0f
+                    animTimeSec = previewTimeSec
                 )
             }
 
