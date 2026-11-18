@@ -78,71 +78,20 @@ class AccountCloudRepository(
             ?: return Result.failure(IllegalStateException("Faça login antes de definir seu nickname."))
         val trimmed = nickname.trim()
         if (!isValidNicknameFormat(trimmed)) {
-            return Result.failure(
-                IllegalArgumentException("O nickname deve ter de 3 a 24 caracteres (letras, números, _ ou -).")
-            )
+            return Result.failure(IllegalArgumentException(
+                "O nickname deve ter de 3 a 24 caracteres (letras, números, _ ou -)."
+            ))
         }
-        val normalized = trimmed.lowercase()
-        val uid = user.uid
-        val email = user.email ?: localStats.email
-
         return try {
-            val saved = firestore.runTransaction { tx ->
-                val nickRef = firestore.collection("nicknames").document(normalized)
-                val userRef = firestore.collection("users").document(uid)
-
-                val nickSnap = tx.get(nickRef)
-                val userSnap = tx.get(userRef)
-
-                if (nickSnap.exists() && nickSnap.getString("userId") != uid) {
-                    throw IllegalStateException("O nickname '$trimmed' já está em uso por outro jogador.")
-                }
-
-                val existingUser = if (userSnap.exists()) {
-                    userSnap.toObject(UserAccountCloud::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                } else null
-
-                val oldNormalized = existingUser?.nicknameNormalized.orEmpty()
-                if (oldNormalized.isNotBlank() && oldNormalized != normalized) {
-                    val oldNickRef = firestore.collection("nicknames").document(oldNormalized)
-                    tx.delete(oldNickRef)
-                }
-
-                val nextRevision = maxOf(existingUser?.syncRevision ?: 0L, localStats.syncRevision) + 1L
-                val mergedStats = if (existingUser != null) {
-                    mergeStats(localStats, existingUser.toPlayerStats())
-                } else {
-                    localStats
-                }.copy(nickname = trimmed, email = email, syncRevision = nextRevision)
-
-                val cloudObj = UserAccountCloud.fromPlayerStats(
-                    uid = uid,
-                    email = email,
-                    nickname = trimmed,
-                    stats = mergedStats,
-                    syncRevision = nextRevision
-                )
-
-                tx.set(
-                    nickRef,
-                    mapOf(
-                        "userId" to uid,
-                        "nickname" to trimmed,
-                        "createdAt" to FieldValue.serverTimestamp()
-                    )
-                )
-
-                if (existingUser == null) {
-                    tx.set(userRef, cloudObj.toCreateMap())
-                } else {
-                    tx.update(userRef, cloudObj.toUpdateMap())
-                }
-                cloudObj
-            }.await()
-
-            Result.success(saved)
+            functions.getHttpsCallable("claimNicknameAndCreateAccount")
+                .call(mapOf("nickname" to trimmed)).await()
+            // O servidor cria contas novas com zero moedas e preserva integralmente
+            // o saldo, inventário e progresso de contas que já existiam.
+            val account = fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("O servidor não retornou o perfil criado.")
+            Result.success(account)
         } catch (e: Exception) {
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.WRITE, "users/$uid", auth) }.exceptionOrNull() ?: e)
+            Result.failure(e)
         }
     }
 
@@ -164,67 +113,43 @@ class AccountCloudRepository(
     suspend fun syncPlayerStats(localStats: PlayerStats): Result<UserAccountCloud> {
         val user = auth.currentUser
             ?: return Result.failure(IllegalStateException("Usuário não autenticado para sincronização."))
-        val uid = user.uid
-        val email = user.email ?: localStats.email
-
         return try {
-            val synced = firestore.runTransaction { tx ->
-                val userRef = firestore.collection("users").document(uid)
-                val snap = tx.get(userRef)
-                val existing = if (snap.exists()) {
-                    snap.toObject(UserAccountCloud::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                } else null
-
-                if (existing == null) {
-                    val nick = localStats.nickname.trim()
-                    if (!isValidNicknameFormat(nick)) {
-                        throw IllegalStateException("Defina um nickname exclusivo antes de sincronizar na nuvem.")
-                    }
-                    val cloudObj = UserAccountCloud.fromPlayerStats(
-                        uid = uid,
-                        email = email,
-                        nickname = nick,
-                        stats = localStats,
-                        syncRevision = maxOf(1L, localStats.syncRevision)
-                    )
-                    val nickRef = firestore.collection("nicknames").document(nick.lowercase())
-                    val nickSnap = tx.get(nickRef)
-                    if (nickSnap.exists() && nickSnap.getString("userId") != uid) {
-                        throw IllegalStateException("Nickname já reservado por outra conta.")
-                    }
-                    tx.set(
-                        nickRef,
-                        mapOf(
-                            "userId" to uid,
-                            "nickname" to nick,
-                            "createdAt" to FieldValue.serverTimestamp()
-                        )
-                    )
-                    tx.set(userRef, cloudObj.toCreateMap())
-                    cloudObj
-                } else {
-                    // Resolução não destrutiva de conflitos por maior revisão e união de desbloqueios
-                    val resolved = if (existing.syncRevision > localStats.syncRevision) {
-                        mergeStats(existing.toPlayerStats(), localStats)
-                    } else {
-                        mergeStats(localStats, existing.toPlayerStats())
-                    }
-                    val nextRevision = maxOf(existing.syncRevision, localStats.syncRevision) + 1L
-                    val cloudObj = UserAccountCloud.fromPlayerStats(
-                        uid = uid,
-                        email = email,
-                        nickname = existing.nickname.ifBlank { resolved.nickname },
-                        stats = resolved.copy(syncRevision = nextRevision),
-                        syncRevision = nextRevision
-                    )
-                    tx.update(userRef, cloudObj.toUpdateMap())
-                    cloudObj
-                }
-            }.await()
-
-            Result.success(synced)
+            val cloud = UserAccountCloud.fromPlayerStats(
+                uid = user.uid,
+                email = user.email ?: localStats.email,
+                nickname = localStats.nickname,
+                stats = localStats
+            )
+            val payload = mapOf(
+                "selectedCharacterId" to cloud.selectedCharacterId,
+                "selectedGuitarId" to cloud.selectedGuitarId,
+                "selectedBassId" to cloud.selectedBassId,
+                "selectedDrumsId" to cloud.selectedDrumsId,
+                "selectedVocalMicId" to cloud.selectedVocalMicId,
+                "selectedHighwayThemeId" to cloud.selectedHighwayThemeId,
+                "customRocker" to cloud.customRocker.toMap(),
+                "glassAdaptiveEnabled" to cloud.glassAdaptiveEnabled,
+                "audioLatencyOffsetMs" to cloud.audioLatencyOffsetMs,
+                "controlMode" to cloud.controlMode,
+                "graphicsQuality" to cloud.graphicsQuality,
+                "studioProfileJson" to cloud.studioProfileJson
+            )
+            functions.getHttpsCallable("syncAccountProfile").call(payload).await()
+            fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após a sincronização.")
         } catch (e: Exception) {
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.UPDATE, "users/$uid", auth) }.exceptionOrNull() ?: e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun purchaseCosmetic(cosmeticId: String): Result<UserAccountCloud> {
+        return try {
+            functions.getHttpsCallable("purchaseCosmetic")
+                .call(mapOf("cosmeticId" to cosmeticId)).await()
+            fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após a compra.")
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
