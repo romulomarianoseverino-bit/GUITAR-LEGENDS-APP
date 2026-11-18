@@ -129,8 +129,19 @@ exports.claimChallengeReward = onCall(async (request) => {
       tx.set(weekRef, {
         weekStart, coinsGranted: weekly.total, updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
+      let studioProfile = {};
+      try {
+        studioProfile = user.studioProfileJson ? JSON.parse(user.studioProfileJson) : {};
+      } catch (_) {
+        studioProfile = {};
+      }
+      const claimedChallenges = Array.isArray(studioProfile.claimedChallenges)
+        ? studioProfile.claimedChallenges : [];
+      studioProfile.claimedChallenges = [...new Set([...claimedChallenges, challengeId])];
+
       tx.update(userRef, {
         coins: Number(user.coins || 0) + weekly.granted,
+        studioProfileJson: JSON.stringify(studioProfile),
         syncRevision: Number(user.syncRevision || 0) + 1,
         updatedAt: FieldValue.serverTimestamp()
       });
