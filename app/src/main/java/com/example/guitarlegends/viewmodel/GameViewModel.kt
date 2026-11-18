@@ -2005,9 +2005,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }.distinct()
 
         val unlockedStageCount = careerVenues.count { (current.unlockedStars + stars) >= it.requiredStars }
+        val cloudAccount = accountRepo?.currentUidOrNull() != null &&
+            _authUiState.value is AuthUiState.Authenticated
 
         _playerStats.value = current.copy(
-            coins = current.coins + coinsEarned,
+            // Em conta autenticada, o saldo só muda após confirmação do servidor.
+            coins = current.coins + if (cloudAccount) 0 else coinsEarned,
             totalScore = current.totalScore + _score.value,
             notesHitTotal = current.notesHitTotal + totalHitCount,
             maxStreakOverall = maxOf(current.maxStreakOverall, _maxCombo.value),
@@ -2074,6 +2077,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     repo.fetchAccount().onSuccess { cloud ->
                         if (cloud != null) {
                             val synced = cloud.toPlayerStats()
+                            lastMatchResult = result.copy(
+                                coinsEarned = (synced.coins - current.coins).coerceAtLeast(0)
+                            )
                             _playerStats.value = synced
                             localProgressRepository.saveSnapshot(
                                 localProgressRepository.loadSnapshot().copy(
@@ -2083,6 +2089,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                             )
                         }
                     }
+                } else {
+                    // Falha na validação remota: não exibir moedas que não foram concedidas.
+                    lastMatchResult = result.copy(coinsEarned = 0)
+                    _playerStats.value = _playerStats.value.copy(coins = current.coins)
                 }
                 refreshAccountSubcollections()
             }
