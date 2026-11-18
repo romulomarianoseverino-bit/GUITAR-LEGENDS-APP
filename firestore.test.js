@@ -225,7 +225,7 @@ test("Daily Rewards: enforces UTC server dayKey and immutability", async () => {
       streakCount: 1,
       rewardTitle: "150 Moedas de Lenda",
       rewardType: "coins",
-      coinsGranted: 150,
+      coinsGranted: 100,
       cosmeticId: "",
       claimedAt: serverTimestamp(),
     })
