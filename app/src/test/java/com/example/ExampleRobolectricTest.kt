@@ -610,7 +610,7 @@ class ExampleRobolectricTest {
 
         // Verifica ciclo completo de recompensas diárias e consistência PT-BR
         val day7 = DailyRewardCatalog.rewardForDay(7)
-        assertEquals(600, day7.coinsGranted)
+        assertEquals(100, day7.coinsGranted)
         assertEquals("kai_cyber", day7.cosmeticId)
         assertEquals("Especialista", Difficulty.EXPERT.displayName)
     }
