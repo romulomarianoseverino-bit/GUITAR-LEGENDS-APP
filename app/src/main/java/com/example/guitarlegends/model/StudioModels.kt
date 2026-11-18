@@ -353,7 +353,7 @@ object StudioCatalog {
             description = "Conclua 3 apresentações no palco em qualquer modo.",
             rewardCoins = 100,
             targetValue = 3,
-            progressProvider = { it.songsCompleted }
+            progressProvider = { it.verifiedSongsCompleted }
         ),
         ChallengeItem(
             id = "chl_hit_250_notes",
@@ -361,7 +361,7 @@ object StudioCatalog {
             description = "Acerte um total de 250 notas acumuladas.",
             rewardCoins = 100,
             targetValue = 250,
-            progressProvider = { it.notesHitTotal.toInt() }
+            progressProvider = { it.verifiedNotesHitTotal.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() }
         ),
         ChallengeItem(
             id = "chl_combo_35",
@@ -369,7 +369,7 @@ object StudioCatalog {
             description = "Atinja um combo contínuo de 35+ notas.",
             rewardCoins = 100,
             targetValue = 35,
-            progressProvider = { it.maxStreakOverall }
+            progressProvider = { it.verifiedMaxStreakOverall }
         ),
         ChallengeItem(
             id = "chl_stars_12",
@@ -377,7 +377,7 @@ object StudioCatalog {
             description = "Acumule 12 estrelas de carreira.",
             rewardCoins = 100,
             targetValue = 12,
-            progressProvider = { it.unlockedStars }
+            progressProvider = { it.verifiedUnlockedStars }
         ),
         ChallengeItem(
             id = "chl_duel_win",
@@ -385,7 +385,7 @@ object StudioCatalog {
             description = "Vença 1 partida no modo Batalha Competitiva.",
             rewardCoins = 100,
             targetValue = 1,
-            progressProvider = { it.competitiveWins }
+            progressProvider = { it.verifiedCompetitiveWins }
         )
     )
 
