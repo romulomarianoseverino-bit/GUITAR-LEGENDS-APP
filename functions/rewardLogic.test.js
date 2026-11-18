@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   getUtcWeekStart,
+  getUtcDayKey,
   getDailyReward,
   grantWithinWeeklyCap,
   calculateMatchCoins,
@@ -17,6 +18,8 @@ test("semana começa segunda-feira e termina domingo no horário de Brasília", 
   assert.equal(getUtcWeekStart(new Date("2026-11-16T03:00:00Z")), "2026-11-16"); // segunda 00:00
   assert.equal(getUtcWeekStart(new Date("2026-11-23T02:59:59Z")), "2026-11-16"); // domingo 23:59
   assert.equal(getUtcWeekStart(new Date("2026-11-23T03:00:00Z")), "2026-11-23"); // segunda 00:00
+  assert.equal(getUtcDayKey(new Date("2026-11-16T02:59:59Z")), "2026-11-15"); // domingo 23:59
+  assert.equal(getUtcDayKey(new Date("2026-11-16T03:00:00Z")), "2026-11-16"); // segunda 00:00
 });
 
 test("limite semanal soma recompensas e nunca ultrapassa 100 moedas", () => {
