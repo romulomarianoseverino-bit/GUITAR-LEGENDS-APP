@@ -127,7 +127,7 @@ val DEFAULT_UNLOCKED_COSMETICS = listOf(
 )
 
 data class PlayerStats(
-    val coins: Int = 450,
+    val coins: Int = 0,
     val totalScore: Long = 0L,
     val notesHitTotal: Long = 0L,
     val maxStreakOverall: Int = 0,
