@@ -108,6 +108,33 @@ fun MultiplayerScreen(viewModel: GameViewModel) {
                             fontSize = 11.sp
                         )
 
+                        if (isSignedIn) {
+                            val connectedEmail = when (val state = authState) {
+                                is AuthUiState.Authenticated -> state.email
+                                is AuthUiState.NeedsNickname -> state.email
+                                else -> stats.email
+                            }
+                            Surface(
+                                color = RockAccentGreen.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("multiplayer_signed_in_account")
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+                                    Text(
+                                        text = "CONECTADO À CONTA",
+                                        color = RockAccentGreen,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 9.sp
+                                    )
+                                    Text(
+                                        text = connectedEmail.ifBlank { "Conta Google conectada" },
+                                        color = Color.White,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
