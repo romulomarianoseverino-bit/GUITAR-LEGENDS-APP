@@ -60,8 +60,9 @@ function calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed =
   const factor = factors[difficulty];
   if (!factor) throw new Error("Dificuldade inválida.");
   const accuracyFactor = 0.25 + (accuracy / 100) * 0.75;
-  const durationBase = 4 + durationMinutes * (19 / 3);
-  return Math.max(0, Math.min(MATCH_REWARD_CAP, Math.floor(durationBase * factor * accuracyFactor)));
+  // Mantém a mesma fórmula de MatchRewardCalculator no Android.
+  const durationBase = 4 + durationMinutes * 5.5;
+  return Math.max(0, Math.min(MATCH_REWARD_CAP, Math.floor(durationBase * factor * accuracyFactor * 1.13)));
 }
 
 module.exports = {
