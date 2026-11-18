@@ -219,6 +219,12 @@ exports.recordProgressionMatch = onCall(async (request) => {
         unlockedStars: Number(user.unlockedStars || 0) + Math.floor(stars),
         competitiveMatches: Number(user.competitiveMatches || 0) + (isCompetitive ? 1 : 0),
         competitiveWins: Number(user.competitiveWins || 0) + (isCompetitive && !failed && stars >= 3 ? 1 : 0),
+        // Indicadores separados: importações antigas não podem concluir desafios com recompensa.
+        verifiedSongsCompleted: Number(user.verifiedSongsCompleted || 0) + (failed ? 0 : 1),
+        verifiedNotesHitTotal: Number(user.verifiedNotesHitTotal || 0) + Math.floor(hitNotes),
+        verifiedMaxStreakOverall: Math.max(Number(user.verifiedMaxStreakOverall || 0), Math.floor(maxCombo)),
+        verifiedUnlockedStars: Number(user.verifiedUnlockedStars || 0) + (failed ? 0 : Math.floor(stars)),
+        verifiedCompetitiveWins: Number(user.verifiedCompetitiveWins || 0) + (isCompetitive && !failed && stars >= 3 ? 1 : 0),
         syncRevision: Number(user.syncRevision || 0) + 1,
         updatedAt: FieldValue.serverTimestamp()
       });
