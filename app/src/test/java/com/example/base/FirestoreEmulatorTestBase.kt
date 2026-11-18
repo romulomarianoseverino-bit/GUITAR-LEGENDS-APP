@@ -53,15 +53,16 @@ abstract class FirestoreEmulatorTestBase {
         auth = FirebaseAuth.getInstance(app)
         functions = FirebaseFunctions.getInstance(app)
 
-        // Configure uma única vez: as instâncias persistem entre testes Robolectric.
+        // As instâncias Firebase podem sobreviver entre classes Robolectric.
+        // Garanta que cada serviço use os emuladores, mesmo quando o FirebaseApp já existe.
         if (existingApp == null) {
-            firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
             firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
                 .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
                 .build()
-            auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
-            functions.useEmulator(EMULATOR_HOST, FUNCTIONS_PORT)
         }
+        firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+        auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
+        functions.useEmulator(EMULATOR_HOST, FUNCTIONS_PORT)
     }
 
     @After
