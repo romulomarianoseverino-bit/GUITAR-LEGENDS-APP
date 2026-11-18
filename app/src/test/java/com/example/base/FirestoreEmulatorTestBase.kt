@@ -38,23 +38,25 @@ abstract class FirestoreEmulatorTestBase {
 
         // Usa o Firebase padrão, o mesmo que FirebaseClientProvider injeta no GameViewModel.
         // O app nomeado isolava o login do teste e fazia o ViewModel parecer desautenticado.
-        val app = FirebaseApp.getApps(context).firstOrNull()
-            ?: FirebaseApp.initializeApp(
-                context,
-                FirebaseOptions.Builder()
-                    .setApplicationId("1:1234567890:android:abcdef123456")
-                    .setProjectId(PROJECT_ID)
-                    .setApiKey("fake-api-key-for-emulator")
-                    .build()
-            )
+        val existingApp = runCatching { FirebaseApp.getInstance() }.getOrNull()
+        val app = existingApp ?: FirebaseApp.initializeApp(
+            context,
+            FirebaseOptions.Builder()
+                .setApplicationId("1:1234567890:android:abcdef123456")
+                .setProjectId(PROJECT_ID)
+                .setApiKey("fake-api-key-for-emulator")
+                .build()
+        )
 
         firestore = FirebaseFirestore.getInstance(app, databaseId)
         auth = FirebaseAuth.getInstance(app)
-        firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-            .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-            .build()
-        firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-        auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
+        if (existingApp == null) {
+            firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
+                .build()
+            firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+            auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
+        }
     }
 
     @After
