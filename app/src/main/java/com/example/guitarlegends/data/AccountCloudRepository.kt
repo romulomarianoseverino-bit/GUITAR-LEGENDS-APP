@@ -34,13 +34,13 @@ class AccountCloudRepository(
 
     fun utcTodayKey(nowMillis: Long = System.currentTimeMillis()): String {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
+            timeZone = TimeZone.getTimeZone("America/Sao_Paulo")
         }
         return sdf.format(Date(nowMillis))
     }
 
     fun utcYesterdayKey(nowMillis: Long = System.currentTimeMillis()): String {
-        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("America/Sao_Paulo")).apply {
             timeInMillis = nowMillis
             add(Calendar.DAY_OF_YEAR, -1)
         }
