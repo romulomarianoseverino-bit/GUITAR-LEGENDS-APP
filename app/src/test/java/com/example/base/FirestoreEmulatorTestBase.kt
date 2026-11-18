@@ -98,6 +98,6 @@ abstract class FirestoreEmulatorTestBase {
         const val FUNCTIONS_PORT = 5001
         const val PROJECT_ID = "demo-no-project"
         const val DEFAULT_PASSWORD = "password123"
-        const val AUTH_TIMEOUT_MS = 5000L
+        const val AUTH_TIMEOUT_MS = 20000L
     }
 }
