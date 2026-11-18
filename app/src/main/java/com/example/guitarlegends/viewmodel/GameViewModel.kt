@@ -1253,22 +1253,37 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun claimChallengeReward(challenge: ChallengeItem) {
-        val cur = _playerStats.value
-        if (cur.studioProfile.claimedChallenges.contains(challenge.id)) return
-        val progress = challenge.progressProvider(cur)
+        val current = _playerStats.value
+        if (current.studioProfile.claimedChallenges.contains(challenge.id)) return
+        val progress = challenge.progressProvider(current)
         if (progress < challenge.targetValue) {
             _studioActionMessage.value = "Progresso insuficiente: $progress/${challenge.targetValue}"
             return
         }
-        val updatedClaimed = (cur.studioProfile.claimedChallenges + challenge.id).distinct()
-        val coinsGranted = challenge.rewardCoins.coerceIn(0, 100)
-        _playerStats.value = cur.copy(
-            coins = cur.coins + coinsGranted,
-            studioProfile = cur.studioProfile.copy(claimedChallenges = updatedClaimed)
-        )
-        soundFx.playUiClick(isConfirm = true)
-        _studioActionMessage.value = "Desafio '${challenge.title}' resgatado: +${coinsGranted} LC!"
-        triggerBackgroundCloudSync(customizationChanged = true)
+        val repo = accountRepo
+        if (repo == null || repo.currentUidOrNull() == null ||
+            _authUiState.value !is AuthUiState.Authenticated
+        ) {
+            _studioActionMessage.value = "Entre na sua conta para resgatar desafios com segurança."
+            return
+        }
+        viewModelScope.launch {
+            _studioActionMessage.value = "Validando desafio no servidor..."
+            repo.claimChallengeReward(challenge.id).onSuccess { (coinsGranted, cloud) ->
+                val cloudStats = cloud.toPlayerStats()
+                val updated = cloudStats.copy(
+                    studioProfile = cloudStats.studioProfile.copy(
+                        claimedChallenges = (cloudStats.studioProfile.claimedChallenges + challenge.id).distinct()
+                    )
+                )
+                _playerStats.value = updated
+                localProgressRepository.saveSnapshot(localProgressRepository.loadSnapshot().copy(stats = updated))
+                soundFx.playUiClick(isConfirm = true)
+                _studioActionMessage.value = "Desafio '${challenge.title}' resgatado: +${coinsGranted} LC!"
+            }.onFailure { error ->
+                _studioActionMessage.value = error.message ?: "Não foi possível validar o desafio."
+            }
+        }
     }
 
     // ---- Mixer de Áudio & Volume ----
@@ -1989,16 +2004,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val repo = accountRepo
         if (repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
             viewModelScope.launch {
-                repo.recordProgressionMatch(result, entryIdOverride = localRecord.id)
-                repo.syncPlayerStats(_playerStats.value).onSuccess { cloud ->
-                    val synced = cloud.toPlayerStats()
-                    _playerStats.value = synced
-                    localProgressRepository.saveSnapshot(
-                        localProgressRepository.loadSnapshot().copy(
-                            stats = synced,
-                            hasUnlinkedGuestProgress = false
-                        )
-                    )
+                val saved = repo.recordProgressionMatch(
+                    result,
+                    entryIdOverride = localRecord.id,
+                    failed = failed
+                )
+                if (saved.isSuccess) {
+                    repo.fetchAccount().onSuccess { cloud ->
+                        if (cloud != null) {
+                            val synced = cloud.toPlayerStats()
+                            _playerStats.value = synced
+                            localProgressRepository.saveSnapshot(
+                                localProgressRepository.loadSnapshot().copy(
+                                    stats = synced,
+                                    hasUnlinkedGuestProgress = false
+                                )
+                            )
+                        }
+                    }
                 }
                 refreshAccountSubcollections()
             }
