@@ -26,30 +26,6 @@ const CHALLENGES = {
   chl_duel_win: { title: "Rei do Duelo 1v1", progressField: "competitiveWins", targetValue: 1, rewardCoins: 100 }
 };
 
-const COSMETIC_PRICES = Object.freeze({
-  hair_moicano_turquesa: 150,
-  outfit_chamas_palco: 220,
-  acc_oculos_neon: 180,
-  tattoo_raio_carmesim: 160,
-  kai_cyber: 600,
-  neon_thunder: 500,
-  cyber_bass: 450,
-  electronic_neon_kit: 500,
-  punk_distress_mic: 400,
-  outfit_skin_inferno: 280,
-  outfit_skin_cyber: 420,
-  skin_chrome_hero: 220,
-  skin_golden_tour: 450,
-  skin_plasma_neon: 380,
-  stamp_cyber_circuit: 180,
-  stamp_skull_stage: 260
-});
-
-function getCosmeticPrice(cosmeticId) {
-  return Object.prototype.hasOwnProperty.call(COSMETIC_PRICES, cosmeticId)
-    ? COSMETIC_PRICES[cosmeticId] : null;
-}
-
 const WEEKLY_REWARD_CAP = 100;
 const MATCH_REWARD_CAP = 50;
 
@@ -92,8 +68,6 @@ function calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed =
 module.exports = {
   DAILY_REWARDS,
   CHALLENGES,
-  COSMETIC_PRICES,
-  getCosmeticPrice,
   WEEKLY_REWARD_CAP,
   MATCH_REWARD_CAP,
   getUtcWeekStart,
