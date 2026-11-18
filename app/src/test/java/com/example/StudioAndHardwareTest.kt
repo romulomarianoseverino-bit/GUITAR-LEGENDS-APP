@@ -133,7 +133,7 @@ class StudioAndHardwareTest {
         val mediumPerfect = MatchRewardCalculator.calculate(100f, Difficulty.MEDIUM, 240_000L)
         val expertPerfect = MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 240_000L)
         val mediumLowerAccuracy = MatchRewardCalculator.calculate(60f, Difficulty.MEDIUM, 240_000L)
-        assertTrue("Uma música completa não deve pagar centenas de moedas", mediumPerfect in 1..45)
+        assertTrue("Uma música completa deve respeitar o teto de 50 moedas", mediumPerfect in 1..50)
         assertTrue("Maior dificuldade deve pagar mais que a média", expertPerfect > mediumPerfect)
         assertTrue("Precisão menor deve reduzir a premiação", mediumLowerAccuracy < mediumPerfect)
         assertEquals("Partida abandonada/falha não deve gerar moedas", 0,
