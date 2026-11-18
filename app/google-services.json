@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "616711820187",
+    "project_id": "guitar-legends-d7708",
+    "storage_bucket": "guitar-legends-d7708.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:616711820187:android:2192e6d7e3a6d71522073e",
+        "android_client_info": {
+          "package_name": "com.aistudio.applet.kpfcic"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAW4TcMVpBnr0Nj9nPXygQN2kF8g5f8kUc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
