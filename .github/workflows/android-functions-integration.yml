@@ -9,6 +9,10 @@ on:
       - main
       - fix/zero-start-rewards-security
 
+concurrency:
+  group: guitar-legends-audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
