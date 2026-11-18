@@ -220,6 +220,35 @@ test("Daily Rewards: clients can read but cannot create or modify claims", async
   await assertFails(claimsRef.doc(today).delete());
 });
 
+test("Challenge claims and weekly totals: clients cannot forge, edit or inspect weekly counters", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const userRef = ctx.firestore().collection("users").doc(ALICE_UID);
+    await userRef.set(makeValidUserAccount(ALICE_UID));
+    await userRef.collection("challenge_claims").doc("chl_first_3_shows").set({
+      userId: ALICE_UID, challengeId: "chl_first_3_shows", coinsGranted: 40,
+      claimedAt: serverTimestamp(),
+    });
+    await userRef.collection("weekly_reward_totals").doc("2026-11-16").set({
+      weekStart: "2026-11-16", coinsGranted: 100,
+    });
+  });
+
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const userRef = aliceDb.collection("users").doc(ALICE_UID);
+  const challengeClaims = userRef.collection("challenge_claims");
+  const weeklyTotals = userRef.collection("weekly_reward_totals");
+
+  await assertSucceeds(challengeClaims.doc("chl_first_3_shows").get());
+  await assertFails(challengeClaims.doc("chl_second").set({
+    userId: ALICE_UID, challengeId: "chl_second", coinsGranted: 100,
+  }));
+  await assertFails(challengeClaims.doc("chl_first_3_shows").update({ coinsGranted: 1000 }));
+  await assertFails(weeklyTotals.doc("2026-11-16").get());
+  await assertFails(weeklyTotals.doc("2026-11-16").set({
+    weekStart: "2026-11-16", coinsGranted: 0,
+  }));
+});
+
 test("Progression history: owner can read, clients cannot append or edit", async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await ctx.firestore().collection("users").doc(ALICE_UID)
