@@ -162,7 +162,7 @@ class AccountCloudRepository(
             Result.success(fetchAccount().getOrThrow()
                 ?: throw IllegalStateException("Perfil de conta não encontrado após a sincronização."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure<UserAccountCloud>(e)
         }
     }
 
