@@ -7,7 +7,8 @@ const {
   getDailyReward,
   grantWithinWeeklyCap,
   calculateMatchCoins,
-  getCosmeticPrice
+  getCosmeticPrice,
+  CHALLENGES
 } = require("./rewardLogic");
 
 test("semana começa na segunda-feira e termina no domingo", () => {
@@ -45,4 +46,12 @@ test("preços de cosméticos são definidos pelo catálogo do servidor", () => {
   assert.equal(getCosmeticPrice("kai_cyber"), 600);
   assert.equal(getCosmeticPrice("stamp_skull_stage"), 260);
   assert.equal(getCosmeticPrice("item_inexistente"), null);
+});
+
+test("desafios usam indicadores atualizados pelo servidor após partidas", () => {
+  assert.equal(CHALLENGES.chl_first_3_shows.progressField, "verifiedSongsCompleted");
+  assert.equal(CHALLENGES.chl_hit_250_notes.progressField, "verifiedNotesHitTotal");
+  assert.equal(CHALLENGES.chl_combo_35.progressField, "verifiedMaxStreakOverall");
+  assert.equal(CHALLENGES.chl_stars_12.progressField, "verifiedUnlockedStars");
+  assert.equal(CHALLENGES.chl_duel_win.progressField, "verifiedCompetitiveWins");
 });
