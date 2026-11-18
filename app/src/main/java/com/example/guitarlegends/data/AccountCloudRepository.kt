@@ -21,9 +21,9 @@ import java.util.UUID
 
 class AccountCloudRepository(
     private val firestore: FirebaseFirestore,
-    private val auth: FirebaseAuth
+    private val auth: FirebaseAuth,
+    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance()
 ) {
-    private val functions: FirebaseFunctions by lazy { FirebaseFunctions.getInstance() }
     private val nicknameRegex = Regex("^[a-zA-Z0-9_-]{3,24}$")
 
     fun currentUidOrNull(): String? = auth.currentUser?.uid
