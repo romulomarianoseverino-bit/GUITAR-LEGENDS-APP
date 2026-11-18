@@ -38,31 +38,30 @@ abstract class FirestoreEmulatorTestBase {
         val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
         databaseId = if (resId != 0) context.getString(resId) else "demo-database"
 
-        val app = try {
-            FirebaseApp.getInstance(TEST_APP_NAME)
-        } catch (_: IllegalStateException) {
-            FirebaseApp.initializeApp(
-                context,
-                FirebaseOptions.Builder()
-                    .setApplicationId("com.aistudio.applet.kpfcic")
-                    .setProjectId(PROJECT_ID)
-                    .setApiKey("fake-api-key-for-emulator")
-                    .build(),
-                TEST_APP_NAME
-            )
-        }
+        val existingApp = runCatching { FirebaseApp.getInstance(TEST_APP_NAME) }.getOrNull()
+        val app = existingApp ?: FirebaseApp.initializeApp(
+            context,
+            FirebaseOptions.Builder()
+                .setApplicationId("com.aistudio.applet.kpfcic")
+                .setProjectId(PROJECT_ID)
+                .setApiKey("fake-api-key-for-emulator")
+                .build(),
+            TEST_APP_NAME
+        )
 
         firestore = FirebaseFirestore.getInstance(app, databaseId)
-        firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-        firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-            .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-            .build()
-
         auth = FirebaseAuth.getInstance(app)
-        auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
-
         functions = FirebaseFunctions.getInstance(app)
-        functions.useEmulator(EMULATOR_HOST, FUNCTIONS_PORT)
+
+        // Configure uma única vez: as instâncias persistem entre testes Robolectric.
+        if (existingApp == null) {
+            firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+            firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
+                .build()
+            auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
+            functions.useEmulator(EMULATOR_HOST, FUNCTIONS_PORT)
+        }
     }
 
     @After
