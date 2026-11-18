@@ -127,10 +127,10 @@ class AccountCloudRepository(
             )
             functions.getHttpsCallable("importLegacyProgress")
                 .call(mapOf("legacyStats" to legacyStats)).await()
-            fetchAccount().getOrThrow()
-                ?: throw IllegalStateException("Perfil de conta não encontrado após importar o progresso.")
+            Result.success(fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após importar o progresso."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure<UserAccountCloud>(e)
         }
     }
 
@@ -159,8 +159,8 @@ class AccountCloudRepository(
                 "studioProfileJson" to cloud.studioProfileJson
             )
             functions.getHttpsCallable("syncAccountProfile").call(payload).await()
-            fetchAccount().getOrThrow()
-                ?: throw IllegalStateException("Perfil de conta não encontrado após a sincronização.")
+            Result.success(fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após a sincronização."))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -170,8 +170,8 @@ class AccountCloudRepository(
         return try {
             functions.getHttpsCallable("purchaseCosmetic")
                 .call(mapOf("cosmeticId" to cosmeticId)).await()
-            fetchAccount().getOrThrow()
-                ?: throw IllegalStateException("Perfil de conta não encontrado após a compra.")
+            Result.success(fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Perfil de conta não encontrado após a compra."))
         } catch (e: Exception) {
             Result.failure(e)
         }
