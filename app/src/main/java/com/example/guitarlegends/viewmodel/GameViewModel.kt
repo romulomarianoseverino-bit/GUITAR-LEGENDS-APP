@@ -84,6 +84,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val highwayUploadError: StateFlow<String?> = _highwayUploadError.asStateFlow()
 
     private var authJob: Job? = null
+    private var authStateListener: FirebaseAuth.AuthStateListener? = null
 
     private val firebaseAuth: FirebaseAuth? = FirebaseClientProvider.getAuthOrNull(context)
     private val accountRepo: AccountCloudRepository? = run {
@@ -489,8 +490,36 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        viewModelScope.launch {
-            resolveInitialAuthSilently()
+        firebaseAuth?.let { auth ->
+            val listener = FirebaseAuth.AuthStateListener { observedAuth ->
+                val user = observedAuth.currentUser
+                if (user == null) {
+                    if (!_isAuthBusy.value && _authUiState.value !is AuthUiState.SignedOut) {
+                        _authUiState.value = AuthUiState.SignedOut
+                        _cloudSyncStatus.value = "Modo Visitante (Salvamento Local)"
+                    }
+                } else {
+                    val knownUid = when (val state = _authUiState.value) {
+                        is AuthUiState.Authenticated -> state.uid
+                        is AuthUiState.NeedsNickname -> state.uid
+                        else -> null
+                    }
+                    if (knownUid != user.uid && authJob?.isActive != true) {
+                        authJob = viewModelScope.launch {
+                            loadAuthenticatedAccount(
+                                uid = user.uid,
+                                email = user.email.orEmpty(),
+                                mergeGuestProgress = false
+                            )
+                        }
+                    }
+                }
+            }
+            authStateListener = listener
+            auth.addAuthStateListener(listener)
+        } ?: run {
+            _authUiState.value = AuthUiState.SignedOut
+            _cloudSyncStatus.value = "Modo Visitante (Salvamento Local)"
         }
     }
 
@@ -2474,6 +2503,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        authStateListener?.let { listener -> firebaseAuth?.removeAuthStateListener(listener) }
+        authStateListener = null
         stopRoomObserversOnly()
         audioPlayer.release()
         gamepadManager.release()
