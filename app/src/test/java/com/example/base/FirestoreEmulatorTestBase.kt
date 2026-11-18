@@ -36,30 +36,29 @@ abstract class FirestoreEmulatorTestBase {
         val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
         databaseId = if (resId != 0) context.getString(resId) else "demo-database"
 
-        val app = if (FirebaseApp.getApps(context).isEmpty()) {
-            val newApp = FirebaseApp.initializeApp(
-                context,
-                FirebaseOptions.Builder()
-                    .setApplicationId("com.aistudio.applet.kpfcic")
-                    .setProjectId(PROJECT_ID)
-                    .setApiKey("fake-api-key-for-emulator")
-                    .build()
-            )
-            val newFirestore = FirebaseFirestore.getInstance(newApp, databaseId)
-            newFirestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-            newFirestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                .build()
-
-            val newAuth = FirebaseAuth.getInstance(newApp)
-            newAuth.useEmulator(EMULATOR_HOST, AUTH_PORT)
-            newApp
-        } else {
-            FirebaseApp.getInstance()
-        }
+        // App nomeado e isolado: evita reutilizar o Firebase padrão inicializado por outra classe.
+        val existingApp = runCatching { FirebaseApp.getInstance(TEST_APP_NAME) }.getOrNull()
+        val app = existingApp ?: FirebaseApp.initializeApp(
+            context,
+            FirebaseOptions.Builder()
+                .setApplicationId("1:1234567890:android:abcdef123456")
+                .setProjectId(PROJECT_ID)
+                .setApiKey("fake-api-key-for-emulator")
+                .build(),
+            TEST_APP_NAME
+        )
 
         firestore = FirebaseFirestore.getInstance(app, databaseId)
         auth = FirebaseAuth.getInstance(app)
+
+        // Configura os emuladores uma única vez, antes de qualquer operação nos serviços.
+        if (existingApp == null) {
+            firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
+                .build()
+            firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+            auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
+        }
     }
 
     @After
@@ -93,6 +92,7 @@ abstract class FirestoreEmulatorTestBase {
         const val FIRESTORE_PORT = 8085
         const val AUTH_PORT = 9099
         const val PROJECT_ID = "demo-no-project"
+        const val TEST_APP_NAME = "guitar-legends-tests"
         const val DEFAULT_PASSWORD = "password123"
         const val AUTH_TIMEOUT_MS = 5000L
     }
