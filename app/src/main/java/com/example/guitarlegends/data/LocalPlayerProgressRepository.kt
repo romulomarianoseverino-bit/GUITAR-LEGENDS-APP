@@ -256,13 +256,13 @@ class LocalPlayerProgressRepository(private val context: Context) {
             if (!guestSnapshot.hasUnlinkedGuestProgress) return cloudStats
 
             val guest = guestSnapshot.stats
-            val extraGuestCoins = (guest.coins - guestSnapshot.startingCoinsBaseline).coerceAtLeast(0)
             val extraGuestStars = (guest.unlockedStars - PlayerStats().unlockedStars).coerceAtLeast(0)
             val mergedCosmetics = (cloudStats.unlockedCosmetics + guest.unlockedCosmetics + DEFAULT_UNLOCKED_COSMETICS).distinct()
             val mergedAchievements = (cloudStats.achievementsUnlocked + guest.achievementsUnlocked).distinct()
 
             return cloudStats.copy(
-                coins = (cloudStats.coins + extraGuestCoins).coerceIn(0, 10_000_000),
+                // Guest currency is client-controlled and must never be imported into a cloud account.
+                coins = cloudStats.coins,
                 unlockedStars = (cloudStats.unlockedStars + extraGuestStars).coerceAtLeast(0),
                 totalScore = (cloudStats.totalScore + guest.totalScore).coerceAtLeast(0L),
                 notesHitTotal = (cloudStats.notesHitTotal + guest.notesHitTotal).coerceAtLeast(0L),
