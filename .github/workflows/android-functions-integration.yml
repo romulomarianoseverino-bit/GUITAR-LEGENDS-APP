@@ -61,4 +61,4 @@ jobs:
         env:
           CI: true
         run: |
-          firebase emulators:exec --project demo-no-project --only auth,firestore,functions "npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon testDebugUnitTest compileDebugKotlin"
+          firebase emulators:exec --project demo-no-project --only auth,firestore,functions "npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest compileDebugKotlin"
