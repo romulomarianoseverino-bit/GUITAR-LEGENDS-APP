@@ -129,10 +129,10 @@ test("Owner: can read own account but all client writes are denied", async () =>
 });
 
 test("Cross-user isolation: Bob cannot read or modify Alice profile or subcollections", async () => {
-  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).set(makeValidUserAccount(ALICE_UID))
-  );
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("users").doc(ALICE_UID)
+      .set(makeValidUserAccount(ALICE_UID));
+  });
 
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   await assertFails(bobDb.collection("users").doc(ALICE_UID).get());
