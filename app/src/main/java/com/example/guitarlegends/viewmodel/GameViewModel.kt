@@ -531,11 +531,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val guestSnapshot = localProgressRepository.loadSnapshot()
                 val remoteStats = remote.toPlayerStats()
                 val finalStats = if (mergeGuestProgress && guestSnapshot.hasUnlinkedGuestProgress) {
-                    val merged = LocalPlayerProgressRepository.mergeGuestIntoCloud(remoteStats, guestSnapshot)
-                    val synced = repo.syncPlayerStats(merged).getOrNull()?.toPlayerStats() ?: merged
-                    uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
-                    _cloudSyncStatus.value = "Conta vinculada e progresso local preservado"
-                    synced
+                    // Importação única dos indicadores legados; saldo e inventário permanecem
+                    // sob controle do servidor e não são aceitos do armazenamento local.
+                    repo.importLegacyProgress(guestSnapshot.stats).getOrNull()
+                    repo.syncPlayerStats(guestSnapshot.stats).getOrNull()
+                    val refreshed = repo.fetchAccount().getOrNull()
+                    _cloudSyncStatus.value = "Progresso antigo migrado; moedas e itens protegidos"
+                    refreshed?.toPlayerStats() ?: remoteStats
                 } else {
                     _cloudSyncStatus.value = "Sincronizado na nuvem"
                     remoteStats
@@ -545,7 +547,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 applyCurrentAudioSettings()
                 _hasUnlinkedGuestProgress.value = false
                 localProgressRepository.saveSnapshot(
-                    LocalProgressSnapshot(
+                    guestSnapshot.copy(
                         stats = finalStats,
                         hasUnlinkedGuestProgress = false,
                         hasLocalCustomizationChanges = false
@@ -655,12 +657,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val guestSnapshot = localProgressRepository.loadSnapshot()
             val res = repo.claimNicknameAndSaveAccount(nickname, _playerStats.value)
             res.onSuccess { cloud ->
-                uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
                 val cloudStats = cloud.toPlayerStats()
                 _playerStats.value = cloudStats
                 _hasUnlinkedGuestProgress.value = false
                 localProgressRepository.saveSnapshot(
-                    LocalProgressSnapshot(
+                    guestSnapshot.copy(
                         stats = cloudStats,
                         hasUnlinkedGuestProgress = false,
                         hasLocalCustomizationChanges = false
