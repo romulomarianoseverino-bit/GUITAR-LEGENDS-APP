@@ -44,7 +44,8 @@ fun drawRockerCharacter3D(
     pitchDeg: Float = 4f,
     animTimeSec: Float = 0f,
     isStarPowerActive: Boolean = false,
-    combo: Int = 0
+    combo: Int = 0,
+    studioPreview: Boolean = false
 ) {
     val studio = stats.studioProfile
     val rocker = stats.customRocker
@@ -81,9 +82,11 @@ fun drawRockerCharacter3D(
 
     // Movimento de palco sincronizado (Headbang + batida rítmica + energia do combo)
     val energyMult = if (isStarPowerActive) 1.55f else if (combo >= 15) 1.25f else 1.0f
-    val grooveBounce = sin(animTimeSec * 6.5f) * 0.045f * energyMult
-    val strumSwing = sin(animTimeSec * 12.0f) * 0.06f * energyMult
-    val headNod = sin(animTimeSec * 6.5f + 0.4f) * 0.03f * energyMult
+    // A prévia do estúdio usa movimentos mais perceptíveis para o jogador avaliar a pose.
+    val motionMult = if (studioPreview) 2.2f else 1.0f
+    val grooveBounce = sin(animTimeSec * 6.5f) * 0.045f * energyMult * motionMult
+    val strumSwing = sin(animTimeSec * 12.0f) * 0.06f * energyMult * motionMult
+    val headNod = sin(animTimeSec * 6.5f + 0.4f) * 0.03f * energyMult * motionMult
 
     val hipY = -0.82f + grooveBounce * 0.4f
     val shoulderY = -1.42f + grooveBounce
@@ -619,7 +622,8 @@ fun InteractiveCharacter3DViewer(
                     scale = charScale,
                     yawDeg = yawDeg,
                     pitchDeg = pitchDeg,
-                    animTimeSec = previewTimeSec
+                    animTimeSec = previewTimeSec,
+                    studioPreview = true
                 )
             }
 
