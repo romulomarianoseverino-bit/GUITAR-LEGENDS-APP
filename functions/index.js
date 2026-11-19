@@ -8,7 +8,6 @@ const {
   getUtcWeekStart,
   getUtcDayKey,
   getDailyReward,
-  grantWithinWeeklyCap,
   calculateMatchCoins,
   calculateMatchStars,
   COSMETIC_PRICES,
@@ -35,11 +34,13 @@ function safeId(value, label) {
 
 function getWeekRefs(uid, now) {
   const weekStart = getUtcWeekStart(now);
+  const weekEndDate = new Date(weekStart + "T00:00:00.000Z");
+  weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 6);
   const userRef = db.collection("users").doc(uid);
   return {
-    userRef,
-    weekStart,
-    weekRef: userRef.collection("weekly_reward_totals").doc(weekStart)
+    userRef, weekStart,
+    weekEnd: weekEndDate.toISOString().slice(0, 10),
+    weekRef: userRef.collection("daily_reward_totals").doc(weekStart)
   };
 }
 
@@ -47,13 +48,15 @@ exports.claimDailyReward = onCall(async (request) => {
   const uid = requireUid(request);
   const now = new Date();
   const dayKey = getUtcDayKey(now);
-  const { userRef, weekStart, weekRef } = getWeekRefs(uid, now);
+  const { userRef, weekStart, weekEnd, weekRef } = getWeekRefs(uid, now);
   const claimRef = userRef.collection("reward_claims").doc(dayKey);
+  const weekClaimsQuery = userRef.collection("reward_claims")
+    .where("dayKey", ">=", weekStart).where("dayKey", "<=", weekEnd);
 
   try {
     return await db.runTransaction(async (tx) => {
-      const [userSnap, claimSnap, weekSnap] = await Promise.all([
-        tx.get(userRef), tx.get(claimRef), tx.get(weekRef)
+      const [userSnap, claimSnap, weekSnap, weekClaimsSnap] = await Promise.all([
+        tx.get(userRef), tx.get(claimRef), tx.get(weekRef), tx.get(weekClaimsQuery)
       ]);
       if (!userSnap.exists) throw new HttpsError("failed-precondition", "Finalize seu cadastro antes de resgatar recompensas.");
       if (claimSnap.exists) throw new HttpsError("already-exists", "A recompensa diária de hoje já foi resgatada.");
@@ -64,7 +67,14 @@ exports.claimDailyReward = onCall(async (request) => {
       const streak = user.lastRewardDayKey === yesterdayKey ? Number(user.rewardStreak || 0) + 1 : 1;
       const dayNumber = ((streak - 1) % 30) + 1;
       const reward = getDailyReward(dayNumber);
-      const weekly = grantWithinWeeklyCap(reward.coinsGranted, weekSnap.exists ? weekSnap.get("coinsGranted") : 0);
+      // O teto semanal considera apenas moedas concedidas por recompensas diárias.
+      // A consulta aos resgates preserva o histórico anterior à separação dos limites.
+      const claimedDailyCoins = weekClaimsSnap.docs.reduce((sum, doc) =>
+        sum + Math.max(0, Number(doc.get("coinsGranted") || 0)), 0);
+      const recordedDailyCoins = weekSnap.exists ? Math.max(0, Number(weekSnap.get("coinsGranted") || 0)) : 0;
+      const dailyCoinsUsed = Math.max(claimedDailyCoins, recordedDailyCoins);
+      const granted = Math.min(Math.max(0, Number(reward.coinsGranted) || 0), Math.max(0, 100 - dailyCoinsUsed));
+      const weekly = { granted, total: dailyCoinsUsed + granted };
       const updatedCosmetics = [...new Set([...(user.unlockedCosmetics || []), ...(reward.cosmeticId ? [reward.cosmeticId] : [])])];
       const updatedAchievements = [...new Set([...(user.achievementsUnlocked || []), ...(streak >= 3 ? ["ach_streak_3"] : [])])];
 
@@ -107,14 +117,12 @@ exports.claimChallengeReward = onCall(async (request) => {
   if (!challenge) throw new HttpsError("not-found", "Desafio não reconhecido pelo servidor.");
 
   const now = new Date();
-  const { userRef, weekStart, weekRef } = getWeekRefs(uid, now);
+  const { userRef } = getWeekRefs(uid, now);
   const claimRef = userRef.collection("challenge_claims").doc(challengeId);
 
   try {
     return await db.runTransaction(async (tx) => {
-      const [userSnap, claimSnap, weekSnap] = await Promise.all([
-        tx.get(userRef), tx.get(claimRef), tx.get(weekRef)
-      ]);
+      const [userSnap, claimSnap] = await Promise.all([tx.get(userRef), tx.get(claimRef)]);
       if (!userSnap.exists) throw new HttpsError("failed-precondition", "Conta não encontrada.");
       if (claimSnap.exists) throw new HttpsError("already-exists", "Este desafio já foi resgatado.");
       const user = userSnap.data();
@@ -122,15 +130,12 @@ exports.claimChallengeReward = onCall(async (request) => {
       if (progress < challenge.targetValue) {
         throw new HttpsError("failed-precondition", "Você ainda não concluiu este desafio.");
       }
-      const weekly = grantWithinWeeklyCap(challenge.rewardCoins, weekSnap.exists ? weekSnap.get("coinsGranted") : 0);
-
+      // Cada desafio pode ser resgatado uma única vez, sem consumir o limite diário.
+      const coinsGranted = Math.max(0, Number(challenge.rewardCoins) || 0);
       tx.create(claimRef, {
         userId: uid, challengeId, title: challenge.title,
-        coinsGranted: weekly.granted, claimedAt: FieldValue.serverTimestamp()
+        coinsGranted, claimedAt: FieldValue.serverTimestamp()
       });
-      tx.set(weekRef, {
-        weekStart, coinsGranted: weekly.total, updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
       let studioProfile = {};
       try {
         studioProfile = user.studioProfileJson ? JSON.parse(user.studioProfileJson) : {};
@@ -142,7 +147,7 @@ exports.claimChallengeReward = onCall(async (request) => {
       studioProfile.claimedChallenges = [...new Set([...claimedChallenges, challengeId])];
 
       tx.update(userRef, {
-        coins: Number(user.coins || 0) + weekly.granted,
+        coins: Number(user.coins || 0) + coinsGranted,
         studioProfileJson: JSON.stringify(studioProfile),
         syncRevision: Number(user.syncRevision || 0) + 1,
         updatedAt: FieldValue.serverTimestamp()
@@ -150,8 +155,7 @@ exports.claimChallengeReward = onCall(async (request) => {
 
       return {
         challengeId, title: challenge.title,
-        coinsGranted: weekly.granted, weeklyCoinsGranted: weekly.total,
-        weeklyLimit: 100, weekStart
+        coinsGranted
       };
     });
   } catch (error) {
@@ -189,19 +193,17 @@ exports.recordProgressionMatch = onCall(async (request) => {
   const accuracyPercent = (hitNotes / totalNotes) * 100;
   const stars = calculateMatchStars({ accuracyPercent, failed });
   const calculatedCoins = calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed });
-  const { userRef, weekStart, weekRef } = getWeekRefs(uid, new Date());
+  const { userRef } = getWeekRefs(uid, new Date());
   const entryRef = userRef.collection("progression_history").doc(entryId);
 
   try {
     return await db.runTransaction(async (tx) => {
-      const [userSnap, entrySnap, weekSnap] = await Promise.all([
-        tx.get(userRef), tx.get(entryRef), tx.get(weekRef)
-      ]);
+      const [userSnap, entrySnap] = await Promise.all([tx.get(userRef), tx.get(entryRef)]);
       if (!userSnap.exists) throw new HttpsError("failed-precondition", "Conta não encontrada.");
       if (entrySnap.exists) return { entryId, coinsEarned: entrySnap.get("coinsEarned") || 0, duplicate: true };
       const user = userSnap.data();
-      const weekly = grantWithinWeeklyCap(calculatedCoins, weekSnap.exists ? weekSnap.get("coinsGranted") : 0);
-      const coinsEarned = weekly.granted;
+      // Até 50 LC por partida, independente do limite das recompensas diárias.
+      const coinsEarned = calculatedCoins;
 
       tx.create(entryRef, {
         userId: uid, trackId, trackTitle: String(data.trackTitle || "Música").slice(0, 160),
@@ -209,9 +211,6 @@ exports.recordProgressionMatch = onCall(async (request) => {
         accuracyPercent, coinsEarned, calculatedCoins, isCompetitive,
         createdAt: FieldValue.serverTimestamp()
       });
-      tx.set(weekRef, {
-        weekStart, coinsGranted: weekly.total, updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
       tx.update(userRef, {
         coins: Number(user.coins || 0) + coinsEarned,
         totalScore: Number(user.totalScore || 0) + Math.floor(score),
