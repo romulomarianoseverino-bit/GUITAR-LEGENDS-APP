@@ -96,7 +96,7 @@ abstract class FirestoreEmulatorTestBase {
         const val FIRESTORE_PORT = 8085
         const val AUTH_PORT = 9099
         const val FUNCTIONS_PORT = 5001
-        const val PROJECT_ID = "demo-no-project"
+        const val PROJECT_ID = "guitar-legends-d7708"
         const val DEFAULT_PASSWORD = "password123"
         // O Auth Emulator pode levar mais tempo em CI; o limite não deve encerrar o teste prematuramente.
         const val AUTH_TIMEOUT_MS = 60000L
