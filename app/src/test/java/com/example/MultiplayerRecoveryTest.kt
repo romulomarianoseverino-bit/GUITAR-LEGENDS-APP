@@ -151,7 +151,9 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
     fun `03 - full online room creation, second player join, live sync, disconnect detection, reconnect and exit`() = runBlocking {
         val tag = UUID.randomUUID().toString().replace("-", "").take(6).uppercase()
         val roomCode = "ROCK-$tag"
+        println("[MP-TEST] stage 0: starting Alice Auth emulator sign-in")
         val aliceUid = signInTestUser("mp_alice_$tag@test.com")
+        println("[MP-TEST] stage 0 complete: Alice authenticated uid=$aliceUid")
 
         assertEquals("Alice deve estar autenticada na instância padrão", aliceUid, auth.currentUser?.uid)
         val vm = GameViewModel(app)
@@ -172,10 +174,12 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
         composeTestRule.waitForIdle()
         assertTrue(vm.currentScreen.value is GameScreen.CompetitiveMultiplayer)
 
+        println("[MP-TEST] stage 1: requesting room creation code=$roomCode")
         vm.createMultiplayerRoom(MultiplayerMode.BATTLE_1V1, customRoomCode = roomCode)
         withTimeout(6000L) {
             while (vm.multiplayerRoom.value == null && vm.multiplayerError.value == null) delay(60L)
         }
+        println("[MP-TEST] stage 1 result: room=${vm.multiplayerRoom.value?.roomCode} error=${vm.multiplayerError.value}")
         assertNotNull(
             "A criação da sala falhou ou ficou sem resposta: ${vm.multiplayerError.value}",
             vm.multiplayerRoom.value
@@ -188,13 +192,17 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
 
         // 2. Segundo jogador (Bob) entra na sala pelo código
         val (bobAuth, bobRepo) = getOrInitSecondaryBobRepo(app)
+        println("[MP-TEST] stage 2: starting Bob Auth emulator sign-in")
         val bobUid = signInSecondary(bobAuth, "mp_bob_$tag@test.com")
+        println("[MP-TEST] stage 2 complete: Bob authenticated uid=$bobUid")
+        println("[MP-TEST] stage 2: Bob joining room")
         val bobJoinRes = withTimeout(6000L) {
             bobRepo.joinRoom(roomCode, "BobBass", Instrument.BASS, Difficulty.HARD)
         }
         assertTrue("Bob must join Alice's room: ${bobJoinRes.exceptionOrNull()?.message}", bobJoinRes.isSuccess)
 
         // Espera sincronização em tempo real no ViewModel da Alice
+        println("[MP-TEST] stage 2 complete: Bob joined; waiting for Alice participant listener")
         withTimeout(6000L) {
             while (vm.multiplayerParticipants.value.size < 2) delay(60L)
         }
