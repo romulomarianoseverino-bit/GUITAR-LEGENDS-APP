@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "616711820187-geqf642o1roujn30ao8ab00uncmfv0qb.apps.googleusercontent.com",
+          "client_id": "616711820187-41lk7dnbmd8f1l8okfjucvq4uk47651i.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.aistudio.applet.kpfcic",
-            "certificate_hash": "185c80f730d21456e4986b7717fb33c87baab64b"
+            "certificate_hash": "b660d89d7d89781a89efeaf146c1dbc679ed8063"
           }
         },
         {
