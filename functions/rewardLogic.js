@@ -1,7 +1,7 @@
 "use strict";
 
 const DAILY_REWARDS = [
-  { title: "100 Moedas de Lenda", rewardType: "coins", coinsGranted: 100, cosmeticId: "" },
+  { title: "10 Moedas de Lenda", rewardType: "coins", coinsGranted: 10, cosmeticId: "" },
   { title: "Jaqueta Chamas de Palco", rewardType: "cosmetic", coinsGranted: 100, cosmeticId: "outfit_chamas_palco" },
   { title: "100 Moedas de Lenda", rewardType: "coins", coinsGranted: 100, cosmeticId: "" },
   { title: "Óculos Neon Holográficos", rewardType: "cosmetic", coinsGranted: 100, cosmeticId: "acc_oculos_neon" },
