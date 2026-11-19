@@ -62,7 +62,7 @@ jobs:
         env:
           CI: true
         run: |
-          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node -e 'const net=require("node:net");let n=0;const probe=()=>{const s=net.connect(9099,"127.0.0.1");s.setTimeout(1000);s.once("connect",()=>{console.log("Auth Emulator TCP OK on 127.0.0.1:9099");s.end()});s.once("error",retry);s.once("timeout",()=>{s.destroy();retry()})};const retry=()=>{if(++n>=30){console.error("Auth Emulator did not accept connections on 127.0.0.1:9099 after 30 attempts");process.exit(1)}setTimeout(probe,1000)};probe()' && npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest compileDebugKotlin"
+          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node .github/scripts/wait-for-auth-emulator.cjs && npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest compileDebugKotlin"
 
       - name: Publicar relatório dos testes Android
         if: always()
