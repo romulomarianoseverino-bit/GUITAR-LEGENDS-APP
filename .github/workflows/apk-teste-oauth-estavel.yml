@@ -53,10 +53,10 @@ jobs:
                           hashes.append(value)
           if not hashes:
               raise SystemExit("Cliente OAuth Android não encontrado para o pacote esperado.")
-          print("\\n".join(hashes))
+          print("\n".join(hashes))
           PY
           )"
-          if [ -z "$ACTUAL_SHA1" ] || ! printf '%s\\n' "$EXPECTED_SHA1S" | grep -Fxq "$ACTUAL_SHA1"; then
+          if [ -z "$ACTUAL_SHA1" ] || ! printf '%s\n' "$EXPECTED_SHA1S" | grep -Fxq "$ACTUAL_SHA1"; then
             echo "::error::A assinatura do APK não corresponde ao SHA-1 OAuth do Firebase. Atualize o KEYSTORE_BASE64 com a chave cadastrada ou registre o SHA-1 dessa chave no Firebase e atualize google-services.json."
             exit 1
           fi
