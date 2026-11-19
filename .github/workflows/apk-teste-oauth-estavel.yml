@@ -37,22 +37,26 @@ jobs:
           fi
           printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 --decode > debug.keystore
           ACTUAL_SHA1="$(keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | sed -n 's/.*SHA1: //p' | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-          EXPECTED_SHA1="$(python3 - <<'PY'
+          EXPECTED_SHA1S="$(python3 - <<'PY'
           import json
           data = json.load(open("app/google-services.json"))
           package = "com.aistudio.applet.kpfcic"
+          hashes = []
           for client in data.get("client", []):
               info = client.get("client_info", {})
               if info.get("android_client_info", {}).get("package_name") != package:
                   continue
               for oauth in client.get("oauth_client", []):
                   if oauth.get("client_type") == 1 and oauth.get("android_info", {}).get("package_name") == package:
-                      print(oauth.get("android_info", {}).get("certificate_hash", "").lower())
-                      raise SystemExit(0)
-          raise SystemExit("Cliente OAuth Android não encontrado para o pacote esperado.")
+                      value = oauth.get("android_info", {}).get("certificate_hash", "").lower()
+                      if value:
+                          hashes.append(value)
+          if not hashes:
+              raise SystemExit("Cliente OAuth Android não encontrado para o pacote esperado.")
+          print("\\n".join(hashes))
           PY
           )"
-          if [ -z "$ACTUAL_SHA1" ] || [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1" ]; then
+          if [ -z "$ACTUAL_SHA1" ] || ! printf '%s\\n' "$EXPECTED_SHA1S" | grep -Fxq "$ACTUAL_SHA1"; then
             echo "::error::A assinatura do APK não corresponde ao SHA-1 OAuth do Firebase. Atualize o DEBUG_KEYSTORE_BASE64 com a chave cadastrada ou registre o SHA-1 dessa chave no Firebase e atualize google-services.json."
             exit 1
           fi
