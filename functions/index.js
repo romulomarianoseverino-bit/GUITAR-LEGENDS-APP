@@ -8,6 +8,7 @@ const {
   getUtcWeekStart,
   getUtcDayKey,
   getDailyReward,
+  calculateDailyRewardGrant,
   calculateMatchCoins,
   calculateMatchStars,
   COSMETIC_PRICES,
@@ -71,10 +72,9 @@ exports.claimDailyReward = onCall(async (request) => {
       // A consulta aos resgates preserva o histórico anterior à separação dos limites.
       const claimedDailyCoins = weekClaimsSnap.docs.reduce((sum, doc) =>
         sum + Math.max(0, Number(doc.get("coinsGranted") || 0)), 0);
-      const recordedDailyCoins = weekSnap.exists ? Math.max(0, Number(weekSnap.get("coinsGranted") || 0)) : 0;
-      const dailyCoinsUsed = Math.max(claimedDailyCoins, recordedDailyCoins);
-      const granted = Math.min(Math.max(0, Number(reward.coinsGranted) || 0), Math.max(0, 100 - dailyCoinsUsed));
-      const weekly = { granted, total: dailyCoinsUsed + granted };
+      // Nunca usar weekly_reward_totals legado: ele misturava diárias, desafios e partidas.
+      // O limite novo é calculado exclusivamente pelos resgates diários desta semana.
+      const weekly = calculateDailyRewardGrant(reward.coinsGranted, claimedDailyCoins);
       const updatedCosmetics = [...new Set([...(user.unlockedCosmetics || []), ...(reward.cosmeticId ? [reward.cosmeticId] : [])])];
       const updatedAchievements = [...new Set([...(user.achievementsUnlocked || []), ...(streak >= 3 ? ["ach_streak_3"] : [])])];
 
