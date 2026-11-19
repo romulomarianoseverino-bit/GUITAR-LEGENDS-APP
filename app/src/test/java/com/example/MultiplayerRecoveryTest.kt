@@ -60,7 +60,7 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
                 context,
                 FirebaseOptions.Builder()
                     .setApplicationId("1:1234567890:android:abcdef123456")
-                    .setProjectId("demo-no-project")
+                    .setProjectId("guitar-legends-d7708")
                     .setApiKey("fake-api-key-for-emulator")
                     .build(),
                 bobAppName
