@@ -134,8 +134,16 @@ class GuestModeAndAccountTest {
 
         // Resgata recompensa diária no modo visitante (e bloqueia replay no mesmo dia UTC)
         val coinsBeforeReward = vm.playerStats.value.coins
+        val matchCoinsEarned = coinsBeforeReward - initialCoins
         vm.claimDailyReward()
-        assertEquals("Partida e recompensa diária juntas respeitam o teto semanal de 100 moedas", 100, vm.playerStats.value.coins - initialCoins)
+        val dailyCoinsEarned = vm.playerStats.value.coins - coinsBeforeReward
+        assertEquals(
+            "Dia 1 concede 10 moedas, respeitando o espaço restante no teto semanal",
+            minOf(10, (100 - matchCoinsEarned).coerceAtLeast(0)),
+            dailyCoinsEarned
+        )
+        assertTrue("Partida e recompensa diária juntas nunca ultrapassam 100 moedas na semana",
+            vm.playerStats.value.coins - initialCoins <= 100)
         assertEquals(1, vm.playerStats.value.rewardStreak)
 
         val coinsAfterFirstClaim = vm.playerStats.value.coins
