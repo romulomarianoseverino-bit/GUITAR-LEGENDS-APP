@@ -12,7 +12,7 @@ require(require.resolve("firebase/compat/firestore", { paths: [rulesUnitDir] }))
 const serverTimestamp = () => firebase.firestore.FieldValue.serverTimestamp();
 
 let testEnv;
-const PROJECT_ID = process.env.GCP_PROJECT || "demo-no-project";
+const PROJECT_ID = process.env.GCP_PROJECT || "guitar-legends-d7708";
 const ALICE_UID = "alice_123";
 const BOB_UID = "bob_456";
 

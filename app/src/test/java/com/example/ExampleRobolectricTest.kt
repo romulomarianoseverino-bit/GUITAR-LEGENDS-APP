@@ -612,6 +612,9 @@ class ExampleRobolectricTest {
         assertTrue(statusUpToDate is UpdateCheckStatus.UpToDate)
 
         // Verifica ciclo completo de recompensas diárias e consistência PT-BR
+        val day1 = DailyRewardCatalog.rewardForDay(1)
+        assertEquals(10, day1.coinsGranted)
+        assertEquals("10 Moedas de Lenda", day1.title)
         val day7 = DailyRewardCatalog.rewardForDay(7)
         assertEquals(100, day7.coinsGranted)
         assertEquals("kai_cyber", day7.cosmeticId)

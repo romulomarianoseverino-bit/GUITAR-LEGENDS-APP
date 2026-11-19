@@ -1,7 +1,7 @@
 "use strict";
 
 const DAILY_REWARDS = [
-  { title: "100 Moedas de Lenda", rewardType: "coins", coinsGranted: 100, cosmeticId: "" },
+  { title: "10 Moedas de Lenda", rewardType: "coins", coinsGranted: 10, cosmeticId: "" },
   { title: "Jaqueta Chamas de Palco", rewardType: "cosmetic", coinsGranted: 100, cosmeticId: "outfit_chamas_palco" },
   { title: "100 Moedas de Lenda", rewardType: "coins", coinsGranted: 100, cosmeticId: "" },
   { title: "Óculos Neon Holográficos", rewardType: "cosmetic", coinsGranted: 100, cosmeticId: "acc_oculos_neon" },
@@ -90,9 +90,9 @@ function getDailyReward(dayNumber) {
   return { ...DAILY_REWARDS[index], dayNumber };
 }
 
-function grantWithinWeeklyCap(requestedCoins, alreadyGranted) {
-  const used = Math.max(0, Math.min(WEEKLY_REWARD_CAP, Number(alreadyGranted) || 0));
-  const requested = Math.max(0, Math.min(WEEKLY_REWARD_CAP, Number(requestedCoins) || 0));
+function calculateDailyRewardGrant(requestedCoins, claimedDailyCoins) {
+  const used = Math.max(0, Math.min(WEEKLY_REWARD_CAP, Number(claimedDailyCoins) || 0));
+  const requested = Math.max(0, Number(requestedCoins) || 0);
   const granted = Math.min(requested, WEEKLY_REWARD_CAP - used);
   return { granted, total: used + granted };
 }
@@ -130,7 +130,7 @@ module.exports = {
   getUtcWeekStart,
   getUtcDayKey,
   getDailyReward,
-  grantWithinWeeklyCap,
+  calculateDailyRewardGrant,
   calculateMatchCoins,
   calculateMatchStars
 };

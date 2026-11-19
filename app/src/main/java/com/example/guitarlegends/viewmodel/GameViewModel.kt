@@ -84,6 +84,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val highwayUploadError: StateFlow<String?> = _highwayUploadError.asStateFlow()
 
     private var authJob: Job? = null
+    private var authStateListener: FirebaseAuth.AuthStateListener? = null
 
     private val firebaseAuth: FirebaseAuth? = FirebaseClientProvider.getAuthOrNull(context)
     private val accountRepo: AccountCloudRepository? = run {
@@ -489,8 +490,36 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        viewModelScope.launch {
-            resolveInitialAuthSilently()
+        firebaseAuth?.let { auth ->
+            val listener = FirebaseAuth.AuthStateListener { observedAuth ->
+                val user = observedAuth.currentUser
+                if (user == null) {
+                    if (!_isAuthBusy.value && _authUiState.value !is AuthUiState.SignedOut) {
+                        _authUiState.value = AuthUiState.SignedOut
+                        _cloudSyncStatus.value = "Modo Visitante (Salvamento Local)"
+                    }
+                } else {
+                    val knownUid = when (val state = _authUiState.value) {
+                        is AuthUiState.Authenticated -> state.uid
+                        is AuthUiState.NeedsNickname -> state.uid
+                        else -> null
+                    }
+                    if (knownUid != user.uid && authJob?.isActive != true) {
+                        authJob = viewModelScope.launch {
+                            loadAuthenticatedAccount(
+                                uid = user.uid,
+                                email = user.email.orEmpty(),
+                                mergeGuestProgress = false
+                            )
+                        }
+                    }
+                }
+            }
+            authStateListener = listener
+            auth.addAuthStateListener(listener)
+        } ?: run {
+            _authUiState.value = AuthUiState.SignedOut
+            _cloudSyncStatus.value = "Modo Visitante (Salvamento Local)"
         }
     }
 
@@ -520,7 +549,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         mergeGuestProgress: Boolean = true
     ) {
         _authUiState.value = AuthUiState.Loading
-        val repo = accountRepo ?: return
+        val repo = accountRepo
+        if (repo == null) {
+            val safeNickname = _playerStats.value.nickname.ifBlank { "Rockstar" }
+            _playerStats.value = _playerStats.value.copy(email = email)
+            _authUiState.value = AuthUiState.Authenticated(uid, email, safeNickname)
+            _cloudSyncStatus.value = "Conta conectada; serviço de sincronização indisponível"
+            _authErrorMessage.value = "Você entrou na conta, mas a sincronização na nuvem não está disponível agora."
+            return
+        }
         val accountRes = repo.fetchAccount()
         accountRes.onSuccess { remote ->
             if (remote == null || remote.nickname.isBlank()) {
@@ -562,9 +599,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 checkForUpdates(silent = true)
             }
         }.onFailure { err ->
-            _authErrorMessage.value = "Erro ao carregar conta na nuvem: ${err.message}"
-            _authUiState.value = AuthUiState.SignedOut
-            _cloudSyncStatus.value = "Modo Visitante (Falha na rede ao consultar nuvem)"
+            // Uma falha ao consultar o perfil não desfaz a autenticação válida do Firebase.
+            val safeNickname = _playerStats.value.nickname.ifBlank { "Rockstar" }
+            _playerStats.value = _playerStats.value.copy(email = email)
+            _authUiState.value = AuthUiState.Authenticated(uid, email, safeNickname)
+            _authErrorMessage.value = "Conta conectada, mas não foi possível sincronizar os dados: ${err.message}"
+            _cloudSyncStatus.value = "Conta conectada; falha ao consultar a nuvem"
         }
     }
 
@@ -2078,7 +2118,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val repo = accountRepo
-        if (repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
+        if (cloudAccount && repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
             viewModelScope.launch {
                 val saved = repo.recordProgressionMatch(
                     result,
@@ -2241,6 +2281,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     // ---- Multiplayer Online (Salas, Convite, Sync & Desconexão) ----
 
     fun currentMultiplayerUid(): String? = multiplayerRepo?.currentUidOrNull()
+    fun currentAuthEmail(): String? = firebaseAuth?.currentUser?.email
 
     fun clearMultiplayerError() {
         _multiplayerError.value = null
@@ -2632,6 +2673,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        authStateListener?.let { listener -> firebaseAuth?.removeAuthStateListener(listener) }
+        authStateListener = null
         stopRoomObserversOnly()
         audioPlayer.release()
         gamepadManager.release()

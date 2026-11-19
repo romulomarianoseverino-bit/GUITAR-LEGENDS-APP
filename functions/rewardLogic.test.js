@@ -6,7 +6,7 @@ const {
   getUtcWeekStart,
   getUtcDayKey,
   getDailyReward,
-  grantWithinWeeklyCap,
+  calculateDailyRewardGrant,
   calculateMatchCoins,
   calculateMatchStars,
   getCosmeticPrice,
@@ -22,14 +22,19 @@ test("semana começa segunda-feira e termina domingo no horário de Brasília", 
   assert.equal(getUtcDayKey(new Date("2026-11-16T03:00:00Z")), "2026-11-16"); // segunda 00:00
 });
 
-test("limite semanal soma recompensas e nunca ultrapassa 100 moedas", () => {
-  assert.deepEqual(grantWithinWeeklyCap(100, 0), { granted: 100, total: 100 });
-  assert.deepEqual(grantWithinWeeklyCap(100, 60), { granted: 40, total: 100 });
-  assert.deepEqual(grantWithinWeeklyCap(100, 100), { granted: 0, total: 100 });
+test("limite semanal considera somente moedas de recompensas diárias", () => {
+  assert.deepEqual(calculateDailyRewardGrant(100, 0), { granted: 100, total: 100 });
+  assert.deepEqual(calculateDailyRewardGrant(100, 60), { granted: 40, total: 100 });
+  assert.deepEqual(calculateDailyRewardGrant(100, 100), { granted: 0, total: 100 });
+  // Desafios e partidas não entram no acumulado recebido por esta função.
+  const dailyClaimsOnly = [10, 40, 50].reduce((sum, coins) => sum + coins, 0);
+  assert.deepEqual(calculateDailyRewardGrant(100, dailyClaimsOnly), { granted: 0, total: 100 });
+  assert.deepEqual(calculateDailyRewardGrant(100, 10), { granted: 90, total: 100 });
 });
 
 test("catálogo diário preserva os itens cosméticos e o ciclo", () => {
-  assert.equal(getDailyReward(1).coinsGranted, 100);
+  assert.equal(getDailyReward(1).coinsGranted, 10);
+  assert.equal(getDailyReward(1).title, "10 Moedas de Lenda");
   assert.equal(getDailyReward(7).cosmeticId, "kai_cyber");
   assert.equal(getDailyReward(16).title, getDailyReward(1).title);
 });

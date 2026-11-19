@@ -60,7 +60,7 @@ fun MultiplayerScreen(viewModel: GameViewModel) {
     var inviteCopiedNotice by remember { mutableStateOf(false) }
 
     val selfUid = viewModel.currentMultiplayerUid()
-    val isSignedIn = selfUid != null && (authState is AuthUiState.Authenticated || authState is AuthUiState.NeedsNickname)
+    val isSignedIn = selfUid != null
     val isHost = room != null && selfUid != null && room!!.hostUid == selfUid
     val selfParticipant = participants.find { it.userId == selfUid }
 
@@ -107,6 +107,33 @@ fun MultiplayerScreen(viewModel: GameViewModel) {
                             fontWeight = FontWeight.Black,
                             fontSize = 11.sp
                         )
+
+                        if (isSignedIn) {
+                            val connectedEmail = when (val state = authState) {
+                                is AuthUiState.Authenticated -> state.email
+                                is AuthUiState.NeedsNickname -> state.email
+                                else -> viewModel.currentAuthEmail().orEmpty().ifBlank { stats.email }
+                            }
+                            Surface(
+                                color = RockAccentGreen.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("multiplayer_signed_in_account")
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+                                    Text(
+                                        text = "CONECTADO À CONTA",
+                                        color = RockAccentGreen,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 9.sp
+                                    )
+                                    Text(
+                                        text = connectedEmail.ifBlank { "Conta Google conectada" },
+                                        color = Color.White,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

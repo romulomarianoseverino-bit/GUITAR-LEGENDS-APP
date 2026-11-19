@@ -382,7 +382,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth(0.84f)
                 .padding(bottom = 12.dp)
-                .height(68.dp),
+.height(82.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -390,11 +390,10 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                 val color = LaneColors[lane]
                 val isPressed = activeFretLanes.contains(lane)
 
-                Surface(
+                Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(18.dp))
                         .testTag("fret_touch_button_$lane")
                         .pointerInteropFilter { motionEvent ->
                             when (motionEvent.actionMasked) {
@@ -409,40 +408,31 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                                 else -> false
                             }
                         },
-                    color = if (isPressed) color else color.copy(alpha = 0.25f),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = Brush.verticalGradient(
-                            listOf(if (isPressed) Color.White else color, color.copy(alpha = 0.5f))
-                        ),
-                        width = if (isPressed) 4.dp else 2.dp
-                    ),
-                    shape = RoundedCornerShape(18.dp)
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Botão visual limpo de traste (sem textos 'PISTA 1', 'PISTA 2', etc.)
-                    Box(contentAlignment = Alignment.Center) {
+                    // Mantém a largura da pista e deixa somente o marcador circular visível.
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .background(
+                                color = if (isPressed) Color.White else color.copy(alpha = 0.72f),
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = if (isPressed) 3.dp else 2.dp,
+                                color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(17.dp)
                                 .background(
-                                    color = if (isPressed) Color.White else color.copy(alpha = 0.55f),
+                                    color = if (isPressed) color else Color.White.copy(alpha = 0.92f),
                                     shape = CircleShape
                                 )
-                                .border(
-                                    width = if (isPressed) 3.dp else 2.dp,
-                                    color = if (isPressed) color else Color.White.copy(alpha = 0.7f),
-                                    shape = CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .background(
-                                        color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
-                                        shape = CircleShape
-                                    )
-                            )
-                        }
+                        )
                     }
                 }
             }

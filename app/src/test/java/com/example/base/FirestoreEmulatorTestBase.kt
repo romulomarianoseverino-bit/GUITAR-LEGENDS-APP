@@ -38,28 +38,28 @@ abstract class FirestoreEmulatorTestBase {
         val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
         databaseId = if (resId != 0) context.getString(resId) else "demo-database"
 
-        val existingApp = runCatching { FirebaseApp.getInstance(TEST_APP_NAME) }.getOrNull()
+        // O GameViewModel usa FirebaseClientProvider e, portanto, a instância padrão.
+        // Os testes devem autenticar essa mesma instância, não um FirebaseApp nomeado isolado.
+        val existingApp = runCatching { FirebaseApp.getInstance() }.getOrNull()
         val app = existingApp ?: FirebaseApp.initializeApp(
             context,
             FirebaseOptions.Builder()
                 .setApplicationId("1:1234567890:android:abcdef123456")
                 .setProjectId(PROJECT_ID)
                 .setApiKey("fake-api-key-for-emulator")
-                .build(),
-            TEST_APP_NAME
+                .build()
         )
 
         firestore = FirebaseFirestore.getInstance(app, databaseId)
         auth = FirebaseAuth.getInstance(app)
         functions = FirebaseFunctions.getInstance(app)
 
-        // As instâncias Firebase podem sobreviver entre classes Robolectric.
-        // Garanta que cada serviço use os emuladores, mesmo quando o FirebaseApp já existe.
         if (existingApp == null) {
             firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
                 .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
                 .build()
         }
+        // Configura os emuladores mesmo quando FirebaseInitProvider já criou o app padrão.
         firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
         auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
         functions.useEmulator(EMULATOR_HOST, FUNCTIONS_PORT)
@@ -92,13 +92,13 @@ abstract class FirestoreEmulatorTestBase {
     }
 
     private companion object {
-        const val TEST_APP_NAME = "guitar-legends-test"
         const val EMULATOR_HOST = "127.0.0.1"
         const val FIRESTORE_PORT = 8085
         const val AUTH_PORT = 9099
         const val FUNCTIONS_PORT = 5001
-        const val PROJECT_ID = "demo-no-project"
+        const val PROJECT_ID = "guitar-legends-d7708"
         const val DEFAULT_PASSWORD = "password123"
-        const val AUTH_TIMEOUT_MS = 20000L
+        // O Auth Emulator pode levar mais tempo em CI; o limite não deve encerrar o teste prematuramente.
+        const val AUTH_TIMEOUT_MS = 60000L
     }
 }

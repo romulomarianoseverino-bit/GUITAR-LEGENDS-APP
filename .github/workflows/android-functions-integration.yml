@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/zero-start-rewards-security
+      - fix/full-launch-scope-on-rewards-branch
   pull_request:
     branches:
       - main
@@ -61,7 +62,7 @@ jobs:
         env:
           CI: true
         run: |
-          firebase emulators:exec --project demo-no-project --only auth,firestore,functions "npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest compileDebugKotlin"
+          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node .github/scripts/wait-for-auth-emulator.cjs && npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest compileDebugKotlin"
 
       - name: Publicar relatório dos testes Android
         if: always()
