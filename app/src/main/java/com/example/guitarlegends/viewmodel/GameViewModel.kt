@@ -2118,7 +2118,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val repo = accountRepo
-        if (repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
+        if (cloudAccount && repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
             viewModelScope.launch {
                 val saved = repo.recordProgressionMatch(
                     result,
