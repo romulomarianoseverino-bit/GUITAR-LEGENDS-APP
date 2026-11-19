@@ -278,7 +278,7 @@ data class DailyRewardDefinition(
 
 object DailyRewardCatalog {
     val cycleRewards: List<DailyRewardDefinition> = listOf(
-        DailyRewardDefinition(1, "100 Moedas de Lenda", "Reforço inicial para sua turnê", "coins", 100),
+        DailyRewardDefinition(1, "10 Moedas de Lenda", "Reforço inicial para sua turnê", "coins", 10),
         DailyRewardDefinition(2, "Jaqueta Chamas de Palco", "Roupa estilizada + até 100 moedas", "cosmetic", 100, "outfit_chamas_palco"),
         DailyRewardDefinition(3, "100 Moedas de Lenda", "Cache de show intermediário", "coins", 100),
         DailyRewardDefinition(4, "Óculos Neon Holográficos", "Acessório exclusivo + até 100 moedas", "cosmetic", 100, "acc_oculos_neon"),
