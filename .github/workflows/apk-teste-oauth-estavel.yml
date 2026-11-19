@@ -25,14 +25,14 @@ jobs:
 
       - name: Validar configuração Firebase e assinatura Android
         env:
-          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           test -s app/google-services.json || {
             echo "::error::app/google-services.json não encontrado."
             exit 1
           }
           if [ -z "$DEBUG_KEYSTORE_BASE64" ]; then
-            echo "::error::Configure o segredo DEBUG_KEYSTORE_BASE64 com a chave debug.keystore estável usada no Firebase."
+            echo "::error::Configure o segredo KEYSTORE_BASE64 com a chave debug.keystore estável usada no Firebase."
             exit 1
           fi
           printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 --decode > debug.keystore
@@ -57,7 +57,7 @@ jobs:
           PY
           )"
           if [ -z "$ACTUAL_SHA1" ] || ! printf '%s\\n' "$EXPECTED_SHA1S" | grep -Fxq "$ACTUAL_SHA1"; then
-            echo "::error::A assinatura do APK não corresponde ao SHA-1 OAuth do Firebase. Atualize o DEBUG_KEYSTORE_BASE64 com a chave cadastrada ou registre o SHA-1 dessa chave no Firebase e atualize google-services.json."
+            echo "::error::A assinatura do APK não corresponde ao SHA-1 OAuth do Firebase. Atualize o KEYSTORE_BASE64 com a chave cadastrada ou registre o SHA-1 dessa chave no Firebase e atualize google-services.json."
             exit 1
           fi
           echo "Firebase e SHA-1 da assinatura Android conferidos."
