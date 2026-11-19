@@ -29,7 +29,8 @@ test("limite semanal soma recompensas e nunca ultrapassa 100 moedas", () => {
 });
 
 test("catálogo diário preserva os itens cosméticos e o ciclo", () => {
-  assert.equal(getDailyReward(1).coinsGranted, 100);
+  assert.equal(getDailyReward(1).coinsGranted, 10);
+  assert.equal(getDailyReward(1).title, "10 Moedas de Lenda");
   assert.equal(getDailyReward(7).cosmeticId, "kai_cyber");
   assert.equal(getDailyReward(16).title, getDailyReward(1).title);
 });
