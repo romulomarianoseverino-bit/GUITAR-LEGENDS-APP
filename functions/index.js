@@ -56,8 +56,8 @@ exports.claimDailyReward = onCall(async (request) => {
 
   try {
     return await db.runTransaction(async (tx) => {
-      const [userSnap, claimSnap, weekSnap, weekClaimsSnap] = await Promise.all([
-        tx.get(userRef), tx.get(claimRef), tx.get(weekRef), tx.get(weekClaimsQuery)
+      const [userSnap, claimSnap, weekClaimsSnap] = await Promise.all([
+        tx.get(userRef), tx.get(claimRef), tx.get(weekClaimsQuery)
       ]);
       if (!userSnap.exists) throw new HttpsError("failed-precondition", "Finalize seu cadastro antes de resgatar recompensas.");
       if (claimSnap.exists) throw new HttpsError("already-exists", "A recompensa diária de hoje já foi resgatada.");
