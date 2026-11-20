@@ -106,9 +106,13 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
-            gradle --no-daemon --stacktrace connectedDebugAndroidTest
+            test_status=0
+            if ! gradle --no-daemon --stacktrace connectedDebugAndroidTest; then
+              test_status=$?
+            fi
             mkdir -p build/guitar-legends-captures
             adb pull /sdcard/Android/data/com.aistudio.applet.kpfcic/files/guitar-legends-captures build/guitar-legends-captures || true
+            exit "$test_status"
 
       - name: Publicar capturas reais do emulador
         if: always()
