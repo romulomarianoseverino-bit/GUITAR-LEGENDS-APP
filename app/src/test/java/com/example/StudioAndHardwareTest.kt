@@ -291,6 +291,13 @@ class StudioAndHardwareTest {
                     .fetchSemanticsNodes().isEmpty()
             )
         }
+
+        vm.togglePause()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("pause_dialog").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("pause_volume_master").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("pause_volume_music").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("pause_volume_effects").assertIsDisplayed()
     }
 
     @Test
