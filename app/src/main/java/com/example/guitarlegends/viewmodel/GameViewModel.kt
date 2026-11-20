@@ -777,9 +777,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val weeklyUsed = if (current.localRewardWeekStart == rewardWeekStart) {
             current.localWeeklyCoinsGranted.coerceIn(0, 100)
         } else 0
-        val nextWeeklyCoins = if (newMatchRecord != null && !isSignedIn) {
-            (weeklyUsed + newMatchRecord.coinsEarned).coerceIn(0, 100)
-        } else if (current.localRewardWeekStart == rewardWeekStart) weeklyUsed else 0
+        // O teto local de 100 moedas é exclusivo das recompensas diárias.
+        // Partidas seguem a mesma regra do servidor: até 50 moedas por conclusão, sem consumir esse teto.
+        val nextWeeklyCoins = if (current.localRewardWeekStart == rewardWeekStart) weeklyUsed else 0
         val nextUnlinked = if (isSignedIn) false else true
         val nextCustomization = if (isSignedIn) false else (current.hasLocalCustomizationChanges || customizationChanged)
         _hasUnlinkedGuestProgress.value = nextUnlinked
@@ -2026,9 +2026,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             durationMs = selectedTrack.durationMs,
             failed = failed
         )
-        val coinsEarned = if (cloudAccount) calculatedCoins else {
-            minOf(calculatedCoins, localProgressRepository.weeklyCoinsAvailable())
-        }
+        // Visitante e conta conectada recebem o mesmo valor por partida.
+        // O limite semanal de recompensas diárias não reduz o prêmio de gameplay.
+        val coinsEarned = calculatedCoins
 
         val result = MatchResult(
             track = selectedTrack,
