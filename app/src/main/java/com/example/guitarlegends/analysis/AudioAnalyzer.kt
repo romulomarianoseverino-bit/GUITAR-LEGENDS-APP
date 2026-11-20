@@ -146,7 +146,7 @@ object AudioAnalyzer {
 
             // Acordes musicais ocasionais no Difícil/Especialista em cabeças de compasso
             if ((difficulty == Difficulty.HARD || difficulty == Difficulty.EXPERT) &&
-                instrument == Instrument.GUITAR &&
+                (instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR) &&
                 phraseStep % 8 == 0 &&
                 lanesCount >= 3
             ) {
