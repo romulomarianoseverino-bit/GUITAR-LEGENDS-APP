@@ -328,15 +328,18 @@ function makeValidParticipant(roomCode, uid, nickname = "Rocker") {
   };
 }
 
-test("Multiplayer participant accepts the acoustic guitar instrument", async () => {
+test("Multiplayer atomically creates a room and acoustic-guitar host participant", async () => {
   const roomCode = "ACOUSTIC-01";
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const roomRef = aliceDb.collection("multiplayer_rooms").doc(roomCode);
-  await assertSucceeds(roomRef.set(makeValidRoom(roomCode, ALICE_UID)));
-  await assertSucceeds(roomRef.collection("participants").doc(ALICE_UID).set({
+  const batch = aliceDb.batch();
+  batch.set(roomRef, makeValidRoom(roomCode, ALICE_UID));
+  batch.set(roomRef.collection("participants").doc(ALICE_UID), {
     ...makeValidParticipant(roomCode, ALICE_UID, "AliceAcoustic"),
     instrument: "ACOUSTIC_GUITAR",
-  }));
+  });
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(roomRef.collection("participants").doc(ALICE_UID).get());
 });
 
 test("Multiplayer rooms: host create, exact-code join, participant sync, leave & terminal CLOSED lock", async () => {
