@@ -16,7 +16,7 @@ jobs:
   build-debug-apk:
     name: Compilar APK debug para instalação
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
@@ -57,19 +57,37 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Testar funções de recompensa e economia
-        run: npm test --prefix functions
+      - name: Instalar Firebase CLI e dependências de teste
+        run: |
+          npm install --global firebase-tools
+          npm install --no-save @firebase/rules-unit-testing firebase
 
-      - name: Executar testes unitários Android
-        run: gradle --no-daemon --stacktrace testDebugUnitTest
+      - name: Instalar dependências das Cloud Functions
+        working-directory: functions
+        run: npm ci
 
-      - name: Compilar APK de depuração
-        run: gradle --no-daemon --stacktrace assembleDebug
+      - name: Executar testes e compilar com emuladores Firebase
+        env:
+          CI: true
+        run: |
+          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node .github/scripts/wait-for-auth-emulator.cjs && npm test --prefix functions && gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug"
 
       - name: Publicar APK para download
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: guitar-legends-apk-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publicar relatórios dos testes Android
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guitar-legends-android-test-reports
+          path: |
+            app/build/test-results/testDebugUnitTest/**/*.xml
+            app/build/reports/tests/testDebugUnitTest/**
+          if-no-files-found: warn
+          retention-days: 7
