@@ -64,7 +64,7 @@ jobs:
 
       - name: Instalar dependências das Cloud Functions
         working-directory: functions
-        run: npm ci
+        run: npm install
 
       - name: Executar testes e compilar com emuladores Firebase
         env:
