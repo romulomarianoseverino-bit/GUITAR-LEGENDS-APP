@@ -76,3 +76,48 @@ jobs:
             app/build/reports/tests/testDebugUnitTest/**
           if-no-files-found: warn
           retention-days: 7
+
+  android-ui-smoke:
+    name: Testes visuais instrumentados e capturas reais
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Executar testes em emulador Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            gradle --no-daemon --stacktrace connectedDebugAndroidTest
+            mkdir -p build/guitar-legends-captures
+            adb pull /sdcard/Android/data/com.aistudio.applet.kpfcic/files/guitar-legends-captures build/guitar-legends-captures || true
+
+      - name: Publicar capturas reais do emulador
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guitar-legends-emulator-screenshots
+          path: |
+            build/guitar-legends-captures/*.png
+            app/build/outputs/androidTest-results/connected/**
+            app/build/reports/androidTests/connected/**
+          if-no-files-found: warn
+          retention-days: 14
