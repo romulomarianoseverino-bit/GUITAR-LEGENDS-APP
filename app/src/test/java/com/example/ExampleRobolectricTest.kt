@@ -620,4 +620,13 @@ class ExampleRobolectricTest {
         assertEquals("kai_cyber", day7.cosmeticId)
         assertEquals("Especialista", Difficulty.EXPERT.displayName)
     }
+    @Test
+    fun `match reward starts at 20 and reaches 50 at perfect accuracy`() {
+        assertEquals(20, MatchRewardCalculator.calculate(0f, Difficulty.EASY, 30_000L))
+        assertEquals(35, MatchRewardCalculator.calculate(50f, Difficulty.MEDIUM, 120_000L))
+        assertEquals(42, MatchRewardCalculator.calculate(75f, Difficulty.HARD, 240_000L))
+        assertEquals(50, MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 360_000L))
+        assertEquals(0, MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 360_000L, failed = true))
+    }
+
 }

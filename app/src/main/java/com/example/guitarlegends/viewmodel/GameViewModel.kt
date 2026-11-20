@@ -1109,7 +1109,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getInstrumentConfig(stats: PlayerStats, instrument: Instrument): InstrumentCustomConfig {
         return when (instrument) {
-            Instrument.GUITAR -> stats.studioProfile.guitarConfig
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> stats.studioProfile.guitarConfig
             Instrument.BASS -> stats.studioProfile.bassConfig
             Instrument.DRUMS -> stats.studioProfile.drumsConfig
             Instrument.VOCALS -> stats.studioProfile.vocalConfig
@@ -1119,7 +1119,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun updateInstrumentCustomConfig(instrument: Instrument, config: InstrumentCustomConfig) {
         val studio = _playerStats.value.studioProfile
         val updatedStudio = when (instrument) {
-            Instrument.GUITAR -> studio.copy(guitarConfig = config)
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> studio.copy(guitarConfig = config)
             Instrument.BASS -> studio.copy(bassConfig = config)
             Instrument.DRUMS -> studio.copy(drumsConfig = config)
             Instrument.VOCALS -> studio.copy(vocalConfig = config)
@@ -1953,11 +1953,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         adaptiveEngine.onNoteResult(rating, diffMs)
 
-        if (selectedInstrument == Instrument.DRUMS) {
-            soundFx.playDrumHit(lane)
-        } else {
-            soundFx.playHitChord(lane)
-        }
+        soundFx.playInstrumentHit(selectedInstrument, lane)
         triggerHaptic(longVibe = false)
     }
 
@@ -2259,7 +2255,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             insufficientMessage = "Moedas insuficientes para desbloquear este equipamento."
         ) { stats ->
             when (instrumentType) {
-                Instrument.GUITAR -> stats.copy(selectedGuitarId = id)
+                Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> stats.copy(selectedGuitarId = id)
                 Instrument.BASS -> stats.copy(selectedBassId = id)
                 Instrument.DRUMS -> stats.copy(selectedDrumsId = id)
                 Instrument.VOCALS -> stats.copy(selectedVocalMicId = id)
@@ -2270,7 +2266,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun selectGear(instrumentType: Instrument, id: String) {
         if (!_playerStats.value.unlockedCosmetics.contains(id)) return
         _playerStats.value = when (instrumentType) {
-            Instrument.GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
             Instrument.BASS -> _playerStats.value.copy(selectedBassId = id)
             Instrument.DRUMS -> _playerStats.value.copy(selectedDrumsId = id)
             Instrument.VOCALS -> _playerStats.value.copy(selectedVocalMicId = id)

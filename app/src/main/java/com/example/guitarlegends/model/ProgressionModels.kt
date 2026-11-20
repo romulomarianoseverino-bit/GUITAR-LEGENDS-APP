@@ -37,9 +37,9 @@ enum class CharacterCreationMethod(val label: String, val description: String) {
 }
 
 enum class CharacterArtStyle(val displayName: String, val eraDescription: String, val badgeColorHex: Long) {
-    STYLIZED_REALISTIC("Realista Estilizado", "Estética PlayStation 2 / clássico dos anos 2000", 0xFFFFD700),
-    CARTOON("Cartoon Rocker", "Estilo HQ e animação anos 2000 marcante", 0xFFFF4081),
-    ANIME("Anime Neo-Shredder", "Estilo visual vibrante com traços expressivos", 0xFF00E5FF)
+    STYLIZED_REALISTIC("3D Estilizado", "Visual 3D estilizado com proporções e materiais inspirados em jogos de console", 0xFFFFD700),
+    CARTOON("3D Cartoon", "Formas mais expressivas, volumes suaves e leitura visual cartunesca", 0xFFFF4081),
+    ANIME("3D Anime", "Traços inspirados em anime, olhos expressivos e silhuetas estilizadas", 0xFF00E5FF)
 }
 
 data class CustomRockerAppearance(
@@ -207,18 +207,9 @@ object MatchRewardCalculator {
     ): Int {
         if (failed) return 0
 
-        val durationMinutes = (durationMs.coerceAtLeast(30_000L) / 60_000f).coerceIn(0.5f, 6f)
-        val difficultyFactor = when (difficulty) {
-            Difficulty.EASY -> 0.75f
-            Difficulty.MEDIUM -> 0.90f
-            Difficulty.HARD -> 1.05f
-            Difficulty.EXPERT -> 1.20f
-        }
-        val accuracyFactor = 0.25f + (accuracyPercent.coerceIn(0f, 100f) / 100f) * 0.75f
-        val durationBase = 4f + durationMinutes * 5.5f
-
-        return (durationBase * difficultyFactor * accuracyFactor * 1.13f)
-            .toInt()
-            .coerceIn(1, 50)
+        val accuracy = accuracyPercent.coerceIn(0f, 100f)
+        // 20 moedas pela partida concluída + até 30 proporcionais à precisão.
+        // Duração e dificuldade não reduzem a recompensa-base; falhas continuam sem prêmio.
+        return (20f + (accuracy / 100f) * 30f).toInt().coerceIn(20, 50)
     }
 }

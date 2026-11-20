@@ -1,0 +1,101 @@
+name: Gerar APK de teste independente
+
+on:
+  push:
+    branches:
+      - fix/multiplayer-create-room-stage-diagnostics
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guitar-legends-debug-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Compilar APK debug para instalação
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configurar Android SDK
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "platforms;android-36.1" "build-tools;36.0.0" "platform-tools"
+
+      - name: Restaurar chave persistente ou criar chave temporária
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          DEBUG_STORE_PASSWORD: ${{ secrets.DEBUG_STORE_PASSWORD }}
+          DEBUG_KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            if [ -z "$DEBUG_STORE_PASSWORD" ] || [ -z "$DEBUG_KEY_PASSWORD" ]; then
+              echo "::error::A chave persistente foi configurada, mas faltam as senhas DEBUG_STORE_PASSWORD e/ou DEBUG_KEY_PASSWORD."
+              exit 1
+            fi
+            printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 --decode > debug.keystore
+            echo "DEBUG_STORE_PASSWORD=$DEBUG_STORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "DEBUG_KEY_PASSWORD=$DEBUG_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "DEBUG_KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
+            echo "DEBUG_KEYSTORE_PATH=$GITHUB_WORKSPACE/debug.keystore" >> "$GITHUB_ENV"
+            echo "Chave persistente restaurada dos segredos do repositório."
+          else
+            keytool -genkeypair -v -noprompt \
+              -keystore debug.keystore \
+              -storepass android \
+              -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "DEBUG_STORE_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "DEBUG_KEY_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "DEBUG_KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
+            echo "DEBUG_KEYSTORE_PATH=$GITHUB_WORKSPACE/debug.keystore" >> "$GITHUB_ENV"
+            echo "::warning::Ainda está usando chave temporária. Configure os três segredos DEBUG_* para manter a assinatura entre compilações."
+          fi
+
+      - name: Conferir assinatura usada no APK
+        env:
+          DEBUG_STORE_PASSWORD: ${{ secrets.DEBUG_STORE_PASSWORD }}
+        run: |
+          STORE_PASS="${DEBUG_STORE_PASSWORD:-android}"
+          echo "Verificando a senha e identificando os aliases presentes na chave persistente..."
+          keytool -list -v -keystore debug.keystore -storepass "$STORE_PASS"
+          echo "Impressões digitais da chave:"
+          keytool -list -v -keystore debug.keystore -storepass "$STORE_PASS" | grep -E "Alias name:|SHA1:|SHA256:"
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      # Este fluxo gera um APK de depuração sem bloquear a entrega por testes.
+      # Os testes de Firebase, unitários e instrumentados continuam nos fluxos próprios.
+      - name: Compilar APK debug
+        run: gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Publicar APK para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: guitar-legends-apk-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+# Rebuild trigger: validate persistent debug signing secrets configured by repository owner.

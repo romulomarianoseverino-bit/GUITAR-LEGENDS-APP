@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.guitarlegends.model.CareerVenue
+import com.example.guitarlegends.model.MatchRewardCalculator
 import com.example.guitarlegends.ui.components.*
 import com.example.guitarlegends.viewmodel.GameScreen
 import com.example.guitarlegends.viewmodel.GameViewModel
@@ -36,6 +37,14 @@ fun ResultsScreen(viewModel: GameViewModel) {
     }
     val result = viewModel.lastMatchResult
     val stats by viewModel.playerStats.collectAsState()
+    val rewardWasReducedByGuestWeeklyLimit = result?.let { match ->
+        val calculated = MatchRewardCalculator.calculate(
+            accuracyPercent = match.accuracyPercent,
+            difficulty = match.difficulty,
+            durationMs = match.track.durationMs
+        )
+        match.coinsEarned > 0 && match.coinsEarned < calculated
+    } ?: false
 
     Column(
         modifier = Modifier
@@ -121,6 +130,14 @@ fun ResultsScreen(viewModel: GameViewModel) {
                                 fontWeight = FontWeight.Black,
                                 fontSize = 13.sp,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
+                        if (rewardWasReducedByGuestWeeklyLimit) {
+                            Text(
+                                text = "Limite semanal do modo visitante: crédito ajustado ao saldo disponível.",
+                                color = RockAccentGold,
+                                fontSize = 9.sp,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }

@@ -12,6 +12,8 @@ import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.firestore.MemoryCacheSettings
 import kotlinx.coroutines.Dispatchers
+import java.net.InetSocketAddress
+import java.net.Socket
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -72,12 +74,25 @@ abstract class FirestoreEmulatorTestBase {
 
     // Helper exclusivo para testes locais contra o Auth Emulator.
     protected suspend fun signInTestUser(email: String): String = withContext(Dispatchers.IO) {
+        val emulatorReachability = runCatching {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(EMULATOR_HOST, AUTH_PORT), 3000)
+                "reachable"
+            }
+        }.getOrElse { "unreachable: ${it.message ?: it.javaClass.simpleName}" }
+        println(
+            "[AUTH-TEST] emulator=$EMULATOR_HOST:$AUTH_PORT tcp=$emulatorReachability " +
+                "app=${auth.app.name} project=${auth.app.options.projectId} " +
+                "apiKeyPresent=${!auth.app.options.apiKey.isNullOrBlank()}"
+        )
         withTimeout(AUTH_TIMEOUT_MS) {
+            println("[AUTH-TEST] starting FirebaseAuth SDK create/sign-in request")
             val result = try {
                 auth.createUserWithEmailAndPassword(email, DEFAULT_PASSWORD).await()
             } catch (_: FirebaseAuthUserCollisionException) {
                 auth.signInWithEmailAndPassword(email, DEFAULT_PASSWORD).await()
             }
+            println("[AUTH-TEST] FirebaseAuth SDK request completed")
             checkNotNull(result.user?.uid) { "User auth failed for $email" }
         }
     }

@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -65,6 +68,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
     val activeFretLanes by viewModel.activeFretLanes.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
     val stats by viewModel.playerStats.collectAsState()
+    val pauseAudioSettings = stats.studioProfile.audioSettings
     val controllerInfo by viewModel.controllerInfo.collectAsState()
     val mpRoom by viewModel.multiplayerRoom.collectAsState()
     val mpParticipants by viewModel.multiplayerParticipants.collectAsState()
@@ -85,11 +89,21 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
         )
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        // Mantém os controles exatamente na largura da base da pista e dimensiona cada
+        // círculo pela largura real da sua coluna, inclusive em telas largas.
+        val (highwayControlWidth, fretButtonDiameter) = with(androidx.compose.ui.platform.LocalDensity.current) {
+            val canvasWidthPx = maxWidth.toPx()
+            val highwayWidthPx = minOf(canvasWidthPx * 0.42f, 520f)
+                .coerceAtLeast(canvasWidthPx * 0.34f)
+            val laneWidthPx = highwayWidthPx / numLanes
+            highwayWidthPx.toDp() to (laneWidthPx * 0.76f).toDp()
+        }
+
         // Concert Stage Visual Background
         Image(
             painter = painterResource(id = R.drawable.stage_background_1794455515273),
@@ -376,20 +390,21 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             )
         }
 
-        // Bottom Controls: Fret Strike Touch Buttons (Multi-touch enabled)
+        // Controles circulares sobre os alvos da pista. A quantidade acompanha a dificuldade:
+        // Fácil = 3, Médio = 4, Difícil/Especialista = 5.
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(0.84f)
-                .padding(bottom = 12.dp)
-.height(82.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .align(Alignment.TopCenter)
+                .offset(y = maxHeight * 0.82f - 22.dp)
+                .width(highwayControlWidth)
+                .height(44.dp)
+                .testTag("fret_touch_controls"),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             for (lane in 0 until numLanes) {
                 val color = LaneColors[lane]
                 val isPressed = activeFretLanes.contains(lane)
-
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -410,46 +425,67 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    // Mantém a largura da pista e deixa somente o marcador circular visível.
+                    // Botão em camadas: aro metálico, corpo abaulado e núcleo de borracha iluminado.
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(fretButtonDiameter)
+                            .shadow(if (isPressed) 2.dp else 8.dp, CircleShape)
                             .background(
-                                color = if (isPressed) Color.White else color.copy(alpha = 0.72f),
+                                brush = Brush.radialGradient(
+                                    colors = if (isPressed) listOf(Color.White, color, Color(0xFF17151A))
+                                    else listOf(Color(0xFFFFFFFF), Color(0xFF77747B), Color(0xFF17151A))
+                                ),
                                 shape = CircleShape
                             )
-                            .border(
-                                width = if (isPressed) 3.dp else 2.dp,
-                                color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
+                            .border(1.5.dp, Color(0xFFD9D4C9), CircleShape)
+                            .padding(2.dp)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = if (isPressed) listOf(Color.White, color, color.copy(alpha = 0.72f))
+                                    else listOf(color.copy(alpha = 0.98f), color.copy(alpha = 0.82f), Color(0xFF17151A))
+                                ),
                                 shape = CircleShape
-                            ),
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.55f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(17.dp)
+                                .size(fretButtonDiameter * 0.46f)
                                 .background(
-                                    color = if (isPressed) color else Color.White.copy(alpha = 0.92f),
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color.White.copy(alpha = 0.95f), color, Color(0xFF09090C))
+                                    ),
                                     shape = CircleShape
                                 )
+                                .border(1.dp, Color.White.copy(alpha = 0.65f), CircleShape)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = fretButtonDiameter * 0.13f)
+                                .size(fretButtonDiameter * 0.17f, fretButtonDiameter * 0.07f)
+                                .background(Color.White.copy(alpha = if (isPressed) 0.85f else 0.48f), RoundedCornerShape(50))
                         )
                     }
                 }
             }
+        }
 
-            // Optional Strum bar for Fret+Strum mode
-            if (stats.controlMode == ControlMode.FRET_AND_STRUM) {
-                Button(
-                    onClick = { viewModel.onStrumBar() },
-                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .fillMaxHeight()
-                        .testTag("strum_bar_button")
-                ) {
-                    Text("PALHETA ⚡", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 12.sp)
-                }
+        // A palheta opcional fica fora da área das colunas para não deslocar os botões da pista.
+        if (stats.controlMode == ControlMode.FRET_AND_STRUM) {
+            Button(
+                onClick = { viewModel.onStrumBar() },
+                colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 12.dp, bottom = 10.dp)
+                    .height(38.dp)
+                    .testTag("strum_bar_button")
+            ) {
+                Text("PALHETA ⚡", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
             }
         }
 
@@ -473,7 +509,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -489,6 +525,34 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 12.sp
                         )
+
+                        Text(
+                            text = "VOLUME DURANTE A PARTIDA",
+                            color = RockAccentCyan,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp
+                        )
+                        PauseVolumeSlider(
+                            label = "Volume geral",
+                            value = pauseAudioSettings.masterVolume,
+                            testTag = "pause_volume_master"
+                        ) { value ->
+                            viewModel.updateAudioSettings(pauseAudioSettings.copy(masterVolume = value))
+                        }
+                        PauseVolumeSlider(
+                            label = "Música",
+                            value = pauseAudioSettings.musicVolume,
+                            testTag = "pause_volume_music"
+                        ) { value ->
+                            viewModel.updateAudioSettings(pauseAudioSettings.copy(musicVolume = value))
+                        }
+                        PauseVolumeSlider(
+                            label = "Efeitos sonoros",
+                            value = pauseAudioSettings.gameplaySfxVolume,
+                            testTag = "pause_volume_effects"
+                        ) { value ->
+                            viewModel.updateAudioSettings(pauseAudioSettings.copy(gameplaySfxVolume = value, stageFxVolume = value))
+                        }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -528,6 +592,32 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
     }
 }
 
+@Composable
+private fun PauseVolumeSlider(
+    label: String,
+    value: Float,
+    testTag: String,
+    onValueChange: (Float) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = label, color = Color.White.copy(alpha = 0.88f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = "${(value * 100).toInt()}%", color = RockAccentGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+        Slider(
+            value = value.coerceIn(0f, 1f),
+            onValueChange = onValueChange,
+            valueRange = 0f..1f,
+            modifier = Modifier.fillMaxWidth().testTag(testTag),
+            colors = SliderDefaults.colors(thumbColor = RockAccentCyan, activeTrackColor = RockAccentCyan)
+        )
+    }
+}
+
 /**
  * Gabinete de Amplificador clássico PS2 (Score em LED verde, Dial X1..X8,
  * coluna de 10 LEDs de combo e odômetro de sequência de notas).
@@ -555,22 +645,32 @@ private fun GuitarAmpScoreCabinet(
     }
 
     Surface(
-        color = Color(0xEE141118),
-        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFF17151A),
+        shape = RoundedCornerShape(12.dp),
         border = ButtonDefaults.outlinedButtonBorder.copy(
-            brush = Brush.verticalGradient(listOf(frameColor, Color(0xFF4E4330), frameColor)),
+            brush = Brush.verticalGradient(listOf(Color(0xFFF1E5C5), frameColor, Color(0xFF38323A), frameColor)),
             width = 2.dp
         ),
         modifier = Modifier
-            .width(126.dp)
+            .width(116.dp)
+            .shadow(12.dp, RoundedCornerShape(12.dp))
             .testTag("amp_score_cabinet")
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            modifier = Modifier
+                .background(Brush.verticalGradient(listOf(Color(0xFF38323A), Color(0xFF17151A), Color(0xFF09090C))))
+                .padding(horizontal = 8.dp, vertical = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            // Painel LED digital verde da pontuação
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("GL • STAGE AMP", color = Color(0xFFD5C8A8), fontSize = 7.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    repeat(2) { Box(Modifier.size(4.dp).background(Color(0xFF8D877D), CircleShape).border(0.5.dp, Color.Black, CircleShape)) }
+                }
+            }
+            // Janela digital embutida no painel
+            Text("PONTUAÇÃO", color = Color(0xFF9B9A91), fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -584,8 +684,8 @@ private fun GuitarAmpScoreCabinet(
                     color = if (isStarPowerActive) RockAccentCyan else Color(0xFF8CFF5E),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Black,
-                    fontSize = 16.sp,
-                    letterSpacing = 1.sp,
+                    fontSize = 14.sp,
+                    letterSpacing = 0.8.sp,
                     maxLines = 1
                 )
             }
@@ -596,12 +696,13 @@ private fun GuitarAmpScoreCabinet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Coluna de 10 pips de combo
+                // Coluna de LEDs em lente embutida
                 Column(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier
-                        .background(Color(0xFF0B0A10), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 3.dp, vertical = 3.dp)
+                        .background(Brush.verticalGradient(listOf(Color(0xFF050608), Color(0xFF25212A))), RoundedCornerShape(5.dp))
+                        .border(1.dp, Color(0xFF716B61), RoundedCornerShape(5.dp))
+                        .padding(horizontal = 4.dp, vertical = 4.dp)
                 ) {
                     for (idx in 9 downTo 0) {
                         val isLit = idx < litLeds
@@ -614,19 +715,32 @@ private fun GuitarAmpScoreCabinet(
                         }
                         Box(
                             modifier = Modifier
-                                .size(width = 8.dp, height = 4.dp)
+                                .size(width = 9.dp, height = 4.dp)
+                                .shadow(if (isLit) 2.dp else 0.dp, RoundedCornerShape(2.dp))
                                 .background(pipColor, RoundedCornerShape(2.dp))
                         )
                     }
+                }
+
+                // Grade de alto-falante com malha metálica
+                Canvas(Modifier.size(width = 29.dp, height = 42.dp)) {
+                    drawRoundRect(Color(0xFF09090C), cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f))
+                    for (x in 4..size.width.toInt() step 5) {
+                        for (y in 4..size.height.toInt() step 5) {
+                            drawCircle(Color(0xFF8A8580), radius = 1.1f, center = Offset(x.toFloat(), y.toFloat()))
+                        }
+                    }
+                    drawRoundRect(Color(0xFFB6A98C).copy(alpha = 0.7f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f), style = Stroke(1.2f))
                 }
 
                 // Dial metálico circular com X1 / X2 / X3 / X4 / X8
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(56.dp)
+                        .size(52.dp)
+                        .shadow(5.dp, CircleShape)
                         .background(
-                            Brush.radialGradient(listOf(Color(0xFF2D253A), Color(0xFF0E0B14))),
+                            Brush.radialGradient(listOf(Color(0xFFB9B2A5), Color(0xFF2D253A), Color(0xFF0E0B14))),
                             CircleShape
                         )
                         .border(3.dp, dialRingColor, CircleShape)
@@ -634,8 +748,9 @@ private fun GuitarAmpScoreCabinet(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(44.dp)
-                            .border(1.dp, Color.White.copy(alpha = 0.28f), CircleShape)
+                            .size(42.dp)
+                            .background(Brush.radialGradient(listOf(Color(0xFF37313D), Color(0xFF0E0B14))), CircleShape)
+                            .border(1.dp, Color.White.copy(alpha = 0.38f), CircleShape)
                     ) {
                         Text(
                             text = "x$multiplier",
@@ -700,13 +815,21 @@ private fun AnalogRockMeterWithTubes(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(114.dp)
+            .width(112.dp)
+            .shadow(8.dp, RoundedCornerShape(11.dp))
+            .background(
+                Brush.verticalGradient(listOf(Color(0xFF514A43), Color(0xFF17151A), Color(0xFF08090D))),
+                RoundedCornerShape(11.dp)
+            )
+            .border(1.5.dp, Color(0xFFD0C2A0), RoundedCornerShape(11.dp))
+            .padding(horizontal = 5.dp, vertical = 5.dp)
             .testTag("analog_rock_meter")
     ) {
+        Text("MEDIDOR DE ROCK", color = Color(0xFFD6C9A9), fontSize = 7.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
         Box(
             modifier = Modifier
-                .width(112.dp)
-                .height(92.dp),
+                .width(102.dp)
+                .height(82.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -794,6 +917,27 @@ private fun AnalogRockMeterWithTubes(
                     topLeft = arcTopLeft,
                     size = arcSize
                 )
+
+                // Escala analógica com marcas graduadas ao redor do arco
+                for (tick in 0..20) {
+                    val angle = Math.toRadians((180.0 + tick * 9.0))
+                    val outer = dialRadius * 0.96f
+                    val inner = if (tick % 5 == 0) dialRadius * 0.76f else dialRadius * 0.84f
+                    val start = Offset(
+                        dialCenter.x + (cos(angle) * inner).toFloat(),
+                        dialCenter.y + (sin(angle) * inner).toFloat()
+                    )
+                    val end = Offset(
+                        dialCenter.x + (cos(angle) * outer).toFloat(),
+                        dialCenter.y + (sin(angle) * outer).toFloat()
+                    )
+                    drawLine(
+                        color = if (tick % 5 == 0) Color.White.copy(alpha = 0.95f) else Color.White.copy(alpha = 0.58f),
+                        start = start,
+                        end = end,
+                        strokeWidth = if (tick % 5 == 0) 2.2f else 1.1f
+                    )
+                }
 
                 // Aro cromado / dourado do mostrador
                 drawArc(

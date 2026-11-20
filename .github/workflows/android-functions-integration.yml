@@ -5,10 +5,12 @@ on:
     branches:
       - fix/zero-start-rewards-security
       - fix/full-launch-scope-on-rewards-branch
+      - fix/multiplayer-create-room-stage-diagnostics
   pull_request:
     branches:
       - main
       - fix/zero-start-rewards-security
+      - fix/full-launch-scope-on-rewards-branch
 
 concurrency:
   group: guitar-legends-audit-${{ github.workflow }}-${{ github.ref }}
@@ -39,6 +41,18 @@ jobs:
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
           /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
+      - name: Gerar chave local de depuração
+        run: |
+          keytool -genkeypair -v -noprompt \
+            -keystore debug.keystore \
+            -storepass android \
+            -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -62,7 +76,16 @@ jobs:
         env:
           CI: true
         run: |
-          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node .github/scripts/wait-for-auth-emulator.cjs && npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest compileDebugKotlin"
+          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node .github/scripts/wait-for-auth-emulator.cjs && npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug"
+
+      - name: Publicar APK Android de validação
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guitar-legends-apk-validation
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Publicar relatório dos testes Android
         if: always()
@@ -74,3 +97,66 @@ jobs:
             app/build/reports/tests/testDebugUnitTest/**
           if-no-files-found: warn
           retention-days: 7
+
+  android-ui-smoke:
+    name: Testes visuais instrumentados e capturas reais
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Gerar chave local de depuração
+        run: |
+          keytool -genkeypair -v -noprompt \
+            -keystore debug.keystore \
+            -storepass android \
+            -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Executar testes em emulador Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            test_status=0
+            if gradle --no-daemon --stacktrace connectedDebugAndroidTest; then
+              echo "Testes instrumentados concluídos."
+            else
+              test_status=$?
+            fi
+            mkdir -p build/guitar-legends-captures
+            adb pull /sdcard/Android/data/com.aistudio.applet.kpfcic/files/guitar-legends-captures build/guitar-legends-captures || true
+            exit "$test_status"
+
+      - name: Publicar capturas reais do emulador
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guitar-legends-emulator-screenshots
+          path: |
+            build/guitar-legends-captures/*.png
+            app/build/outputs/androidTest-results/connected/**
+            app/build/reports/androidTests/connected/**
+          if-no-files-found: warn
+          retention-days: 14

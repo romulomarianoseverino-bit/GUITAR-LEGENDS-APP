@@ -4,6 +4,7 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import com.example.guitarlegends.model.AudioSettings
+import com.example.guitarlegends.model.Instrument
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -35,6 +36,15 @@ class SoundFxSynthesizer {
     private val yellowChordBuffer = generatePowerChord(110.0f, 0.22f)
     private val blueChordBuffer = generatePowerChord(123.5f, 0.22f)
     private val orangeChordBuffer = generatePowerChord(146.8f, 0.25f)
+    private val acousticStringBuffers = listOf(164.8f, 196.0f, 220.0f, 246.9f, 293.7f).map {
+        generatePluckedTone(it, 0.19f, 0.42f)
+    }
+    private val bassNoteBuffers = listOf(55.0f, 65.4f, 73.4f, 82.4f, 98.0f).map {
+        generatePluckedTone(it, 0.20f, 0.22f)
+    }
+    private val vocalNoteBuffers = listOf(220.0f, 261.6f, 293.7f, 329.6f, 392.0f).map {
+        generateVocalTone(it, 0.16f)
+    }
     private val drumKickBuffer = generateKick(0.18f)
     private val drumSnareBuffer = generateSnare(0.16f)
     private val missScreechBuffer = generateMissBuzz(0.14f)
@@ -65,8 +75,60 @@ class SoundFxSynthesizer {
         return buffer
     }
 
-    private fun generateKick(durationSec: Float): ShortArray {
-        val numSamples = (sampleRate * durationSec).toInt()
+    private fun generatePluckedTone(frequency: Float, durationSec: Float, body: Float): ShortArray {
+        val count = (sampleRate * durationSec).toInt()
+        val buffer = ShortArray(count)
+        for (i in 0 until count) {
+            val t = i.toFloat() / sampleRate
+            val progress = i.toFloat() / count
+            val attack = (i.toFloat() / (sampleRate * 0.006f)).coerceIn(0f, 1f)
+            val decay = kotlin.math.exp(-progress * 5.5f)
+            val fundamental = sin(2.0 * PI * frequency * t).toFloat()
+            val second = sin(2.0 * PI * frequency * 2.01f * t).toFloat() * body
+            val third = sin(2.0 * PI * frequency * 3.98f * t).toFloat() * body * 0.28f
+            val sample = (fundamental + second + third) * attack * decay * 0.42f
+            buffer[i] = (sample * Short.MAX_VALUE).toInt().toShort()
+        }
+        return buffer
+    }
+
+    private fun generateVocalTone(frequency: Float, durationSec: Float): ShortArray {
+        val count = (sampleRate * durationSec).toInt()
+        val buffer = ShortArray(count)
+        for (i in 0 until count) {
+            val t = i.toFloat() / sampleRate
+            val progress = i.toFloat() / count
+            val envelope = kotlin.math.exp(-progress * 3.8f) * (0.35f + 0.65f * (i.toFloat() / (sampleRate * 0.012f)).coerceIn(0f, 1f))
+            val fundamental = sin(2.0 * PI * frequency * t).toFloat()
+            val formantA = sin(2.0 * PI * frequency * 2.7f * t).toFloat() * 0.34f
+            val formantB = sin(2.0 * PI * frequency * 4.2f * t).toFloat() * 0.16f
+            buffer[i] = ((fundamental + formantA + formantB) * envelope * Short.MAX_VALUE * 0.30f).toInt().toShort()
+        }
+        return buffer
+    }
+
+    /** Som complementar, curto e discreto, disparado apenas quando uma nota é acertada. */
+    fun playInstrumentHit(instrument: Instrument, lane: Int) {
+        val gain = currentSettings.effectiveGameplaySfx() * 0.24f
+        if (gain <= 0.01f) return
+        val index = lane.coerceIn(0, 4)
+        val buffer = when (instrument) {
+            Instrument.GUITAR -> when (index) {
+                0 -> greenChordBuffer
+                1 -> redChordBuffer
+                2 -> yellowChordBuffer
+                3 -> blueChordBuffer
+                else -> orangeChordBuffer
+            }
+            Instrument.ACOUSTIC_GUITAR -> acousticStringBuffers[index]
+            Instrument.BASS -> bassNoteBuffers[index]
+            Instrument.DRUMS -> if (index == 0) drumKickBuffer else drumSnareBuffer
+            Instrument.VOCALS -> vocalNoteBuffers[index]
+        }
+        playBufferAsync(buffer, gain)
+    }
+
+    private fun generateKick(durationSec: Float): ShortArray {        val numSamples = (sampleRate * durationSec).toInt()
         val buffer = ShortArray(numSamples)
         for (i in 0 until numSamples) {
             val frac = i.toFloat() / numSamples

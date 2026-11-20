@@ -55,31 +55,24 @@ class MultiplayerCloudRepository(
             ?: generateRoomCode()
 
         val roomPath = "multiplayer_rooms/$roomCode"
+        var failedStage = "preparar criação atômica da sala e do anfitrião"
         return try {
             val roomRef = firestore.collection("multiplayer_rooms").document(roomCode)
-            val createdRoom = firestore.runTransaction { tx ->
-                val snap = tx.get(roomRef)
-                if (snap.exists()) {
-                    throw IllegalStateException("Código de sala '$roomCode' já está em uso. Tente gerar outro.")
-                }
-                val room = MultiplayerRoomCloud(
-                    id = roomCode,
-                    roomCode = roomCode,
-                    hostUid = uid,
-                    hostNickname = hostNick,
-                    mode = mode.name,
-                    status = RoomStatus.WAITING.name,
-                    trackId = track.id.ifBlank { "track_thunderstrike" }.take(128),
-                    trackTitle = track.title.ifBlank { "Música de Palco" }.take(160),
-                    maxPlayers = mode.maxPlayers,
-                    memberUids = listOf(uid),
-                    winnerUid = "",
-                    inviteMessage = "Entre na sala $roomCode no Guitar Legends!"
-                )
-                tx.set(roomRef, room.toCreateMap())
-                room
-            }.await()
-
+            val participantRef = roomRef.collection("participants").document(uid)
+            val room = MultiplayerRoomCloud(
+                id = roomCode,
+                roomCode = roomCode,
+                hostUid = uid,
+                hostNickname = hostNick,
+                mode = mode.name,
+                status = RoomStatus.WAITING.name,
+                trackId = track.id.ifBlank { "track_thunderstrike" }.take(128),
+                trackTitle = track.title.ifBlank { "Música de Palco" }.take(160),
+                maxPlayers = mode.maxPlayers,
+                memberUids = listOf(uid),
+                winnerUid = "",
+                inviteMessage = "Entre na sala $roomCode no Guitar Legends!"
+            )
             val participant = MultiplayerParticipantCloud(
                 id = uid,
                 userId = uid,
@@ -95,14 +88,30 @@ class MultiplayerCloudRepository(
                 starPowerActive = false,
                 lastHeartbeatMs = System.currentTimeMillis()
             )
-            roomRef.collection("participants").document(uid)
-                .set(participant.toCreateMap())
-                .await()
+
+            val createdRoom = firestore.runTransaction { tx ->
+                val snap = tx.get(roomRef)
+                if (snap.exists()) {
+                    throw IllegalStateException("Código de sala '$roomCode' já está em uso. Tente gerar outro.")
+                }
+                failedStage = "gravar sala e participante em uma única transação"
+                tx.set(roomRef, room.toCreateMap())
+                tx.set(participantRef, participant.toCreateMap())
+                room
+            }.await()
 
             Result.success(createdRoom)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.WRITE, roomPath, auth) }.exceptionOrNull() ?: e)
+            val reported = runCatching {
+                handleFirestoreError(e, OperationType.WRITE, roomPath, auth)
+            }.exceptionOrNull() ?: e
+            Result.failure(
+                IllegalStateException(
+                    "Falha ao $failedStage em $roomPath: ${reported.message ?: reported.javaClass.simpleName}",
+                    reported
+                )
+            )
         }
     }
 

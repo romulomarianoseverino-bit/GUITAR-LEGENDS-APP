@@ -92,6 +92,7 @@ fun InstrumentCard(
 ) {
     val accentColor = when (instrument) {
         Instrument.GUITAR -> RockAccentRed
+        Instrument.ACOUSTIC_GUITAR -> Color(0xFFD6A15D)
         Instrument.BASS -> Color(0xFF7C4DFF)
         Instrument.DRUMS -> RockAccentOrange
         Instrument.VOCALS -> RockAccentCyan
@@ -99,6 +100,7 @@ fun InstrumentCard(
 
     val icon: ImageVector = when (instrument) {
         Instrument.GUITAR -> Icons.Default.ElectricBolt
+        Instrument.ACOUSTIC_GUITAR -> Icons.Default.MusicNote
         Instrument.BASS -> Icons.Default.GraphicEq
         Instrument.DRUMS -> Icons.Default.MusicNote
         Instrument.VOCALS -> Icons.Default.Mic

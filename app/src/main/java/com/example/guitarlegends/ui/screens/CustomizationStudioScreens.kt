@@ -40,6 +40,7 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 import com.example.guitarlegends.data.HighwayImageManager
 import com.example.guitarlegends.engine.InteractiveCharacter3DViewer
+import com.example.guitarlegends.engine.RealCharacter3DPrototype
 import com.example.guitarlegends.engine.InteractiveInstrument3DViewer
 import com.example.guitarlegends.engine.drawHighwayStudioPreview
 import com.example.guitarlegends.model.*
@@ -153,7 +154,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        val previewLabels = listOf("Boneco 360°", "Instrumento 360°", "Esteira")
+                        val previewLabels = listOf("Boneco 360°", "Instrumento 360°", "Esteira", "3D REAL")
                         previewLabels.forEachIndexed { idx, label ->
                             Button(
                                 onClick = { previewMode = idx },
@@ -186,7 +187,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                 config = viewModel.getInstrumentConfig(effectiveStats, instrumentTab),
                                 modifier = Modifier.fillMaxSize()
                             )
-                            else -> {
+                            2 -> {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -214,6 +215,24 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                             fontSize = 8.sp,
                                             fontWeight = FontWeight.Black,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            3 -> {
+                                Box(modifier = Modifier.fillMaxSize().testTag("real_3d_character_prototype")) {
+                                    RealCharacter3DPrototype(modifier = Modifier.fillMaxSize())
+                                    Surface(
+                                        color = Color(0xCC090711),
+                                        shape = RoundedCornerShape(6.dp),
+                                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "MALHA 3D REAL • BLOQUEIO INICIAL",
+                                            color = RockAccentCyan,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Black,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
                                         )
                                     }
                                 }
@@ -470,7 +489,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                             }
 
                             item {
-                                StudioSectionCard(title = "CRIAÇÃO POR FOTO & INTEGRANTES CLÁSSICOS", accent = RockAccentCyan) {
+                                StudioSectionCard(title = "FOTO DE REFERÊNCIA & ESTILOS 3D", accent = RockAccentCyan) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                         Button(
                                             onClick = {
@@ -484,7 +503,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                         ) {
                                             Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("FOTO DO CELULAR", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 9.sp)
+                                            Text("ESCOLHER FOTO", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 9.sp)
                                         }
                                         Button(
                                             onClick = { viewModel.equipCharacter("custom_rocker") },
@@ -497,6 +516,14 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                     }
 
                                     Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = if (stats.customRocker.photoUri.isNullOrBlank())
+                                            "Escolha uma foto de referência e selecione um dos três estilos abaixo."
+                                        else
+                                            "Foto de referência selecionada. A geração automática de uma malha 3D a partir da foto ainda não está integrada nesta versão.",
+                                        color = Color.White.copy(alpha = 0.72f),
+                                        fontSize = 9.sp
+                                    )
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         CharacterArtStyle.values().forEach { art ->
                                             val sel = stats.customRocker.artStyle == art
@@ -674,12 +701,15 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                 Instrument.GUITAR -> viewModel.guitars.map {
                                     InstrumentGear(it.id, Instrument.GUITAR, it.name, it.type, it.colorHex, it.priceCoins, it.isUnlocked, it.description)
                                 }
+                                Instrument.ACOUSTIC_GUITAR -> viewModel.guitars.map {
+                                    InstrumentGear(it.id, Instrument.ACOUSTIC_GUITAR, "Acústico • ${it.name}", it.type, it.colorHex, it.priceCoins, it.isUnlocked, it.description)
+                                }
                                 Instrument.BASS -> viewModel.basses
                                 Instrument.DRUMS -> viewModel.drums
                                 Instrument.VOCALS -> viewModel.vocalMics
                             }
                             val equippedId = when (instrumentTab) {
-                                Instrument.GUITAR -> stats.selectedGuitarId
+                                Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> stats.selectedGuitarId
                                 Instrument.BASS -> stats.selectedBassId
                                 Instrument.DRUMS -> stats.selectedDrumsId
                                 Instrument.VOCALS -> stats.selectedVocalMicId
