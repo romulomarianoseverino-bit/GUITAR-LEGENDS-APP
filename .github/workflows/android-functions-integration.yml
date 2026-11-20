@@ -5,10 +5,12 @@ on:
     branches:
       - fix/zero-start-rewards-security
       - fix/full-launch-scope-on-rewards-branch
+      - fix/multiplayer-create-room-stage-diagnostics
   pull_request:
     branches:
       - main
       - fix/zero-start-rewards-security
+      - fix/full-launch-scope-on-rewards-branch
 
 concurrency:
   group: guitar-legends-audit-${{ github.workflow }}-${{ github.ref }}
