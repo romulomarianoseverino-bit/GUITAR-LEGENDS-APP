@@ -110,6 +110,7 @@ function calculateMatchStars({ accuracyPercent, failed = false }) {
 function calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed = false }) {
   if (failed) return 0;
   const accuracy = Math.max(0, Math.min(100, Number(accuracyPercent) || 0));
+  if (!["EASY", "MEDIUM", "HARD", "EXPERT"].includes(difficulty)) throw new Error("Dificuldade inválida.");
   // Partida concluída: 20 moedas de base + até 30 proporcionais à precisão.
   // Duração e dificuldade não reduzem a recompensa-base; falhas continuam sem prêmio.
   return Math.max(20, Math.min(MATCH_REWARD_CAP, Math.floor(20 + (accuracy / 100) * 30)));
