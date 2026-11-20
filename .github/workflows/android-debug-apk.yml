@@ -52,6 +52,17 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Testar funções de recompensa e economia
+        run: npm test --prefix functions
+
+      - name: Executar testes unitários Android
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
+
       - name: Compilar APK de depuração
         run: gradle --no-daemon --stacktrace assembleDebug
 
