@@ -55,8 +55,10 @@ class MultiplayerCloudRepository(
             ?: generateRoomCode()
 
         val roomPath = "multiplayer_rooms/$roomCode"
+        var failedStage = "preparar criação da sala"
         return try {
             val roomRef = firestore.collection("multiplayer_rooms").document(roomCode)
+            failedStage = "criar o documento principal da sala"
             val createdRoom = firestore.runTransaction { tx ->
                 val snap = tx.get(roomRef)
                 if (snap.exists()) {
@@ -80,6 +82,7 @@ class MultiplayerCloudRepository(
                 room
             }.await()
 
+            failedStage = "registrar o anfitrião na subcoleção participants"
             val participant = MultiplayerParticipantCloud(
                 id = uid,
                 userId = uid,
@@ -102,7 +105,15 @@ class MultiplayerCloudRepository(
             Result.success(createdRoom)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.WRITE, roomPath, auth) }.exceptionOrNull() ?: e)
+            val reported = runCatching {
+                handleFirestoreError(e, OperationType.WRITE, roomPath, auth)
+            }.exceptionOrNull() ?: e
+            Result.failure(
+                IllegalStateException(
+                    "Falha ao $failedStage em $roomPath: ${reported.message ?: reported.javaClass.simpleName}",
+                    reported
+                )
+            )
         }
     }
 
