@@ -498,7 +498,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
 
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = if (current.photoUri.isNullOrBlank())
+                                        text = if (stats.customRocker.photoUri.isNullOrBlank())
                                             "Escolha uma foto de referência e selecione um dos três estilos abaixo."
                                         else
                                             "Foto de referência selecionada. A geração automática de uma malha 3D a partir da foto ainda não está integrada nesta versão.",
