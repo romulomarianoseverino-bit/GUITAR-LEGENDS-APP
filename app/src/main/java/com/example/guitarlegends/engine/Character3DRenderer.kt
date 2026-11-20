@@ -317,7 +317,8 @@ fun drawRockerCharacter3D(
         CharacterArtStyle.ANIME -> 1.04f
     }
     val headR = scale * 0.17f * headShapeScale
-    val faceColor = if (rocker.bodyTattoos.contains("Gótica")) Color(0xFFECEAE6) else skinColor
+    val isGothicFace = rocker.bodyTattoos.contains("Gótica")
+    val faceColor = if (isGothicFace) Color(0xFFECEAE6) else skinColor
     when (rocker.artStyle) {
         CharacterArtStyle.STYLIZED_REALISTIC ->
             drawScope.drawCircle(color = faceColor, radius = headR, center = headCenter)
