@@ -207,18 +207,9 @@ object MatchRewardCalculator {
     ): Int {
         if (failed) return 0
 
-        val durationMinutes = (durationMs.coerceAtLeast(30_000L) / 60_000f).coerceIn(0.5f, 6f)
-        val difficultyFactor = when (difficulty) {
-            Difficulty.EASY -> 0.75f
-            Difficulty.MEDIUM -> 0.90f
-            Difficulty.HARD -> 1.05f
-            Difficulty.EXPERT -> 1.20f
-        }
-        val accuracyFactor = 0.25f + (accuracyPercent.coerceIn(0f, 100f) / 100f) * 0.75f
-        val durationBase = 4f + durationMinutes * 5.5f
-
-        return (durationBase * difficultyFactor * accuracyFactor * 1.13f)
-            .toInt()
-            .coerceIn(1, 50)
+        val accuracy = accuracyPercent.coerceIn(0f, 100f)
+        // 20 moedas pela partida concluída + até 30 proporcionais à precisão.
+        // Duração e dificuldade não reduzem a recompensa-base; falhas continuam sem prêmio.
+        return (20f + (accuracy / 100f) * 30f).toInt().coerceIn(20, 50)
     }
 }
