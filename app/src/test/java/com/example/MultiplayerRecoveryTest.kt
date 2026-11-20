@@ -36,11 +36,9 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.robolectric.annotation.LooperMode
 import java.io.File
 import java.util.UUID
 
-@LooperMode(LooperMode.Mode.LEGACY)
 class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
 
     @get:Rule
