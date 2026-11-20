@@ -1953,11 +1953,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         adaptiveEngine.onNoteResult(rating, diffMs)
 
-        if (selectedInstrument == Instrument.DRUMS) {
-            soundFx.playDrumHit(lane)
-        } else {
-            soundFx.playHitChord(lane)
-        }
+        soundFx.playInstrumentHit(selectedInstrument, lane)
         triggerHaptic(longVibe = false)
     }
 
