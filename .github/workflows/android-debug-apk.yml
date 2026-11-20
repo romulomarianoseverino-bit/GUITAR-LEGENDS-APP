@@ -48,6 +48,12 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
+      - name: Conferir assinatura usada no APK
+        run: |
+          echo "=== SHA-1 da chave desta compilação ==="
+          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1:|SHA256:"
+          echo "::warning::Esta chave é recriada a cada execução. Para login Google estável, o workflow precisa usar uma chave persistente armazenada com segurança nos Secrets do GitHub."
+
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
