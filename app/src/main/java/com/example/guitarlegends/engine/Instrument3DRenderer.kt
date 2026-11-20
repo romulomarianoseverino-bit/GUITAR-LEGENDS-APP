@@ -86,9 +86,21 @@ fun drawInstrument3D(
     val facingFront = yawNorm <= 90f || yawNorm >= 270f
 
     when (instrument) {
-        Instrument.GUITAR, Instrument.BASS -> {
+        Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR, Instrument.BASS -> {
             val isBass = instrument == Instrument.BASS
-            val outline = when (config.modelStyleId) {
+            val isAcoustic = instrument == Instrument.ACOUSTIC_GUITAR
+            val outline = if (isAcoustic) listOf(
+                Vec3(-0.16f, -0.16f, 0f),
+                Vec3(0.16f, -0.16f, 0f),
+                Vec3(0.34f, 0.02f, 0f),
+                Vec3(0.39f, 0.30f, 0f),
+                Vec3(0.30f, 0.56f, 0f),
+                Vec3(0.20f, 0.73f, 0f),
+                Vec3(-0.20f, 0.73f, 0f),
+                Vec3(-0.30f, 0.56f, 0f),
+                Vec3(-0.39f, 0.30f, 0f),
+                Vec3(-0.34f, 0.02f, 0f)
+            ) else when (config.modelStyleId) {
                 "flying_v" -> listOf(
                     Vec3(-0.22f, -0.05f, 0f),
                     Vec3(0.22f, -0.05f, 0f),
@@ -237,6 +249,24 @@ fun drawInstrument3D(
             drawScope.drawPath(headPath, color = Color.Black.copy(alpha = 0.5f), style = Stroke(width = 1.5f))
 
             if (facingFront) {
+                // Boca circular e roseta do violão acústico tradicional
+                if (isAcoustic) {
+                    val soundHole = projectVec3(Vec3(0f, 0.27f, -thickness * 0.62f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawCircle(
+                        color = Color(0xFF17100B),
+                        radius = scale * 0.105f,
+                        center = soundHole
+                    )
+                    drawScope.drawCircle(
+                        color = Color(0xFFC99A55),
+                        radius = scale * 0.118f,
+                        center = soundHole,
+                        style = Stroke(width = 2.2f)
+                    )
+                    val bridgeLeft = projectVec3(Vec3(-0.13f, 0.49f, -thickness * 0.64f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    val bridgeRight = projectVec3(Vec3(0.13f, 0.49f, -thickness * 0.64f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawLine(Color(0xFF3B2416), bridgeLeft, bridgeRight, strokeWidth = 4f)
+                }
                 // Estampa no corpo
                 drawInstrumentStamp(drawScope, config.stampId, centerX, centerY, scale, yawDeg, pitchDeg, hardware, primary)
 
