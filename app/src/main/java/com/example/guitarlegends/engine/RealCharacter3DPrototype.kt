@@ -18,7 +18,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import io.github.sceneview.ModelNode
 import io.github.sceneview.SceneView
 import io.github.sceneview.rememberModelInstance
 import java.io.ByteArrayInputStream
