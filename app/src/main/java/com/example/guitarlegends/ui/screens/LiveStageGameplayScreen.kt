@@ -90,6 +90,16 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        // Mantém os controles exatamente na largura da base da pista e dimensiona cada
+        // círculo pela largura real da sua coluna, inclusive em telas largas.
+        val (highwayControlWidth, fretButtonDiameter) = with(androidx.compose.ui.platform.LocalDensity.current) {
+            val canvasWidthPx = maxWidth.toPx()
+            val highwayWidthPx = minOf(canvasWidthPx * 0.42f, 520f)
+                .coerceAtLeast(canvasWidthPx * 0.34f)
+            val laneWidthPx = highwayWidthPx / numLanes
+            highwayWidthPx.toDp() to (laneWidthPx * 0.76f).toDp()
+        }
+
         // Concert Stage Visual Background
         Image(
             painter = painterResource(id = R.drawable.stage_background_1794455515273),
@@ -378,12 +388,11 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
 
         // Controles circulares sobre os alvos da pista. A quantidade acompanha a dificuldade:
         // Fácil = 3, Médio = 4, Difícil/Especialista = 5.
-        val fretButtonDiameter = (34f - (numLanes - 3) * 3.5f).coerceIn(27f, 34f)
         Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = maxHeight * 0.82f - 22.dp)
-                .fillMaxWidth(0.42f)
+                .width(highwayControlWidth)
                 .height(44.dp)
                 .testTag("fret_touch_controls"),
             horizontalArrangement = Arrangement.spacedBy(0.dp),
