@@ -34,10 +34,13 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+      // Local builds retain the standard Android debug-key fallback.
+      // CI supplies a persistent keystore and passwords through environment variables.
+      val debugKeystorePath = System.getenv("DEBUG_KEYSTORE_PATH") ?: "${rootDir}/debug.keystore"
+      storeFile = file(debugKeystorePath)
+      storePassword = System.getenv("DEBUG_STORE_PASSWORD") ?: "android"
+      keyAlias = System.getenv("DEBUG_KEY_ALIAS") ?: "androiddebugkey"
+      keyPassword = System.getenv("DEBUG_KEY_PASSWORD") ?: "android"
     }
   }
 
@@ -78,7 +81,7 @@ kotlin {
 }
 
 tasks.withType<Test> {
-  // Execute the full suite so one failure cannot silently skip unrelated regression tests.
+  // Execute the full suite so one failure cannot silently skip unrelated tests.
   failFast = false
   testLogging {
     events("passed", "failed", "skipped")
@@ -142,6 +145,6 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
+  "ksp"(libs.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
