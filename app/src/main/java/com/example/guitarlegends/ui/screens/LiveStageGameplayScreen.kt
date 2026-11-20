@@ -85,7 +85,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
         )
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
@@ -376,20 +376,22 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             )
         }
 
-        // Bottom Controls: Fret Strike Touch Buttons (Multi-touch enabled)
+        // Controles circulares sobre os alvos da pista. A quantidade acompanha a dificuldade:
+        // Fácil = 3, Médio = 4, Difícil/Especialista = 5.
+        val fretButtonDiameter = (34f - (numLanes - 3) * 3.5f).coerceIn(27f, 34f)
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(0.84f)
-                .padding(bottom = 12.dp)
-.height(82.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .align(Alignment.TopCenter)
+                .offset(y = maxHeight * 0.82f - 22.dp)
+                .fillMaxWidth(0.42f)
+                .height(44.dp)
+                .testTag("fret_touch_controls"),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             for (lane in 0 until numLanes) {
                 val color = LaneColors[lane]
                 val isPressed = activeFretLanes.contains(lane)
-
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -410,46 +412,44 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    // Mantém a largura da pista e deixa somente o marcador circular visível.
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(fretButtonDiameter.dp)
                             .background(
-                                color = if (isPressed) Color.White else color.copy(alpha = 0.72f),
+                                color = if (isPressed) Color.White else color.copy(alpha = 0.88f),
                                 shape = CircleShape
                             )
                             .border(
                                 width = if (isPressed) 3.dp else 2.dp,
-                                color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
+                                color = if (isPressed) color else Color.White.copy(alpha = 0.92f),
                                 shape = CircleShape
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(17.dp)
-                                .background(
-                                    color = if (isPressed) color else Color.White.copy(alpha = 0.92f),
-                                    shape = CircleShape
-                                )
+                                .size((fretButtonDiameter * 0.42f).dp)
+                                .background(color = color, shape = CircleShape)
                         )
                     }
                 }
             }
+        }
 
-            // Optional Strum bar for Fret+Strum mode
-            if (stats.controlMode == ControlMode.FRET_AND_STRUM) {
-                Button(
-                    onClick = { viewModel.onStrumBar() },
-                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .fillMaxHeight()
-                        .testTag("strum_bar_button")
-                ) {
-                    Text("PALHETA ⚡", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 12.sp)
-                }
+        // A palheta opcional fica fora da área das colunas para não deslocar os botões da pista.
+        if (stats.controlMode == ControlMode.FRET_AND_STRUM) {
+            Button(
+                onClick = { viewModel.onStrumBar() },
+                colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 12.dp, bottom = 10.dp)
+                    .height(38.dp)
+                    .testTag("strum_bar_button")
+            ) {
+                Text("PALHETA ⚡", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 10.sp)
             }
         }
 
