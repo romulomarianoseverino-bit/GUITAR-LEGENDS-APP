@@ -53,6 +53,17 @@ O ícone, a abertura, a tela inicial, a personalização e as partidas devem usa
 
 Um item só passa para **Concluído** quando estiver implementado e testado no contexto real correspondente. Compilar, abrir uma tela, exibir uma prévia Canvas ou produzir uma imagem estática não prova que um sistema 3D, login, multiplayer ou animação esteja concluído.
 
+## Progresso técnico — primeiro bloco 3D (20/11/2026)
+
+- [x] Integrado o runtime SceneView/Filament na base Android usando a versão 4.18.0, escolhida para respeitar a linha de compatibilidade do projeto (compileSdk 36 e Kotlin 2.2); a compilação Java/Kotlin foi elevada para JVM 17 conforme os requisitos dessa versão.
+- [x] Adicionado ao estúdio um quarto modo de prévia, identificado explicitamente como **3D REAL**, separado do visualizador Canvas existente.
+- [x] Adicionado um primeiro modelo GLB original de bloqueio visual, com geometria de malha e cores por vértice, extraído do asset compactado para o cache local e exibido pelo runtime 3D com câmera manipulável.
+- [ ] Validar compilação e carregamento do GLB em CI e em dispositivo Android; confirmar rotação/zoom, enquadramento, estabilidade e desempenho.
+- [ ] Substituir o bloqueio inicial por personagem artístico de qualidade, com malha detalhada, materiais PBR, proporções e rosto definidos.
+- [ ] Criar rig/esqueleto, pesos de skinning e animações de palco; conectar roupas, cabelo, acessórios e instrumento ao perfil cosmético.
+
+Esta etapa é uma prova técnica inicial de renderização de malha 3D real, não o personagem final. O modelo de bloqueio ainda não tem rig, animações nem integração com as opções de personalização. O visualizador Canvas anterior foi mantido como referência/fallback até a nova implementação ser validada.
+
 ## Situação técnica identificada nesta revisão
 
 - Existe um arquivo de especificação de criação de personagens, mas ele descreve requisitos e não comprova a implementação.
