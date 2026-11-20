@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -424,24 +425,47 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                         },
                     contentAlignment = Alignment.Center
                 ) {
+                    // Botão em camadas: aro metálico, corpo abaulado e núcleo de borracha iluminado.
                     Box(
                         modifier = Modifier
                             .size(fretButtonDiameter)
+                            .shadow(if (isPressed) 2.dp else 8.dp, CircleShape)
                             .background(
-                                color = if (isPressed) Color.White else color.copy(alpha = 0.88f),
+                                brush = Brush.radialGradient(
+                                    colors = if (isPressed) listOf(Color.White, color, Color(0xFF17151A))
+                                    else listOf(Color(0xFFFFFFFF), Color(0xFF77747B), Color(0xFF17151A))
+                                ),
                                 shape = CircleShape
                             )
-                            .border(
-                                width = if (isPressed) 3.dp else 2.dp,
-                                color = if (isPressed) color else Color.White.copy(alpha = 0.92f),
+                            .border(1.5.dp, Color(0xFFD9D4C9), CircleShape)
+                            .padding(2.dp)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = if (isPressed) listOf(Color.White, color, color.copy(alpha = 0.72f))
+                                    else listOf(color.copy(alpha = 0.98f), color.copy(alpha = 0.82f), Color(0xFF17151A))
+                                ),
                                 shape = CircleShape
-                            ),
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.55f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(fretButtonDiameter * 0.42f)
-                                .background(color = color, shape = CircleShape)
+                                .size(fretButtonDiameter * 0.46f)
+                                .background(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color.White.copy(alpha = 0.95f), color, Color(0xFF09090C))
+                                    ),
+                                    shape = CircleShape
+                                )
+                                .border(1.dp, Color.White.copy(alpha = 0.65f), CircleShape)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = fretButtonDiameter * 0.13f)
+                                .size(fretButtonDiameter * 0.17f, fretButtonDiameter * 0.07f)
+                                .background(Color.White.copy(alpha = if (isPressed) 0.85f else 0.48f), RoundedCornerShape(50))
                         )
                     }
                 }
@@ -621,22 +645,32 @@ private fun GuitarAmpScoreCabinet(
     }
 
     Surface(
-        color = Color(0xEE141118),
-        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFF17151A),
+        shape = RoundedCornerShape(12.dp),
         border = ButtonDefaults.outlinedButtonBorder.copy(
-            brush = Brush.verticalGradient(listOf(frameColor, Color(0xFF4E4330), frameColor)),
+            brush = Brush.verticalGradient(listOf(Color(0xFFF1E5C5), frameColor, Color(0xFF38323A), frameColor)),
             width = 2.dp
         ),
         modifier = Modifier
-            .width(126.dp)
+            .width(142.dp)
+            .shadow(12.dp, RoundedCornerShape(12.dp))
             .testTag("amp_score_cabinet")
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            modifier = Modifier
+                .background(Brush.verticalGradient(listOf(Color(0xFF38323A), Color(0xFF17151A), Color(0xFF09090C))))
+                .padding(horizontal = 8.dp, vertical = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            // Painel LED digital verde da pontuação
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("GL • STAGE AMP", color = Color(0xFFD5C8A8), fontSize = 7.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    repeat(2) { Box(Modifier.size(4.dp).background(Color(0xFF8D877D), CircleShape).border(0.5.dp, Color.Black, CircleShape)) }
+                }
+            }
+            // Janela digital embutida no painel
+            Text("PONTUAÇÃO", color = Color(0xFF9B9A91), fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -662,12 +696,13 @@ private fun GuitarAmpScoreCabinet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Coluna de 10 pips de combo
+                // Coluna de LEDs em lente embutida
                 Column(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier
-                        .background(Color(0xFF0B0A10), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 3.dp, vertical = 3.dp)
+                        .background(Brush.verticalGradient(listOf(Color(0xFF050608), Color(0xFF25212A))), RoundedCornerShape(5.dp))
+                        .border(1.dp, Color(0xFF716B61), RoundedCornerShape(5.dp))
+                        .padding(horizontal = 4.dp, vertical = 4.dp)
                 ) {
                     for (idx in 9 downTo 0) {
                         val isLit = idx < litLeds
@@ -680,19 +715,32 @@ private fun GuitarAmpScoreCabinet(
                         }
                         Box(
                             modifier = Modifier
-                                .size(width = 8.dp, height = 4.dp)
+                                .size(width = 9.dp, height = 4.dp)
+                                .shadow(if (isLit) 2.dp else 0.dp, RoundedCornerShape(2.dp))
                                 .background(pipColor, RoundedCornerShape(2.dp))
                         )
                     }
+                }
+
+                // Grade de alto-falante com malha metálica
+                Canvas(Modifier.size(width = 34.dp, height = 48.dp)) {
+                    drawRoundRect(Color(0xFF09090C), cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f))
+                    for (x in 4..size.width.toInt() step 5) {
+                        for (y in 4..size.height.toInt() step 5) {
+                            drawCircle(Color(0xFF8A8580), radius = 1.1f, center = Offset(x.toFloat(), y.toFloat()))
+                        }
+                    }
+                    drawRoundRect(Color(0xFFB6A98C).copy(alpha = 0.7f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f), style = Stroke(1.2f))
                 }
 
                 // Dial metálico circular com X1 / X2 / X3 / X4 / X8
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(56.dp)
+                        .size(58.dp)
+                        .shadow(5.dp, CircleShape)
                         .background(
-                            Brush.radialGradient(listOf(Color(0xFF2D253A), Color(0xFF0E0B14))),
+                            Brush.radialGradient(listOf(Color(0xFFB9B2A5), Color(0xFF2D253A), Color(0xFF0E0B14))),
                             CircleShape
                         )
                         .border(3.dp, dialRingColor, CircleShape)
@@ -700,8 +748,9 @@ private fun GuitarAmpScoreCabinet(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(44.dp)
-                            .border(1.dp, Color.White.copy(alpha = 0.28f), CircleShape)
+                            .size(46.dp)
+                            .background(Brush.radialGradient(listOf(Color(0xFF37313D), Color(0xFF0E0B14))), CircleShape)
+                            .border(1.dp, Color.White.copy(alpha = 0.38f), CircleShape)
                     ) {
                         Text(
                             text = "x$multiplier",
