@@ -75,7 +75,10 @@ jobs:
           DEBUG_STORE_PASSWORD: ${{ secrets.DEBUG_STORE_PASSWORD }}
         run: |
           STORE_PASS="${DEBUG_STORE_PASSWORD:-android}"
-          keytool -list -v -keystore debug.keystore -storepass "$STORE_PASS" -alias androiddebugkey | grep -E "SHA1:|SHA256:"
+          echo "Verificando a senha e identificando os aliases presentes na chave persistente..."
+          keytool -list -v -keystore debug.keystore -storepass "$STORE_PASS"
+          echo "Impressões digitais da chave:"
+          keytool -list -v -keystore debug.keystore -storepass "$STORE_PASS" | grep -E "Alias name:|SHA1:|SHA256:"
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
