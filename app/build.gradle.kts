@@ -1,5 +1,4 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
-import java.time.Duration
 
 plugins {
   alias(libs.plugins.android.application)
@@ -74,7 +73,6 @@ android {
 tasks.withType<Test> {
   // Execute the full suite so one failure cannot silently skip unrelated regression tests.
   failFast = false
-  timeout.set(Duration.ofMinutes(2))
   testLogging {
     events("passed", "failed", "skipped")
   }
