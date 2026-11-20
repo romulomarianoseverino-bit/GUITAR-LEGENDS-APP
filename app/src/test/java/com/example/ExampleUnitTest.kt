@@ -25,6 +25,22 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun testAcousticGuitarGeneratesPlayableChart() {
+        val track = AudioAnalyzer.BUILT_IN_TRACKS.first()
+        val chart = AudioAnalyzer.generateChart(track, Instrument.ACOUSTIC_GUITAR, Difficulty.EXPERT)
+
+        assertTrue("Acoustic guitar chart must not be empty", chart.isNotEmpty())
+        assertTrue(
+            "Acoustic guitar notes must stay inside the five-lane highway",
+            chart.all { it.lane in 0 until Difficulty.EXPERT.lanesUsed }
+        )
+        assertTrue(
+            "Acoustic guitar should include sustained notes for strumming/fingerpicking phrases",
+            chart.any { it.durationMs > 0L }
+        )
+    }
+
+    @Test
     fun testAdaptiveEngineAdjustsWindow() {
         val engine = AdaptiveEngine(Difficulty.HARD, isEnabled = true)
         val initialWindow = engine.getEffectiveHitWindowMs()
