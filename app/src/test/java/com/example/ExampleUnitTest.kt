@@ -5,6 +5,7 @@ import com.example.guitarlegends.analysis.AudioAnalyzer
 import com.example.guitarlegends.model.Difficulty
 import com.example.guitarlegends.model.HitRating
 import com.example.guitarlegends.model.Instrument
+import com.example.guitarlegends.model.StudioCatalog
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -38,6 +39,15 @@ class ExampleUnitTest {
             "Acoustic guitar should include sustained notes for strumming/fingerpicking phrases",
             chart.any { it.durationMs > 0L }
         )
+    }
+
+    @Test
+    fun testStudioCatalogProvidesDedicatedAcousticGuitarModels() {
+        val models = StudioCatalog.instrumentModelsByType[Instrument.ACOUSTIC_GUITAR].orEmpty()
+        assertEquals(3, models.size)
+        assertTrue(models.any { it.first == "acoustic_dreadnought" })
+        assertTrue(models.any { it.first == "acoustic_classic" })
+        assertTrue(models.any { it.first == "acoustic_cutaway" })
     }
 
     @Test
