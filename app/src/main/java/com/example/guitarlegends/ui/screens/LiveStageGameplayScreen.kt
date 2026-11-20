@@ -65,6 +65,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
     val activeFretLanes by viewModel.activeFretLanes.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
     val stats by viewModel.playerStats.collectAsState()
+    val pauseAudioSettings = stats.studioProfile.audioSettings
     val controllerInfo by viewModel.controllerInfo.collectAsState()
     val mpRoom by viewModel.multiplayerRoom.collectAsState()
     val mpParticipants by viewModel.multiplayerParticipants.collectAsState()
@@ -499,6 +500,34 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                             fontSize = 12.sp
                         )
 
+                        Text(
+                            text = "VOLUME DURANTE A PARTIDA",
+                            color = RockAccentCyan,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp
+                        )
+                        PauseVolumeSlider(
+                            label = "Volume geral",
+                            value = pauseAudioSettings.masterVolume,
+                            testTag = "pause_volume_master"
+                        ) { value ->
+                            viewModel.updateAudioSettings(pauseAudioSettings.copy(masterVolume = value))
+                        }
+                        PauseVolumeSlider(
+                            label = "Música",
+                            value = pauseAudioSettings.musicVolume,
+                            testTag = "pause_volume_music"
+                        ) { value ->
+                            viewModel.updateAudioSettings(pauseAudioSettings.copy(musicVolume = value))
+                        }
+                        PauseVolumeSlider(
+                            label = "Efeitos sonoros",
+                            value = pauseAudioSettings.gameplaySfxVolume,
+                            testTag = "pause_volume_effects"
+                        ) { value ->
+                            viewModel.updateAudioSettings(pauseAudioSettings.copy(gameplaySfxVolume = value, stageFxVolume = value))
+                        }
+
                         Spacer(modifier = Modifier.height(8.dp))
 
                         RockButton(
@@ -534,6 +563,32 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PauseVolumeSlider(
+    label: String,
+    value: Float,
+    testTag: String,
+    onValueChange: (Float) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = label, color = Color.White.copy(alpha = 0.88f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = "${(value * 100).toInt()}%", color = RockAccentGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+        Slider(
+            value = value.coerceIn(0f, 1f),
+            onValueChange = onValueChange,
+            valueRange = 0f..1f,
+            modifier = Modifier.fillMaxWidth().height(30.dp).testTag(testTag),
+            colors = SliderDefaults.colors(thumbColor = RockAccentCyan, activeTrackColor = RockAccentCyan)
+        )
     }
 }
 
