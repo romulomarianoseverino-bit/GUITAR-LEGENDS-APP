@@ -279,8 +279,8 @@ service cloud.firestore {
                          isValidRoomCode(roomCode) &&
                          isValidId(participantUid) &&
                          request.auth.uid == participantUid &&
-                         exists(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)) &&
-                         request.auth.uid in get(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)).data.memberUids &&
+                         existsAfter(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)) &&
+                         request.auth.uid in getAfter(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)).data.memberUids &&
                          incoming().keys().hasAll([
                            'userId', 'roomCode', 'nickname', 'instrument', 'difficulty',
                            'ready', 'connectionState', 'score', 'combo', 'rockMeter',
