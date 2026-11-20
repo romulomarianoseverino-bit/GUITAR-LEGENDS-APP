@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -483,7 +485,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -586,7 +588,7 @@ private fun PauseVolumeSlider(
             value = value.coerceIn(0f, 1f),
             onValueChange = onValueChange,
             valueRange = 0f..1f,
-            modifier = Modifier.fillMaxWidth().height(30.dp).testTag(testTag),
+            modifier = Modifier.fillMaxWidth().testTag(testTag),
             colors = SliderDefaults.colors(thumbColor = RockAccentCyan, activeTrackColor = RockAccentCyan)
         )
     }
