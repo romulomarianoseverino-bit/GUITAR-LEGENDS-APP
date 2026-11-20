@@ -73,3 +73,19 @@ test("estrelas são calculadas no servidor pela precisão, sem confiar no app", 
   assert.equal(calculateMatchStars({ accuracyPercent: 60, failed: false }), 2);
   assert.equal(calculateMatchStars({ accuracyPercent: 100, failed: true }), 1);
 });
+test("partida concluída paga no mínimo 20 moedas", () => {
+  assert.equal(calculateMatchCoins({ accuracyPercent: 0, difficulty: "EASY", durationMs: 30_000 }), 20);
+});
+
+test("recompensa cresce proporcionalmente à precisão", () => {
+  assert.equal(calculateMatchCoins({ accuracyPercent: 50, difficulty: "MEDIUM", durationMs: 120_000 }), 35);
+  assert.equal(calculateMatchCoins({ accuracyPercent: 75, difficulty: "HARD", durationMs: 240_000 }), 42);
+});
+
+test("100% de precisão paga 50 moedas", () => {
+  assert.equal(calculateMatchCoins({ accuracyPercent: 100, difficulty: "EXPERT", durationMs: 360_000 }), 50);
+});
+
+test("partida falhada não concede moedas", () => {
+  assert.equal(calculateMatchCoins({ accuracyPercent: 100, difficulty: "EXPERT", durationMs: 360_000, failed: true }), 0);
+});
