@@ -44,7 +44,7 @@ jobs:
       - name: Gerar chave local de depuração
         run: |
           keytool -genkeypair -v -noprompt \
-            -keystore app/debug.keystore \
+            -keystore debug.keystore \
             -storepass android \
             -keypass android \
             -alias androiddebugkey \
@@ -120,7 +120,7 @@ jobs:
       - name: Gerar chave local de depuração
         run: |
           keytool -genkeypair -v -noprompt \
-            -keystore app/debug.keystore \
+            -keystore debug.keystore \
             -storepass android \
             -keypass android \
             -alias androiddebugkey \
