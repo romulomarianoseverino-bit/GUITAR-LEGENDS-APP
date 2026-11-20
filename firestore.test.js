@@ -328,6 +328,17 @@ function makeValidParticipant(roomCode, uid, nickname = "Rocker") {
   };
 }
 
+test("Multiplayer participant accepts the acoustic guitar instrument", async () => {
+  const roomCode = "ACOUSTIC-01";
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const roomRef = aliceDb.collection("multiplayer_rooms").doc(roomCode);
+  await assertSucceeds(roomRef.set(makeValidRoom(roomCode, ALICE_UID)));
+  await assertSucceeds(roomRef.collection("participants").doc(ALICE_UID).set({
+    ...makeValidParticipant(roomCode, ALICE_UID, "AliceAcoustic"),
+    instrument: "ACOUSTIC_GUITAR",
+  }));
+});
+
 test("Multiplayer rooms: host create, exact-code join, participant sync, leave & terminal CLOSED lock", async () => {
   const roomCode = "ROCK-7782";
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
