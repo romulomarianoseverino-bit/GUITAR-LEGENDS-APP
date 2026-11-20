@@ -652,7 +652,7 @@ private fun GuitarAmpScoreCabinet(
             width = 2.dp
         ),
         modifier = Modifier
-            .width(142.dp)
+            .width(116.dp)
             .shadow(12.dp, RoundedCornerShape(12.dp))
             .testTag("amp_score_cabinet")
     ) {
@@ -684,8 +684,8 @@ private fun GuitarAmpScoreCabinet(
                     color = if (isStarPowerActive) RockAccentCyan else Color(0xFF8CFF5E),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Black,
-                    fontSize = 16.sp,
-                    letterSpacing = 1.sp,
+                    fontSize = 14.sp,
+                    letterSpacing = 0.8.sp,
                     maxLines = 1
                 )
             }
@@ -723,7 +723,7 @@ private fun GuitarAmpScoreCabinet(
                 }
 
                 // Grade de alto-falante com malha metálica
-                Canvas(Modifier.size(width = 34.dp, height = 48.dp)) {
+                Canvas(Modifier.size(width = 29.dp, height = 42.dp)) {
                     drawRoundRect(Color(0xFF09090C), cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f))
                     for (x in 4..size.width.toInt() step 5) {
                         for (y in 4..size.height.toInt() step 5) {
@@ -737,7 +737,7 @@ private fun GuitarAmpScoreCabinet(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(58.dp)
+                        .size(52.dp)
                         .shadow(5.dp, CircleShape)
                         .background(
                             Brush.radialGradient(listOf(Color(0xFFB9B2A5), Color(0xFF2D253A), Color(0xFF0E0B14))),
@@ -748,7 +748,7 @@ private fun GuitarAmpScoreCabinet(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(46.dp)
+                            .size(42.dp)
                             .background(Brush.radialGradient(listOf(Color(0xFF37313D), Color(0xFF0E0B14))), CircleShape)
                             .border(1.dp, Color.White.copy(alpha = 0.38f), CircleShape)
                     ) {
@@ -815,7 +815,7 @@ private fun AnalogRockMeterWithTubes(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(128.dp)
+            .width(112.dp)
             .shadow(8.dp, RoundedCornerShape(11.dp))
             .background(
                 Brush.verticalGradient(listOf(Color(0xFF514A43), Color(0xFF17151A), Color(0xFF08090D))),
@@ -828,8 +828,8 @@ private fun AnalogRockMeterWithTubes(
         Text("MEDIDOR DE ROCK", color = Color(0xFFD6C9A9), fontSize = 7.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
         Box(
             modifier = Modifier
-                .width(116.dp)
-                .height(92.dp),
+                .width(102.dp)
+                .height(82.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
