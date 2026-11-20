@@ -204,14 +204,37 @@ fun drawHighway(
         }
     }
 
-    // Trilhos Laterais em Aço Cromado / Neon com fileiras de LEDs Star Power nas bordas
+    // Revestimento da pista: micro-riscos de aço escovado e divisões em perspectiva
+    drawScope.clipPath(highwayPath) {
+        for (grain in 0..22) {
+            val x = centerX - bottomHalfW + (grain / 22f) * bottomWidth
+            val topX = centerX - topHalfW + (grain / 22f) * topWidth
+            drawLine(
+                color = Color.White.copy(alpha = if (grain % 2 == 0) 0.035f else 0.018f),
+                start = Offset(topX, horizonY + 3f),
+                end = Offset(x, strikeY + 34f),
+                strokeWidth = if (grain % 4 == 0) 1.5f else 0.7f
+            )
+        }
+        for (seam in 1..5) {
+            val t = seam / 6f
+            val y = horizonY + (strikeY - horizonY) * t
+            val half = topHalfW + (bottomHalfW - topHalfW) * t
+            drawLine(Color.Black.copy(alpha = 0.18f), Offset(centerX - half, y), Offset(centerX + half, y), strokeWidth = 1.2f)
+            drawLine(Color.White.copy(alpha = 0.06f), Offset(centerX - half, y + 2f), Offset(centerX + half, y + 2f), strokeWidth = 0.8f)
+        }
+    }
+
+    // Trilhos laterais com núcleo escuro, aço escovado e filete luminoso
     val railColor = if (isStarPowerActive) Color(0xFF00E5FF) else Color(highwayTheme.primaryColorHex)
-    drawScope.drawLine(color = Color(0xFF14101A), start = highwayTopLeft, end = highwayBottomLeft, strokeWidth = 12f)
-    drawScope.drawLine(color = Color(0xFF14101A), start = highwayTopRight, end = highwayBottomRight, strokeWidth = 12f)
-    drawScope.drawLine(color = railColor, start = highwayTopLeft, end = highwayBottomLeft, strokeWidth = 6.5f)
-    drawScope.drawLine(color = railColor, start = highwayTopRight, end = highwayBottomRight, strokeWidth = 6.5f)
-    drawScope.drawLine(color = Color.White.copy(alpha = 0.6f), start = highwayTopLeft, end = highwayBottomLeft, strokeWidth = 1.8f)
-    drawScope.drawLine(color = Color.White.copy(alpha = 0.6f), start = highwayTopRight, end = highwayBottomRight, strokeWidth = 1.8f)
+    drawScope.drawLine(color = Color(0xFF08070B), start = highwayTopLeft, end = highwayBottomLeft, strokeWidth = 15f)
+    drawScope.drawLine(color = Color(0xFF08070B), start = highwayTopRight, end = highwayBottomRight, strokeWidth = 15f)
+    drawScope.drawLine(brush = Brush.linearGradient(listOf(Color(0xFF34313B), Color(0xFFD6D5D2), Color(0xFF55515B))), start = highwayTopLeft, end = highwayBottomLeft, strokeWidth = 9f)
+    drawScope.drawLine(brush = Brush.linearGradient(listOf(Color(0xFF34313B), Color(0xFFD6D5D2), Color(0xFF55515B))), start = highwayTopRight, end = highwayBottomRight, strokeWidth = 9f)
+    drawScope.drawLine(color = railColor, start = highwayTopLeft, end = highwayBottomLeft, strokeWidth = 3f)
+    drawScope.drawLine(color = railColor, start = highwayTopRight, end = highwayBottomRight, strokeWidth = 3f)
+    drawScope.drawLine(color = Color.White.copy(alpha = 0.72f), start = highwayTopLeft, end = highwayBottomLeft, strokeWidth = 0.9f)
+    drawScope.drawLine(color = Color.White.copy(alpha = 0.72f), start = highwayTopRight, end = highwayBottomRight, strokeWidth = 0.9f)
 
     // Pinos/LEDs laterais nos trilhos (pulsam em ciano durante Star Power)
     for (led in 1..8) {
@@ -315,7 +338,11 @@ fun drawHighway(
 
         // Anel colorido chanfrado
         drawScope.drawOval(
-            color = if (isPressed) Color.White else color,
+            brush = Brush.linearGradient(
+                colors = listOf(Color.White.copy(alpha = 0.96f), if (isPressed) Color.White else color, Color(0xFF17131D)),
+                start = Offset(targetPos.x - rx, targetPos.y - ry),
+                end = Offset(targetPos.x + rx, targetPos.y + ry)
+            ),
             topLeft = Offset(targetPos.x - rx, targetPos.y - ry),
             size = Size(rx * 2f, ry * 2f),
             style = Stroke(width = if (isPressed) 7.5f else 5.2f)
@@ -387,7 +414,11 @@ fun drawHighway(
                 )
                 // Anel colorido principal
                 drawScope.drawOval(
-                    color = gemColor,
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.96f), gemColor, Color(0xFF101018)),
+                        center = Offset(notePos.x - rx * 0.24f, notePos.y - ry * 0.34f),
+                        radius = rx * 1.65f
+                    ),
                     topLeft = Offset(notePos.x - rx, notePos.y - ry),
                     size = Size(rx * 2f, ry * 2f)
                 )
