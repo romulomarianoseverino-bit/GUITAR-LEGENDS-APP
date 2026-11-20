@@ -73,12 +73,17 @@ fun drawRockerCharacter3D(
     }
 
     val skinColor = Color(studio.skinToneHex)
-    val shoulderFactor = when {
+    val bodyStyleFactor = when (rocker.artStyle) {
+        CharacterArtStyle.STYLIZED_REALISTIC -> 1.0f
+        CharacterArtStyle.CARTOON -> 1.08f
+        CharacterArtStyle.ANIME -> 0.96f
+    }
+    val shoulderFactor = (when {
         studio.rockerBodyModel.contains("Heavy") -> 1.14f
         studio.rockerBodyModel.contains("Punk") -> 0.94f
         studio.rockerBodyModel.contains("Cyber") -> 1.04f
         else -> 1.0f
-    }
+    }) * bodyStyleFactor
 
     // Movimento de palco sincronizado (Headbang + batida rítmica + energia do combo)
     val energyMult = if (isStarPowerActive) 1.55f else if (combo >= 15) 1.25f else 1.0f
