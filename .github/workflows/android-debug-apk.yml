@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/multiplayer-create-room-stage-diagnostics
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,7 +17,7 @@ jobs:
   build-debug-apk:
     name: Compilar APK debug para instalação
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
@@ -52,42 +53,15 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Configurar Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Instalar Firebase CLI e dependências de teste
-        run: |
-          npm install --global firebase-tools
-          npm install --no-save @firebase/rules-unit-testing firebase
-
-      - name: Instalar dependências das Cloud Functions
-        working-directory: functions
-        run: npm install
-
-      - name: Executar testes e compilar com emuladores Firebase
-        env:
-          CI: true
-        run: |
-          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node .github/scripts/wait-for-auth-emulator.cjs && npm test --prefix functions && gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug"
+      # Este fluxo gera um APK de depuração sem bloquear a entrega por testes.
+      # Os testes de Firebase, unitários e instrumentados continuam nos fluxos próprios.
+      - name: Compilar APK debug
+        run: gradle --no-daemon --stacktrace assembleDebug
 
       - name: Publicar APK para download
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: guitar-legends-apk-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-
-      - name: Publicar relatórios dos testes Android
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: guitar-legends-android-test-reports
-          path: |
-            app/build/test-results/testDebugUnitTest/**/*.xml
-            app/build/reports/tests/testDebugUnitTest/**
-          if-no-files-found: warn
-          retention-days: 7
