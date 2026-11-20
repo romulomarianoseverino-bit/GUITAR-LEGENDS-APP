@@ -423,7 +423,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(fretButtonDiameter.dp)
+                            .size(fretButtonDiameter)
                             .background(
                                 color = if (isPressed) Color.White else color.copy(alpha = 0.88f),
                                 shape = CircleShape
@@ -437,7 +437,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                     ) {
                         Box(
                             modifier = Modifier
-                                .size((fretButtonDiameter * 0.42f).dp)
+                                .size(fretButtonDiameter * 0.42f)
                                 .background(color = color, shape = CircleShape)
                         )
                     }
