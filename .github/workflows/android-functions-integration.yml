@@ -64,7 +64,16 @@ jobs:
         env:
           CI: true
         run: |
-          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node .github/scripts/wait-for-auth-emulator.cjs && npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest compileDebugKotlin"
+          firebase emulators:exec --project guitar-legends-d7708 --only auth,firestore,functions "node .github/scripts/wait-for-auth-emulator.cjs && npm test --prefix functions && node --test firestore.test.js && gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug"
+
+      - name: Publicar APK Android de validação
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guitar-legends-apk-validation
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Publicar relatório dos testes Android
         if: always()
