@@ -815,12 +815,20 @@ private fun AnalogRockMeterWithTubes(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(114.dp)
+            .width(128.dp)
+            .shadow(8.dp, RoundedCornerShape(11.dp))
+            .background(
+                Brush.verticalGradient(listOf(Color(0xFF514A43), Color(0xFF17151A), Color(0xFF08090D))),
+                RoundedCornerShape(11.dp)
+            )
+            .border(1.5.dp, Color(0xFFD0C2A0), RoundedCornerShape(11.dp))
+            .padding(horizontal = 5.dp, vertical = 5.dp)
             .testTag("analog_rock_meter")
     ) {
+        Text("MEDIDOR DE ROCK", color = Color(0xFFD6C9A9), fontSize = 7.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
         Box(
             modifier = Modifier
-                .width(112.dp)
+                .width(116.dp)
                 .height(92.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
@@ -909,6 +917,27 @@ private fun AnalogRockMeterWithTubes(
                     topLeft = arcTopLeft,
                     size = arcSize
                 )
+
+                // Escala analógica com marcas graduadas ao redor do arco
+                for (tick in 0..20) {
+                    val angle = Math.toRadians((180.0 + tick * 9.0))
+                    val outer = dialRadius * 0.96f
+                    val inner = if (tick % 5 == 0) dialRadius * 0.76f else dialRadius * 0.84f
+                    val start = Offset(
+                        dialCenter.x + (cos(angle) * inner).toFloat(),
+                        dialCenter.y + (sin(angle) * inner).toFloat()
+                    )
+                    val end = Offset(
+                        dialCenter.x + (cos(angle) * outer).toFloat(),
+                        dialCenter.y + (sin(angle) * outer).toFloat()
+                    )
+                    drawLine(
+                        color = if (tick % 5 == 0) Color.White.copy(alpha = 0.95f) else Color.White.copy(alpha = 0.58f),
+                        start = start,
+                        end = end,
+                        strokeWidth = if (tick % 5 == 0) 2.2f else 1.1f
+                    )
+                }
 
                 // Aro cromado / dourado do mostrador
                 drawArc(
