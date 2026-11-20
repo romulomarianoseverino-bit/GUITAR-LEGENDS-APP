@@ -136,8 +136,11 @@ fun drawHighway(
     )
 
     // 2. ESTEIRA DE NOTAS CLÁSSICA COM PERSPECTIVA FIXA CENTRALIZADA
-    val topWidth = (canvasWidth * 0.19f).coerceIn(130f, 235f)
-    val bottomWidth = (canvasWidth * 0.46f).coerceIn(310f, 540f)
+    // Esteira proporcional à tela: mantém palco e plateia visíveis, sem largura mínima
+    // fixa que possa ocupar quase toda a tela em aparelhos estreitos.
+    val topWidth = minOf(canvasWidth * 0.17f, 210f)
+    val bottomWidth = minOf(canvasWidth * 0.42f, 520f)
+        .coerceAtLeast(canvasWidth * 0.34f)
 
     val topHalfW = topWidth * 0.5f
     val bottomHalfW = bottomWidth * 0.5f
