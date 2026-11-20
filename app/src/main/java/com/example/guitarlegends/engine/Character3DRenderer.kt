@@ -330,7 +330,25 @@ fun drawRockerCharacter3D(
                 size = Size(headR * 1.76f, headR * 2.12f)
             )
     }
-    drawScope.drawCircle(color = Color.Black.copy(alpha = 0.28f), radius = headR, center = headCenter, style = Stroke(width = 1.5f))
+    when (rocker.artStyle) {
+        CharacterArtStyle.STYLIZED_REALISTIC ->
+            drawScope.drawCircle(color = Color.Black.copy(alpha = 0.28f), radius = headR, center = headCenter, style = Stroke(width = 1.5f))
+        CharacterArtStyle.CARTOON ->
+            drawScope.drawRoundRect(
+                color = Color.Black.copy(alpha = 0.32f),
+                topLeft = Offset(headCenter.x - headR * 0.94f, headCenter.y - headR),
+                size = Size(headR * 1.88f, headR * 2.0f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(headR * 0.72f, headR * 0.72f),
+                style = Stroke(width = 2.4f)
+            )
+        CharacterArtStyle.ANIME ->
+            drawScope.drawOval(
+                color = Color.Black.copy(alpha = 0.28f),
+                topLeft = Offset(headCenter.x - headR * 0.88f, headCenter.y - headR * 1.06f),
+                size = Size(headR * 1.76f, headR * 2.12f),
+                style = Stroke(width = 1.6f)
+            )
+    }
 
     if (facingFront) {
         val eyeSpread = if (rocker.artStyle == CharacterArtStyle.ANIME) 1.16f else 1.0f
