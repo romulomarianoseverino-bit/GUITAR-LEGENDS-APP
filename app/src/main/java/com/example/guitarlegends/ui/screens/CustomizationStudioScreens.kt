@@ -470,7 +470,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                             }
 
                             item {
-                                StudioSectionCard(title = "CRIAÇÃO POR FOTO & INTEGRANTES CLÁSSICOS", accent = RockAccentCyan) {
+                                StudioSectionCard(title = "FOTO DE REFERÊNCIA & ESTILOS 3D", accent = RockAccentCyan) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                         Button(
                                             onClick = {
@@ -484,7 +484,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                         ) {
                                             Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("FOTO DO CELULAR", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 9.sp)
+                                            Text("ESCOLHER FOTO", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 9.sp)
                                         }
                                         Button(
                                             onClick = { viewModel.equipCharacter("custom_rocker") },
@@ -497,6 +497,14 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                     }
 
                                     Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = if (current.photoUri.isNullOrBlank())
+                                            "Escolha uma foto de referência e selecione um dos três estilos abaixo."
+                                        else
+                                            "Foto de referência selecionada. A geração automática de uma malha 3D a partir da foto ainda não está integrada nesta versão.",
+                                        color = Color.White.copy(alpha = 0.72f),
+                                        fontSize = 9.sp
+                                    )
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         CharacterArtStyle.values().forEach { art ->
                                             val sel = stats.customRocker.artStyle == art
