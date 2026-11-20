@@ -239,7 +239,7 @@ object AudioAnalyzer {
                 )
 
                 if ((difficulty == Difficulty.HARD || difficulty == Difficulty.EXPERT) &&
-                    instrument == Instrument.GUITAR &&
+                    (instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR) &&
                     barStep % 8 == 0 &&
                     lanesCount >= 3
                 ) {
