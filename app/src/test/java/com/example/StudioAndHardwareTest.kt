@@ -140,22 +140,30 @@ class StudioAndHardwareTest {
         assertEquals("Partida abandonada/falha não deve gerar moedas", 0,
             MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 240_000L, failed = true))
 
-        // Saldos antigos de visitantes continuam sendo tratados como saldo inicial histórico,
-        // enquanto snapshots novos usam baseline zero.
+        // Moedas locais/visitantes não são confiáveis e nunca são creditadas na conta cloud,
+        // mesmo em snapshots legados com baseline histórico.
         val existingCloud = PlayerStats(coins = 200)
         val legacyGuest = LocalProgressSnapshot(
             stats = PlayerStats(coins = 550),
             hasUnlinkedGuestProgress = true,
             startingCoinsBaseline = 450
         )
-        assertEquals(300, LocalPlayerProgressRepository.mergeGuestIntoCloud(existingCloud, legacyGuest).coins)
+        assertEquals(
+            "Saldo cloud deve permanecer intacto ao vincular progresso visitante legado",
+            200,
+            LocalPlayerProgressRepository.mergeGuestIntoCloud(existingCloud, legacyGuest).coins
+        )
 
         val newGuest = LocalProgressSnapshot(
             stats = PlayerStats(coins = 100),
             hasUnlinkedGuestProgress = true,
             startingCoinsBaseline = 0
         )
-        assertEquals(300, LocalPlayerProgressRepository.mergeGuestIntoCloud(existingCloud, newGuest).coins)
+        assertEquals(
+            "Saldo cloud deve permanecer intacto ao vincular progresso visitante novo",
+            200,
+            LocalPlayerProgressRepository.mergeGuestIntoCloud(existingCloud, newGuest).coins
+        )
     }
 
     @Test
