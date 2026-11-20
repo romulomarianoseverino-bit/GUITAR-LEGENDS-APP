@@ -107,7 +107,9 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
             test_status=0
-            if ! gradle --no-daemon --stacktrace connectedDebugAndroidTest; then
+            if gradle --no-daemon --stacktrace connectedDebugAndroidTest; then
+              echo "Testes instrumentados concluídos."
+            else
               test_status=$?
             fi
             mkdir -p build/guitar-legends-captures
