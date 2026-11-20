@@ -135,7 +135,8 @@ class StudioAndHardwareTest {
         val maximumSongReward = MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 360_000L)
         assertTrue("Uma música completa deve respeitar o teto de 50 moedas", mediumPerfect in 1..50)
         assertEquals("Uma faixa longa no Especialista pode atingir o teto exato de 50 moedas", 50, maximumSongReward)
-        assertTrue("Maior dificuldade deve pagar mais que a média", expertPerfect > mediumPerfect)
+        assertEquals("A fórmula acordada não altera a base por dificuldade", mediumPerfect, expertPerfect)
+        assertEquals("A recompensa deve ser 20 moedas-base + 30 proporcionais à precisão", 38, mediumLowerAccuracy)
         assertTrue("Precisão menor deve reduzir a premiação", mediumLowerAccuracy < mediumPerfect)
         assertEquals("Partida abandonada/falha não deve gerar moedas", 0,
             MatchRewardCalculator.calculate(100f, Difficulty.EXPERT, 240_000L, failed = true))
