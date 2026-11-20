@@ -110,14 +110,9 @@ function calculateMatchStars({ accuracyPercent, failed = false }) {
 function calculateMatchCoins({ accuracyPercent, difficulty, durationMs, failed = false }) {
   if (failed) return 0;
   const accuracy = Math.max(0, Math.min(100, Number(accuracyPercent) || 0));
-  const durationMinutes = Math.max(0.5, Math.min(6, Math.max(30000, Number(durationMs) || 30000) / 60000));
-  const factors = { EASY: 0.75, MEDIUM: 0.9, HARD: 1.05, EXPERT: 1.2 };
-  const factor = factors[difficulty];
-  if (!factor) throw new Error("Dificuldade inválida.");
-  const accuracyFactor = 0.25 + (accuracy / 100) * 0.75;
-  // Mantém a mesma fórmula de MatchRewardCalculator no Android.
-  const durationBase = 4 + durationMinutes * 5.5;
-  return Math.max(0, Math.min(MATCH_REWARD_CAP, Math.floor(durationBase * factor * accuracyFactor * 1.13)));
+  // Partida concluída: 20 moedas de base + até 30 proporcionais à precisão.
+  // Duração e dificuldade não reduzem a recompensa-base; falhas continuam sem prêmio.
+  return Math.max(20, Math.min(MATCH_REWARD_CAP, Math.floor(20 + (accuracy / 100) * 30)));
 }
 
 module.exports = {
