@@ -306,14 +306,36 @@ fun drawRockerCharacter3D(
 
     if (facingFront) drawHair()
 
-    val headR = scale * 0.17f
-    val isGothicFace = rocker.bodyTattoos.contains("Gótica")
-    drawScope.drawCircle(color = if (isGothicFace) Color(0xFFECEAE6) else skinColor, radius = headR, center = headCenter)
+    val headShapeScale = when (rocker.artStyle) {
+        CharacterArtStyle.STYLIZED_REALISTIC -> 1.0f
+        CharacterArtStyle.CARTOON -> 1.12f
+        CharacterArtStyle.ANIME -> 1.04f
+    }
+    val headR = scale * 0.17f * headShapeScale
+    val faceColor = if (rocker.bodyTattoos.contains("Gótica")) Color(0xFFECEAE6) else skinColor
+    when (rocker.artStyle) {
+        CharacterArtStyle.STYLIZED_REALISTIC ->
+            drawScope.drawCircle(color = faceColor, radius = headR, center = headCenter)
+        CharacterArtStyle.CARTOON ->
+            drawScope.drawRoundRect(
+                color = faceColor,
+                topLeft = Offset(headCenter.x - headR * 0.94f, headCenter.y - headR),
+                size = Size(headR * 1.88f, headR * 2.0f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(headR * 0.72f, headR * 0.72f)
+            )
+        CharacterArtStyle.ANIME ->
+            drawScope.drawOval(
+                color = faceColor,
+                topLeft = Offset(headCenter.x - headR * 0.88f, headCenter.y - headR * 1.06f),
+                size = Size(headR * 1.76f, headR * 2.12f)
+            )
+    }
     drawScope.drawCircle(color = Color.Black.copy(alpha = 0.28f), radius = headR, center = headCenter, style = Stroke(width = 1.5f))
 
     if (facingFront) {
-        val eyeL = pt(-0.055f, headY - 0.02f, -0.15f)
-        val eyeR = pt(0.055f, headY - 0.02f, -0.15f)
+        val eyeSpread = if (rocker.artStyle == CharacterArtStyle.ANIME) 1.16f else 1.0f
+        val eyeL = pt(-0.055f * eyeSpread, headY - 0.02f, -0.15f)
+        val eyeR = pt(0.055f * eyeSpread, headY - 0.02f, -0.15f)
         val hasSunglasses = rocker.accessories.contains("Óculos")
 
         if (isGothicFace) {
@@ -345,6 +367,24 @@ fun drawRockerCharacter3D(
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
             )
             drawScope.drawLine(color = accColor, start = eyeL, end = eyeR, strokeWidth = 2.5f)
+        } else if (rocker.artStyle == CharacterArtStyle.ANIME || rocker.artStyle == CharacterArtStyle.CARTOON) {
+            val eyeWidth = headR * if (rocker.artStyle == CharacterArtStyle.ANIME) 0.48f else 0.38f
+            val eyeHeight = headR * if (rocker.artStyle == CharacterArtStyle.ANIME) 0.62f else 0.42f
+            listOf(eyeL, eyeR).forEach { eye ->
+                drawScope.drawOval(
+                    color = Color.White,
+                    topLeft = Offset(eye.x - eyeWidth * 0.5f, eye.y - eyeHeight * 0.5f),
+                    size = Size(eyeWidth, eyeHeight)
+                )
+                drawScope.drawCircle(
+                    color = if (rocker.artStyle == CharacterArtStyle.ANIME) Color(0xFF176B9A) else Color(0xFF18141E),
+                    radius = eyeWidth * 0.28f,
+                    center = eye
+                )
+                if (rocker.artStyle == CharacterArtStyle.ANIME) {
+                    drawScope.drawCircle(color = Color.White, radius = eyeWidth * 0.10f, center = Offset(eye.x - eyeWidth * 0.08f, eye.y - eyeHeight * 0.13f))
+                }
+            }
         } else {
             drawScope.drawCircle(color = if (isGothicFace) Color.White else Color(0xFF18141E), radius = headR * 0.12f, center = eyeL)
             drawScope.drawCircle(color = if (isGothicFace) Color.White else Color(0xFF18141E), radius = headR * 0.12f, center = eyeR)
