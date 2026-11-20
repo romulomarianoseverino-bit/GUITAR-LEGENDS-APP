@@ -40,6 +40,7 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 import com.example.guitarlegends.data.HighwayImageManager
 import com.example.guitarlegends.engine.InteractiveCharacter3DViewer
+import com.example.guitarlegends.engine.RealCharacter3DPrototype
 import com.example.guitarlegends.engine.InteractiveInstrument3DViewer
 import com.example.guitarlegends.engine.drawHighwayStudioPreview
 import com.example.guitarlegends.model.*
@@ -153,7 +154,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        val previewLabels = listOf("Boneco 360°", "Instrumento 360°", "Esteira")
+                        val previewLabels = listOf("Boneco 360°", "Instrumento 360°", "Esteira", "3D REAL")
                         previewLabels.forEachIndexed { idx, label ->
                             Button(
                                 onClick = { previewMode = idx },
@@ -186,7 +187,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                 config = viewModel.getInstrumentConfig(effectiveStats, instrumentTab),
                                 modifier = Modifier.fillMaxSize()
                             )
-                            else -> {
+                            2 -> {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -214,6 +215,24 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                             fontSize = 8.sp,
                                             fontWeight = FontWeight.Black,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            3 -> {
+                                Box(modifier = Modifier.fillMaxSize().testTag("real_3d_character_prototype")) {
+                                    RealCharacter3DPrototype(modifier = Modifier.fillMaxSize())
+                                    Surface(
+                                        color = Color(0xCC090711),
+                                        shape = RoundedCornerShape(6.dp),
+                                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "MALHA 3D REAL • BLOQUEIO INICIAL",
+                                            color = RockAccentCyan,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Black,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
                                         )
                                     }
                                 }
