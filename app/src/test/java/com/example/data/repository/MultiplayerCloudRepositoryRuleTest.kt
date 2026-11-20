@@ -106,6 +106,42 @@ class MultiplayerCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
     }
 
     @Test
+    fun acousticGuitarCanCreateAndJoinMultiplayerRoom() = runBlocking {
+        val tag = uniqueSuffix()
+        val roomCode = "ACOUSTIC-$tag"
+        val hostUid = signInTestUser("acoustic_host_$tag@test.com")
+        val repo = MultiplayerCloudRepository(firestore, auth)
+
+        val created = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.createRoom(
+                mode = MultiplayerMode.BAND_COOP,
+                track = AudioAnalyzer.BUILT_IN_TRACKS.first(),
+                nickname = "AcousticHost",
+                instrument = Instrument.ACOUSTIC_GUITAR,
+                difficulty = Difficulty.MEDIUM,
+                customRoomCode = roomCode
+            )
+        }
+        assertTrue("Acoustic guitar host must create a room: ${created.exceptionOrNull()?.message}", created.isSuccess)
+
+        val hostParticipant = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeParticipants(roomCode).first().first { it.userId == hostUid }
+        }
+        assertEquals(Instrument.ACOUSTIC_GUITAR, hostParticipant.instrumentEnum)
+
+        val guestUid = signInTestUser("acoustic_guest_$tag@test.com")
+        val joined = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.joinRoom(roomCode, "AcousticGuest", Instrument.ACOUSTIC_GUITAR, Difficulty.HARD)
+        }
+        assertTrue("Acoustic guitar guest must join: ${joined.exceptionOrNull()?.message}", joined.isSuccess)
+
+        val guestParticipant = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeParticipants(roomCode).first().first { it.userId == guestUid }
+        }
+        assertEquals(Instrument.ACOUSTIC_GUITAR, guestParticipant.instrumentEnum)
+    }
+
+    @Test
     fun securityIsolation_guestCannotSpoofRoomStatusOrAnotherParticipant_andLeaveUpdatesCleanly() = runBlocking {
         val tag = uniqueSuffix()
         val roomCode = "BAND-$tag"
