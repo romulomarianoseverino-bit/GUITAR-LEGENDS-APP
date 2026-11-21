@@ -568,9 +568,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val guestSnapshot = localProgressRepository.loadSnapshot()
                 val remoteStats = remote.toPlayerStats()
                 val syncedProfile = if (
-                    mergeGuestProgress &&
-                    guestSnapshot.hasUnlinkedGuestProgress &&
-                    guestSnapshot.hasLocalCustomizationChanges
+                    mergeGuestProgress && guestSnapshot.hasLocalCustomizationChanges
                 ) {
                     repo.syncPlayerStats(guestSnapshot.stats).getOrNull()
                 } else null
@@ -587,9 +585,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     } else {
                         mergeCloudProfileIntoLocal(guestSnapshot.stats, syncedProfile ?: remote)
                     }
+                } else if (guestSnapshot.hasLocalCustomizationChanges && syncedProfile == null) {
+                    _cloudSyncStatus.value = "Personalização local preservada; sincronização pendente"
+                    guestSnapshot.stats.copy(nickname = remote.nickname, email = remote.email)
                 } else {
                     _cloudSyncStatus.value = "Sincronizado na nuvem"
-                    remoteStats
+                    if (syncedProfile != null) mergeCloudProfileIntoLocal(remoteStats, syncedProfile) else remoteStats
                 }
 
                 _playerStats.value = finalStats
