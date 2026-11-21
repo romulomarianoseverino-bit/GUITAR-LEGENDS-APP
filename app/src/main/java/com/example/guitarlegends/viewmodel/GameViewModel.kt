@@ -568,6 +568,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val guestSnapshot = localProgressRepository.loadSnapshot()
                 val remoteStats = remote.toPlayerStats()
                 val syncedProfile = if (
+                    mergeGuestProgress &&
                     guestSnapshot.hasUnlinkedGuestProgress &&
                     guestSnapshot.hasLocalCustomizationChanges
                 ) {
