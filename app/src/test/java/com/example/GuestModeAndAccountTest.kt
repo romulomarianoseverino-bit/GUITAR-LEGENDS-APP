@@ -104,6 +104,16 @@ class GuestModeAndAccountTest {
     }
 
     @Test
+    fun `daily reward weekly cap clamps grants and resets at ISO week boundary`() {
+        assertEquals("2026-W48", DailyRewardWeeklyLimit.weekKey("2026-11-23"))
+        assertEquals(100, DailyRewardWeeklyLimit.grant(150, 0))
+        assertEquals(20, DailyRewardWeeklyLimit.grant(600, 80))
+        assertEquals(0, DailyRewardWeeklyLimit.grant(250, 100))
+        assertEquals("2026-W49", DailyRewardWeeklyLimit.weekKey("2026-11-30"))
+        assertEquals(100, DailyRewardWeeklyLimit.grant(150, 0))
+    }
+
+    @Test
     fun `03 - guest gameplay, daily reward and local customization persist across restart`() {
         val vm = GameViewModel(app)
         vm.enterGame()
@@ -124,7 +134,7 @@ class GuestModeAndAccountTest {
         // Resgata recompensa diária no modo visitante (e bloqueia replay no mesmo dia UTC)
         val coinsBeforeReward = vm.playerStats.value.coins
         vm.claimDailyReward()
-        assertEquals(coinsBeforeReward + 150, vm.playerStats.value.coins)
+        assertEquals(coinsBeforeReward + 100, vm.playerStats.value.coins)
         assertEquals(1, vm.playerStats.value.rewardStreak)
 
         val coinsAfterFirstClaim = vm.playerStats.value.coins
