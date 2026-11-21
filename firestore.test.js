@@ -31,7 +31,7 @@ function makeValidUserAccount(uid, nickname = "Axel_Shredder", syncRevision = 1)
     email: `${uid}@rocklegends.test`,
     nickname,
     nicknameNormalized: nickname.toLowerCase(),
-    coins: 450,
+    coins: 0,
     totalScore: 0,
     notesHitTotal: 0,
     maxStreakOverall: 0,
@@ -46,7 +46,14 @@ function makeValidUserAccount(uid, nickname = "Axel_Shredder", syncRevision = 1)
     selectedDrumsId: "arena_beast_kit",
     selectedVocalMicId: "vintage_shure_55s",
     selectedHighwayThemeId: "theme_ps2_wood",
-    unlockedCosmetics: ["axel_rocker", "flame_caster"],
+    unlockedCosmetics: [
+      "axel_rocker", "roxie_riot", "flame_caster", "void_v",
+      "thunder_bass", "skull_bass", "arena_beast_kit", "punk_garage_kit",
+      "vintage_shure_55s", "golden_supreme_mic", "theme_ps2_wood",
+      "theme_neon_cyber", "theme_inferno_flame", "theme_galactic_star",
+      "outfit_skin_none", "outfit_skin_ps2_legend", "skin_none",
+      "stamp_none", "stamp_ps2_flames", "stamp_checker_punk"
+    ],
     achievementsUnlocked: [],
     customRocker: {
       photoUri: null,
@@ -66,8 +73,9 @@ function makeValidUserAccount(uid, nickname = "Axel_Shredder", syncRevision = 1)
     graphicsQuality: "HIGH",
     rewardStreak: 0,
     lastRewardDayKey: "",
-    schemaVersion: 1,
+    schemaVersion: 3,
     syncRevision,
+    studioProfileJson: "",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -113,7 +121,7 @@ test("Unauthenticated user: denied across all collections", async () => {
   );
 });
 
-test("Owner: can read own account but all client writes are denied", async () => {
+test("Owner: can read and sync profile preferences but cannot change economic fields", async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await ctx.firestore().collection("users").doc(ALICE_UID)
       .set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 1));
@@ -126,7 +134,37 @@ test("Owner: can read own account but all client writes are denied", async () =>
   await assertFails(docRef.update({
     studioProfileJson: JSON.stringify({ audioSettings: { masterVolume: 0.9 } })
   }));
+  await assertSucceeds(docRef.update({
+    studioProfileJson: JSON.stringify({ audioSettings: { masterVolume: 0.9 } }),
+    syncRevision: 2,
+    updatedAt: serverTimestamp(),
+  }));
+  await assertFails(docRef.update({ unlockedCosmetics: ["kai_cyber"], syncRevision: 3, updatedAt: serverTimestamp() }));
   await assertFails(docRef.delete());
+});
+
+test("Account creation: nickname reservation and zero-balance profile must be atomic", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const userRef = aliceDb.collection("users").doc(ALICE_UID);
+  const nicknameRef = aliceDb.collection("nicknames").doc("axel_shredder");
+  const batch = aliceDb.batch();
+  batch.set(userRef, makeValidUserAccount(ALICE_UID, "Axel_Shredder", 1));
+  batch.set(nicknameRef, {
+    userId: ALICE_UID,
+    nickname: "Axel_Shredder",
+    createdAt: serverTimestamp(),
+  });
+  await assertSucceeds(batch.commit());
+
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const bobBatch = bobDb.batch();
+  bobBatch.set(bobDb.collection("users").doc(BOB_UID), makeValidUserAccount(BOB_UID, "Axel_Shredder", 1));
+  bobBatch.set(bobDb.collection("nicknames").doc("axel_shredder"), {
+    userId: BOB_UID,
+    nickname: "Axel_Shredder",
+    createdAt: serverTimestamp(),
+  });
+  await assertFails(bobBatch.commit());
 });
 
 test("Cross-user isolation: Bob cannot read or modify Alice profile or subcollections", async () => {
@@ -165,7 +203,7 @@ test("Anti-tampering: client cannot create shadow fields or roll back account da
     await ctx.firestore().collection("users").doc(ALICE_UID)
       .set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 3));
   });
-  await assertFails(docRef.update({ syncRevision: 2, updatedAt: serverTimestamp() }));
+  await assertFails(docRef.update({ coins: 500, syncRevision: 4, updatedAt: serverTimestamp() }));
 });
 
 test("Nicknames: unique claim enforcement, no open listing, no cross-user hijack", async () => {
