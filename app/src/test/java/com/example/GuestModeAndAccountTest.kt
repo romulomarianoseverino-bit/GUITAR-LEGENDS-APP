@@ -113,6 +113,11 @@ class GuestModeAndAccountTest {
         assertEquals("2026-11-23", DailyRewardWeeklyLimit.weekStartDayKey("2026-11-28"))
         assertEquals("2026-11-23", DailyRewardWeeklyLimit.weekStartDayKey("2026-11-23"))
         assertEquals("2026-11-16", DailyRewardWeeklyLimit.weekStartDayKey("2026-11-22"))
+        assertEquals(
+            listOf("2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27", "2026-11-28"),
+            DailyRewardWeeklyLimit.dayKeysInWeekThrough("2026-11-28")
+        )
+        assertEquals(emptyList<String>(), DailyRewardWeeklyLimit.dayKeysInWeekThrough("data-invalida"))
         assertEquals(100, DailyRewardWeeklyLimit.grant(150, 0))
     }
 
