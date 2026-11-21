@@ -80,68 +80,105 @@ class AccountCloudRepository(
                 IllegalArgumentException("O nickname deve ter de 3 a 24 caracteres (letras, números, _ ou -).")
             )
         }
-        val normalized = trimmed.lowercase()
+
         val uid = user.uid
-        val email = user.email ?: localStats.email
+        val normalized = trimmed.lowercase()
+        val userRef = firestore.collection("users").document(uid)
+        val nicknameRef = firestore.collection("nicknames").document(normalized)
 
         return try {
-            val saved = firestore.runTransaction { tx ->
-                val nickRef = firestore.collection("nicknames").document(normalized)
-                val userRef = firestore.collection("users").document(uid)
-
-                val nickSnap = tx.get(nickRef)
+            val accountAlreadyExists = firestore.runTransaction { tx ->
                 val userSnap = tx.get(userRef)
+                val nicknameSnap = tx.get(nicknameRef)
 
-                if (nickSnap.exists() && nickSnap.getString("userId") != uid) {
-                    throw IllegalStateException("O nickname '$trimmed' já está em uso por outro jogador.")
+                if (nicknameSnap.exists() && nicknameSnap.getString("userId") != uid) {
+                    throw IllegalStateException("Este nickname já está em uso por outro jogador.")
                 }
 
-                val existingUser = if (userSnap.exists()) {
-                    userSnap.toObject(UserAccountCloud::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                } else null
+                if (userSnap.exists()) {
+                    val existing = userSnap.toObject(
+                        UserAccountCloud::class.java,
+                        DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                    ) ?: throw IllegalStateException("O perfil existente está inválido.")
 
-                val oldNormalized = existingUser?.nicknameNormalized.orEmpty()
-                if (oldNormalized.isNotBlank() && oldNormalized != normalized) {
-                    val oldNickRef = firestore.collection("nicknames").document(oldNormalized)
-                    tx.delete(oldNickRef)
-                }
-
-                val nextRevision = maxOf(existingUser?.syncRevision ?: 0L, localStats.syncRevision) + 1L
-                val mergedStats = if (existingUser != null) {
-                    mergeStats(localStats, existingUser.toPlayerStats())
+                    if (existing.nicknameNormalized != normalized ||
+                        !nicknameSnap.exists() ||
+                        nicknameSnap.getString("userId") != uid
+                    ) {
+                        throw IllegalStateException(
+                            "Esta conta já possui outro nickname ou uma reserva inconsistente. Nenhuma alteração foi feita."
+                        )
+                    }
+                    true
                 } else {
-                    localStats
-                }.copy(nickname = trimmed, email = email, syncRevision = nextRevision)
-
-                val cloudObj = UserAccountCloud.fromPlayerStats(
-                    uid = uid,
-                    email = email,
-                    nickname = trimmed,
-                    stats = mergedStats,
-                    syncRevision = nextRevision
-                )
-
-                tx.set(
-                    nickRef,
-                    mapOf(
-                        "userId" to uid,
-                        "nickname" to trimmed,
-                        "createdAt" to FieldValue.serverTimestamp()
+                    val safeStats = safeInitialAccountStats(localStats).copy(
+                        nickname = trimmed,
+                        email = user.email.orEmpty(),
+                        syncRevision = 1L
                     )
-                )
+                    val initialAccount = UserAccountCloud.fromPlayerStats(
+                        uid = uid,
+                        email = user.email.orEmpty(),
+                        nickname = trimmed,
+                        stats = safeStats,
+                        syncRevision = 1L
+                    )
 
-                if (existingUser == null) {
-                    tx.set(userRef, cloudObj.toCreateMap())
-                } else {
-                    tx.update(userRef, cloudObj.toUpdateMap())
+                    tx.set(
+                        nicknameRef,
+                        mapOf(
+                            "userId" to uid,
+                            "nickname" to trimmed,
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    tx.set(userRef, initialAccount.toCreateMap())
+                    false
                 }
-                cloudObj
             }.await()
 
-            Result.success(saved)
+            if (accountAlreadyExists) {
+                syncPlayerStats(localStats)
+            } else {
+                val created = fetchAccount().getOrThrow()
+                    ?: throw IllegalStateException("A conta foi criada, mas o perfil não pôde ser lido.")
+                Result.success(created)
+            }
         } catch (e: Exception) {
-            Result.failure(runCatching { handleFirestoreError(e, OperationType.WRITE, "users/$uid", auth) }.exceptionOrNull() ?: e)
+            Result.failure(
+                runCatching {
+                    handleFirestoreError(e, OperationType.WRITE, "users/$uid", auth)
+                }.exceptionOrNull() ?: e
+            )
         }
+    }
+
+    private fun safeInitialAccountStats(stats: PlayerStats): PlayerStats {
+        val defaults = DEFAULT_UNLOCKED_COSMETICS.toSet()
+        return stats.copy(
+            coins = 0,
+            totalScore = 0L,
+            notesHitTotal = 0L,
+            maxStreakOverall = 0,
+            songsCompleted = 0,
+            unlockedStars = 6,
+            selectedCharacterId = stats.selectedCharacterId.takeIf {
+                it == "custom_rocker" || it in defaults
+            } ?: "axel_rocker",
+            selectedGuitarId = stats.selectedGuitarId.takeIf { it in defaults } ?: "flame_caster",
+            selectedBassId = stats.selectedBassId.takeIf { it in defaults } ?: "thunder_bass",
+            selectedDrumsId = stats.selectedDrumsId.takeIf { it in defaults } ?: "arena_beast_kit",
+            selectedVocalMicId = stats.selectedVocalMicId.takeIf { it in defaults } ?: "vintage_shure_55s",
+            selectedHighwayThemeId = stats.selectedHighwayThemeId.takeIf { it in defaults } ?: "theme_ps2_wood",
+            unlockedCosmetics = DEFAULT_UNLOCKED_COSMETICS,
+            achievementsUnlocked = emptyList(),
+            competitiveWins = 0,
+            competitiveMatches = 0,
+            careerStageMax = 1,
+            rewardStreak = 0,
+            lastRewardDayKey = "",
+            syncRevision = 1L
+        )
     }
 
     suspend fun fetchAccount(): Result<UserAccountCloud?> {
@@ -214,6 +251,9 @@ class AccountCloudRepository(
                         nickname = existing.nickname.ifBlank { resolved.nickname },
                         stats = resolved.copy(syncRevision = nextRevision),
                         syncRevision = nextRevision
+                    ).copy(
+                        dailyRewardWeekKey = existing.dailyRewardWeekKey,
+                        dailyRewardCoinsClaimed = existing.dailyRewardCoinsClaimed
                     )
                     tx.update(userRef, cloudObj.toUpdateMap())
                     cloudObj
@@ -285,6 +325,17 @@ class AccountCloudRepository(
                 }
                 val dayNumber = ((newStreak - 1) % 30) + 1
                 val rewardDef = DailyRewardCatalog.rewardForDay(dayNumber)
+                val currentWeekKey = DailyRewardWeeklyLimit.weekKey(todayKey)
+                    ?: throw IllegalStateException("Não foi possível determinar a semana da recompensa.")
+                val alreadyClaimedThisWeek = if (existingUser.dailyRewardWeekKey == currentWeekKey) {
+                    existingUser.dailyRewardCoinsClaimed
+                } else {
+                    0
+                }
+                val coinsGranted = DailyRewardWeeklyLimit.grant(
+                    rewardDef.coinsGranted,
+                    alreadyClaimedThisWeek
+                )
 
                 val claimPayload = mapOf(
                     "userId" to uid,
@@ -293,7 +344,7 @@ class AccountCloudRepository(
                     "streakCount" to newStreak,
                     "rewardTitle" to rewardDef.title,
                     "rewardType" to rewardDef.rewardType,
-                    "coinsGranted" to rewardDef.coinsGranted,
+                    "coinsGranted" to coinsGranted,
                     "cosmeticId" to rewardDef.cosmeticId,
                     "claimedAt" to FieldValue.serverTimestamp()
                 )
@@ -310,7 +361,9 @@ class AccountCloudRepository(
 
                 val nextRevision = maxOf(existingUser.syncRevision, localStats.syncRevision) + 1L
                 val updatedUser = existingUser.copy(
-                    coins = existingUser.coins + rewardDef.coinsGranted,
+                    coins = existingUser.coins + coinsGranted,
+                    dailyRewardWeekKey = currentWeekKey,
+                    dailyRewardCoinsClaimed = alreadyClaimedThisWeek + coinsGranted,
                     unlockedCosmetics = updatedCosmetics,
                     achievementsUnlocked = updatedAchievements,
                     rewardStreak = newStreak,
@@ -329,7 +382,7 @@ class AccountCloudRepository(
                     streakCount = newStreak,
                     rewardTitle = rewardDef.title,
                     rewardType = rewardDef.rewardType,
-                    coinsGranted = rewardDef.coinsGranted,
+                    coinsGranted = coinsGranted,
                     cosmeticId = rewardDef.cosmeticId,
                     claimedAt = Timestamp.now()
                 )

@@ -5,6 +5,7 @@ import com.example.guitarlegends.analysis.AudioAnalyzer
 import com.example.guitarlegends.data.AccountCloudRepository
 import com.example.guitarlegends.model.ControlMode
 import com.example.guitarlegends.model.Difficulty
+import com.example.guitarlegends.model.DailyRewardWeeklyLimit
 import com.example.guitarlegends.model.Instrument
 import com.example.guitarlegends.model.MatchResult
 import com.example.guitarlegends.model.PlayerStats
@@ -48,7 +49,9 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         val created = claimRes.getOrThrow()
         assertEquals(uid, created.userId)
         assertEquals(nick, created.nickname)
-        assertEquals(1200, created.coins)
+        assertEquals("New cloud accounts must not import client-controlled coins", 0, created.coins)
+        assertEquals("New cloud accounts must not import client-controlled score", 0L, created.totalScore)
+        assertEquals("Unowned cosmetics must not become unlocked during registration", "flame_caster", created.selectedGuitarId)
 
         // Atualiza e sincroniza sem destruir progresso
         val updatedStats = created.toPlayerStats().copy(coins = 1550, songsCompleted = 3)
@@ -172,7 +175,10 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertTrue("Legitimate UTC daily reward claim must succeed: ${claimRes.exceptionOrNull()?.message}", claimRes.isSuccess)
         val (claim, updatedUser) = claimRes.getOrThrow()
         assertEquals(1, claim.dayNumber)
-        assertEquals(250, updatedUser.coins) // 100 iniciais + 150 dia 1
+        assertEquals(100, claim.coinsGranted) // Dia 1 solicita 150, mas o teto semanal é 100
+        assertEquals(100, updatedUser.coins) // Conta nova começa com 0 moedas no fluxo seguro
+        assertEquals(100, updatedUser.dailyRewardCoinsClaimed)
+        assertEquals(DailyRewardWeeklyLimit.weekKey(repo.utcTodayKey()), updatedUser.dailyRewardWeekKey)
 
         // 3. Segundo resgate no mesmo dia UTC deve ser bloqueado
         val replayRes = withTimeout(DEFAULT_TIMEOUT_MS) {
