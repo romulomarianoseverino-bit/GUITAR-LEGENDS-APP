@@ -63,5 +63,11 @@ jobs:
       - name: Instalar Firebase CLI para emuladores locais
         run: npm install --global firebase-tools
 
+      - name: Configurar Java 21 para os emuladores Firebase
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Executar testes unitários com Auth e Firestore Emulator
         run: firebase emulators:exec --project demo-no-project --only auth,firestore "gradle --no-daemon testDebugUnitTest"
