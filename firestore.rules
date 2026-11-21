@@ -149,7 +149,7 @@ service cloud.firestore {
                          'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                          'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                          'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
-                         'graphicsQuality', 'rewardStreak', 'lastRewardDayKey', 'dailyRewardWeekKey', 'dailyRewardCoinsClaimed',
+                         'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
                          'schemaVersion', 'syncRevision', 'createdAt', 'updatedAt'
                        ]) &&
                        incoming().keys().hasOnly([
@@ -160,7 +160,7 @@ service cloud.firestore {
                          'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                          'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                          'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
-                         'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
+                         'graphicsQuality', 'rewardStreak', 'lastRewardDayKey', 'dailyRewardWeekKey', 'dailyRewardCoinsClaimed',
                          'schemaVersion', 'syncRevision', 'studioProfileJson', 'createdAt', 'updatedAt'
                        ]) &&
                        isValidUserAccount(incoming());
@@ -181,7 +181,7 @@ service cloud.firestore {
                            'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                            'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                            'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
-                           'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
+                           'graphicsQuality', 'rewardStreak', 'lastRewardDayKey', 'dailyRewardWeekKey', 'dailyRewardCoinsClaimed',
                            'schemaVersion', 'syncRevision', 'studioProfileJson', 'updatedAt'
                          ])
                        );
