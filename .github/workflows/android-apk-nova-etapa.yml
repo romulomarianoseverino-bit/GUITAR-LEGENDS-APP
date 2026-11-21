@@ -64,6 +64,8 @@ jobs:
           fi
           echo "Keystore e alias upload validados com sucesso."
           echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Configurar Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
