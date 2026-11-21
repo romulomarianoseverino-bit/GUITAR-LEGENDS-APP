@@ -256,6 +256,9 @@ class AccountCloudRepository(
                         nickname = existing.nickname.ifBlank { resolved.nickname },
                         stats = resolved.copy(syncRevision = nextRevision),
                         syncRevision = nextRevision
+                    ).copy(
+                        dailyRewardWeekKey = existing.dailyRewardWeekKey,
+                        dailyRewardCoinsClaimed = existing.dailyRewardCoinsClaimed
                     )
                     tx.update(userRef, cloudObj.toUpdateMap())
                     cloudObj
@@ -327,6 +330,17 @@ class AccountCloudRepository(
                 }
                 val dayNumber = ((newStreak - 1) % 30) + 1
                 val rewardDef = DailyRewardCatalog.rewardForDay(dayNumber)
+                val currentWeekKey = DailyRewardWeeklyLimit.weekKey(todayKey)
+                    ?: throw IllegalStateException("Não foi possível determinar a semana da recompensa.")
+                val alreadyClaimedThisWeek = if (existingUser.dailyRewardWeekKey == currentWeekKey) {
+                    existingUser.dailyRewardCoinsClaimed
+                } else {
+                    0
+                }
+                val coinsGranted = DailyRewardWeeklyLimit.grant(
+                    rewardDef.coinsGranted,
+                    alreadyClaimedThisWeek
+                )
 
                 val claimPayload = mapOf(
                     "userId" to uid,
@@ -335,7 +349,7 @@ class AccountCloudRepository(
                     "streakCount" to newStreak,
                     "rewardTitle" to rewardDef.title,
                     "rewardType" to rewardDef.rewardType,
-                    "coinsGranted" to rewardDef.coinsGranted,
+                    "coinsGranted" to coinsGranted,
                     "cosmeticId" to rewardDef.cosmeticId,
                     "claimedAt" to FieldValue.serverTimestamp()
                 )
@@ -352,7 +366,9 @@ class AccountCloudRepository(
 
                 val nextRevision = maxOf(existingUser.syncRevision, localStats.syncRevision) + 1L
                 val updatedUser = existingUser.copy(
-                    coins = existingUser.coins + rewardDef.coinsGranted,
+                    coins = existingUser.coins + coinsGranted,
+                    dailyRewardWeekKey = currentWeekKey,
+                    dailyRewardCoinsClaimed = alreadyClaimedThisWeek + coinsGranted,
                     unlockedCosmetics = updatedCosmetics,
                     achievementsUnlocked = updatedAchievements,
                     rewardStreak = newStreak,
@@ -371,7 +387,7 @@ class AccountCloudRepository(
                     streakCount = newStreak,
                     rewardTitle = rewardDef.title,
                     rewardType = rewardDef.rewardType,
-                    coinsGranted = rewardDef.coinsGranted,
+                    coinsGranted = coinsGranted,
                     cosmeticId = rewardDef.cosmeticId,
                     claimedAt = Timestamp.now()
                 )
