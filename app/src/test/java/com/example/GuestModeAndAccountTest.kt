@@ -110,6 +110,9 @@ class GuestModeAndAccountTest {
         assertEquals(20, DailyRewardWeeklyLimit.grant(600, 80))
         assertEquals(0, DailyRewardWeeklyLimit.grant(250, 100))
         assertEquals("2026-W49", DailyRewardWeeklyLimit.weekKey("2026-11-30"))
+        assertEquals("2026-11-23", DailyRewardWeeklyLimit.weekStartDayKey("2026-11-28"))
+        assertEquals("2026-11-23", DailyRewardWeeklyLimit.weekStartDayKey("2026-11-23"))
+        assertEquals("2026-11-16", DailyRewardWeeklyLimit.weekStartDayKey("2026-11-22"))
         assertEquals(100, DailyRewardWeeklyLimit.grant(150, 0))
     }
 
