@@ -17,6 +17,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 
 sealed class GoogleCredentialResult {
     data class Success(val idToken: String, val displayName: String?, val email: String) : GoogleCredentialResult()
+    object Cancelled : GoogleCredentialResult()
     data class Error(val message: String) : GoogleCredentialResult()
 }
 
