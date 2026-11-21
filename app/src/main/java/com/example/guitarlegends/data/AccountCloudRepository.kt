@@ -82,19 +82,99 @@ class AccountCloudRepository(
                 "O nickname deve ter de 3 a 24 caracteres (letras, números, _ ou -)."
             ))
         }
+
+        val uid = user.uid
+        val normalized = trimmed.lowercase()
+        val userRef = firestore.collection("users").document(uid)
+        val nicknameRef = firestore.collection("nicknames").document(normalized)
+        val safeStats = safeInitialAccountStats(localStats)
+        val initialAccount = UserAccountCloud.fromPlayerStats(
+            uid = uid,
+            email = user.email.orEmpty(),
+            nickname = trimmed,
+            stats = safeStats,
+            syncRevision = 1L
+        )
+
         return try {
-            functions.getHttpsCallable("claimNicknameAndCreateAccount")
-                .call(mapOf("nickname" to trimmed)).await()
-            // Migração única dos indicadores antigos: nunca importa moedas, inventário
-            // ou recompensas; contas já existentes mantêm seus dados econômicos.
-            importLegacyProgress(localStats).getOrThrow()
-            syncPlayerStats(localStats).getOrThrow()
-            val account = fetchAccount().getOrThrow()
-                ?: throw IllegalStateException("O servidor não retornou o perfil criado.")
-            Result.success(account)
+            val (created, _) = firestore.runTransaction { tx ->
+                val userSnap = tx.get(userRef)
+                val nicknameSnap = tx.get(nicknameRef)
+
+                if (nicknameSnap.exists() && nicknameSnap.getString("userId") != uid) {
+                    throw IllegalStateException("Este nickname já está em uso.")
+                }
+
+                if (userSnap.exists()) {
+                    val existing = userSnap.toObject(
+                        UserAccountCloud::class.java,
+                        DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                    ) ?: throw IllegalStateException("O perfil existente está inválido.")
+                    if (existing.nicknameNormalized != normalized ||
+                        !nicknameSnap.exists() || nicknameSnap.getString("userId") != uid
+                    ) {
+                        throw IllegalStateException(
+                            "Esta conta já possui outro nickname. Não foi feita nenhuma alteração."
+                        )
+                    }
+                    false to existing
+                } else {
+                    tx.set(nicknameRef, mapOf(
+                        "userId" to uid,
+                        "nickname" to trimmed,
+                        "createdAt" to FieldValue.serverTimestamp()
+                    ))
+                    tx.set(userRef, initialAccount.toCreateMap())
+                    true to initialAccount
+                }
+            }.await()
+
+            if (created) {
+                Result.success(fetchAccount().getOrThrow()
+                    ?: throw IllegalStateException("A conta foi criada, mas o perfil não pôde ser lido."))
+            } else {
+                syncPlayerStats(localStats)
+            }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(
+                runCatching {
+                    handleFirestoreError(e, OperationType.WRITE, "users/$uid", auth)
+                }.exceptionOrNull() ?: e
+            )
         }
+    }
+
+    private fun safeInitialAccountStats(stats: PlayerStats): PlayerStats {
+        val defaults = DEFAULT_UNLOCKED_COSMETICS.toSet()
+        return stats.copy(
+            coins = 0,
+            totalScore = 0L,
+            notesHitTotal = 0L,
+            maxStreakOverall = 0,
+            songsCompleted = 0,
+            unlockedStars = 6,
+            selectedCharacterId = stats.selectedCharacterId.takeIf {
+                it == "custom_rocker" || it in defaults
+            } ?: "axel_rocker",
+            selectedGuitarId = stats.selectedGuitarId.takeIf { it in defaults } ?: "flame_caster",
+            selectedBassId = stats.selectedBassId.takeIf { it in defaults } ?: "thunder_bass",
+            selectedDrumsId = stats.selectedDrumsId.takeIf { it in defaults } ?: "arena_beast_kit",
+            selectedVocalMicId = stats.selectedVocalMicId.takeIf { it in defaults } ?: "vintage_shure_55s",
+            selectedHighwayThemeId = stats.selectedHighwayThemeId.takeIf { it in defaults } ?: "theme_ps2_wood",
+            unlockedCosmetics = DEFAULT_UNLOCKED_COSMETICS,
+            achievementsUnlocked = emptyList(),
+            competitiveWins = 0,
+            competitiveMatches = 0,
+            verifiedSongsCompleted = 0,
+            verifiedNotesHitTotal = 0L,
+            verifiedMaxStreakOverall = 0,
+            verifiedUnlockedStars = 0,
+            verifiedCompetitiveWins = 0,
+            careerStageMax = 1,
+            rewardStreak = 0,
+            lastRewardDayKey = "",
+            syncRevision = 1L
+        )
     }
 
     suspend fun fetchAccount(): Result<UserAccountCloud?> {
@@ -137,14 +217,60 @@ class AccountCloudRepository(
     suspend fun syncPlayerStats(localStats: PlayerStats): Result<UserAccountCloud> {
         val user = auth.currentUser
             ?: return Result.failure(IllegalStateException("Usuário não autenticado para sincronização."))
+        val uid = user.uid
         return try {
-            val cloud = UserAccountCloud.fromPlayerStats(
-                uid = user.uid,
-                email = user.email ?: localStats.email,
-                nickname = localStats.nickname,
-                stats = localStats
+            val current = fetchAccount().getOrThrow()
+                ?: throw IllegalStateException("Conclua o cadastro com nickname antes de sincronizar.")
+
+            // O cliente sincroniza somente preferências de perfil. Saldo, inventário,
+            // recompensas, histórico e progresso econômico permanecem imutáveis no app.
+            val unlocked = current.unlockedCosmetics.toSet()
+            val safeStats = localStats.copy(
+                coins = current.coins,
+                totalScore = current.totalScore,
+                notesHitTotal = current.notesHitTotal,
+                maxStreakOverall = current.maxStreakOverall,
+                songsCompleted = current.songsCompleted,
+                unlockedStars = current.unlockedStars,
+                selectedCharacterId = localStats.selectedCharacterId.takeIf {
+                    it == "custom_rocker" || it in unlocked
+                } ?: current.selectedCharacterId.takeIf {
+                    it == "custom_rocker" || it in unlocked
+                } ?: "axel_rocker",
+                selectedGuitarId = localStats.selectedGuitarId.takeIf { it in unlocked }
+                    ?: current.selectedGuitarId.takeIf { it in unlocked } ?: "flame_caster",
+                selectedBassId = localStats.selectedBassId.takeIf { it in unlocked }
+                    ?: current.selectedBassId.takeIf { it in unlocked } ?: "thunder_bass",
+                selectedDrumsId = localStats.selectedDrumsId.takeIf { it in unlocked }
+                    ?: current.selectedDrumsId.takeIf { it in unlocked } ?: "arena_beast_kit",
+                selectedVocalMicId = localStats.selectedVocalMicId.takeIf { it in unlocked }
+                    ?: current.selectedVocalMicId.takeIf { it in unlocked } ?: "vintage_shure_55s",
+                selectedHighwayThemeId = localStats.selectedHighwayThemeId.takeIf { it in unlocked }
+                    ?: current.selectedHighwayThemeId.takeIf { it in unlocked } ?: "theme_ps2_wood",
+                nickname = current.nickname,
+                email = current.email,
+                unlockedCosmetics = current.unlockedCosmetics,
+                achievementsUnlocked = current.achievementsUnlocked,
+                competitiveWins = current.competitiveWins,
+                competitiveMatches = current.competitiveMatches,
+                verifiedSongsCompleted = current.verifiedSongsCompleted,
+                verifiedNotesHitTotal = current.verifiedNotesHitTotal,
+                verifiedMaxStreakOverall = current.verifiedMaxStreakOverall,
+                verifiedUnlockedStars = current.verifiedUnlockedStars,
+                verifiedCompetitiveWins = current.verifiedCompetitiveWins,
+                careerStageMax = current.careerStageMax,
+                rewardStreak = current.rewardStreak,
+                lastRewardDayKey = current.lastRewardDayKey,
+                syncRevision = current.syncRevision
             )
-            val payload = mapOf(
+            val cloud = UserAccountCloud.fromPlayerStats(
+                uid = uid,
+                email = current.email,
+                nickname = current.nickname,
+                stats = safeStats,
+                syncRevision = current.syncRevision + 1L
+            )
+            val profileUpdate = mapOf(
                 "selectedCharacterId" to cloud.selectedCharacterId,
                 "selectedGuitarId" to cloud.selectedGuitarId,
                 "selectedBassId" to cloud.selectedBassId,
@@ -156,13 +282,20 @@ class AccountCloudRepository(
                 "audioLatencyOffsetMs" to cloud.audioLatencyOffsetMs,
                 "controlMode" to cloud.controlMode,
                 "graphicsQuality" to cloud.graphicsQuality,
-                "studioProfileJson" to cloud.studioProfileJson
+                "studioProfileJson" to cloud.studioProfileJson,
+                "syncRevision" to FieldValue.increment(1L),
+                "updatedAt" to FieldValue.serverTimestamp()
             )
-            functions.getHttpsCallable("syncAccountProfile").call(payload).await()
+            firestore.collection("users").document(uid).update(profileUpdate).await()
+
             Result.success(fetchAccount().getOrThrow()
-                ?: throw IllegalStateException("Perfil de conta não encontrado após a sincronização."))
+                ?: throw IllegalStateException("Perfil não encontrado após a sincronização."))
         } catch (e: Exception) {
-            Result.failure<UserAccountCloud>(e)
+            Result.failure(
+                runCatching {
+                    handleFirestoreError(e, OperationType.UPDATE, "users/$uid", auth)
+                }.exceptionOrNull() ?: e
+            )
         }
     }
 

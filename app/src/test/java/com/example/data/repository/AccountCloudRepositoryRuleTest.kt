@@ -49,7 +49,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertEquals(uid, created.userId)
         assertEquals(nick, created.nickname)
         assertEquals("New accounts must start with zero coins", 0, created.coins)
-        assertEquals(54000L, created.totalScore)
+        assertEquals("Client-side creation must not import local score", 0L, created.totalScore)
 
         // Atualiza e sincroniza sem destruir progresso
         val updatedStats = created.toPlayerStats().copy(coins = 1550, songsCompleted = 3)
@@ -59,7 +59,22 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertTrue("Cloud sync must succeed: ${syncRes.exceptionOrNull()?.message}", syncRes.isSuccess)
         assertEquals("Client sync cannot overwrite the server balance", 0, syncRes.getOrThrow().coins)
         assertEquals("Client sync cannot overwrite server progression", 0, syncRes.getOrThrow().songsCompleted)
+        assertEquals("Client sync cannot import local score", 0L, syncRes.getOrThrow().totalScore)
         assertTrue("Sync revision must advance", syncRes.getOrThrow().syncRevision > created.syncRevision)
+
+        val economyWriteException = try {
+            withTimeout(DEFAULT_TIMEOUT_MS) {
+                firestore.collection("users").document(uid).update("coins", 999999).await()
+            }
+            null
+        } catch (e: Exception) {
+            e
+        }
+        assertNotNull("The owner must not directly change the coin balance", economyWriteException)
+        assertEquals(
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+            economyWriteException?.unwrapFirestoreException()?.code
+        )
 
         // Simula login em novo dispositivo com a mesma conta e restauração dos dados
         auth.signOut()
@@ -68,6 +83,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertNotNull("Account must be restored from Firestore", restored)
         assertEquals(nick, restored!!.nickname)
         assertEquals(0, restored.coins)
+        assertEquals(0L, restored.totalScore)
         assertEquals(ControlMode.FRET_AND_STRUM.name, restored.controlMode)
     }
 

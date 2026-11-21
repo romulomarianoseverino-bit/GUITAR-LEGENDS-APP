@@ -567,27 +567,40 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 val guestSnapshot = localProgressRepository.loadSnapshot()
                 val remoteStats = remote.toPlayerStats()
-                val finalStats = if (mergeGuestProgress && guestSnapshot.hasUnlinkedGuestProgress) {
-                    // Importação única dos indicadores legados; saldo e inventário permanecem
-                    // sob controle do servidor e não são aceitos do armazenamento local.
-                    repo.importLegacyProgress(guestSnapshot.stats).getOrNull()
+                val syncedProfile = if (
+                    mergeGuestProgress && guestSnapshot.hasLocalCustomizationChanges
+                ) {
                     repo.syncPlayerStats(guestSnapshot.stats).getOrNull()
-                    val refreshed = repo.fetchAccount().getOrNull()
-                    _cloudSyncStatus.value = "Progresso antigo migrado; moedas e itens protegidos"
-                    refreshed?.toPlayerStats() ?: remoteStats
+                } else null
+                val finalStats = if (guestSnapshot.hasUnlinkedGuestProgress) {
+                    // No plano gratuito, somente preferências de perfil são sincronizadas.
+                    // O progresso local não é enviado nem descartado: permanece neste aparelho.
+                    _cloudSyncStatus.value = if (syncedProfile != null) {
+                        "Perfil sincronizado; progresso local preservado neste aparelho"
+                    } else {
+                        "Conta conectada; progresso local preservado neste aparelho"
+                    }
+                    if (guestSnapshot.hasLocalCustomizationChanges && syncedProfile == null) {
+                        guestSnapshot.stats.copy(nickname = remote.nickname, email = remote.email)
+                    } else {
+                        mergeCloudProfileIntoLocal(guestSnapshot.stats, syncedProfile ?: remote)
+                    }
+                } else if (guestSnapshot.hasLocalCustomizationChanges && syncedProfile == null) {
+                    _cloudSyncStatus.value = "Personalização local preservada; sincronização pendente"
+                    guestSnapshot.stats.copy(nickname = remote.nickname, email = remote.email)
                 } else {
                     _cloudSyncStatus.value = "Sincronizado na nuvem"
-                    remoteStats
+                    if (syncedProfile != null) mergeCloudProfileIntoLocal(remoteStats, syncedProfile) else remoteStats
                 }
 
                 _playerStats.value = finalStats
                 applyCurrentAudioSettings()
-                _hasUnlinkedGuestProgress.value = false
+                _hasUnlinkedGuestProgress.value = guestSnapshot.hasUnlinkedGuestProgress
                 localProgressRepository.saveSnapshot(
                     guestSnapshot.copy(
                         stats = finalStats,
-                        hasUnlinkedGuestProgress = false,
-                        hasLocalCustomizationChanges = false
+                        hasUnlinkedGuestProgress = guestSnapshot.hasUnlinkedGuestProgress,
+                        hasLocalCustomizationChanges = guestSnapshot.hasLocalCustomizationChanges && syncedProfile == null
                     )
                 )
                 _authUiState.value = AuthUiState.Authenticated(
@@ -698,17 +711,23 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val res = repo.claimNicknameAndSaveAccount(nickname, _playerStats.value)
             res.onSuccess { cloud ->
                 val cloudStats = cloud.toPlayerStats()
-                _playerStats.value = cloudStats
-                _hasUnlinkedGuestProgress.value = false
+                val keepLocalProgress = guestSnapshot.hasUnlinkedGuestProgress
+                val accountStats = if (keepLocalProgress) {
+                    mergeCloudProfileIntoLocal(guestSnapshot.stats, cloud)
+                } else cloudStats
+                _playerStats.value = accountStats
+                _hasUnlinkedGuestProgress.value = keepLocalProgress
                 localProgressRepository.saveSnapshot(
                     guestSnapshot.copy(
-                        stats = cloudStats,
-                        hasUnlinkedGuestProgress = false,
+                        stats = accountStats,
+                        hasUnlinkedGuestProgress = keepLocalProgress,
                         hasLocalCustomizationChanges = false
                     )
                 )
                 _authUiState.value = AuthUiState.Authenticated(cloud.userId, cloud.email, cloud.nickname)
-                _cloudSyncStatus.value = "Conta salva e sincronizada na nuvem"
+                _cloudSyncStatus.value = if (keepLocalProgress) {
+                    "Conta criada; perfil sincronizado; progresso local preservado neste aparelho"
+                } else "Conta salva e sincronizada na nuvem"
                 refreshAccountSubcollections()
                 checkForUpdates(silent = true)
                 if (_currentScreen.value is GameScreen.Auth) {
@@ -730,11 +749,45 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshAccountSubcollections() {
         val repo = accountRepo ?: return
-        if (repo.currentUidOrNull() == null) return
+        val uid = repo.currentUidOrNull() ?: return
         viewModelScope.launch {
-            repo.fetchRewardHistory().onSuccess { _rewardHistory.value = it }
-            repo.fetchProgressionHistory().onSuccess { _progressionHistory.value = it }
+            repo.fetchRewardHistory().onSuccess { cloud ->
+                val local = localProgressRepository.loadSnapshot().localRewards
+                    .map { it.toCloudClaim(uid) }
+                _rewardHistory.value = (cloud + local).distinctBy { it.dayKey }.take(30)
+            }
+            repo.fetchProgressionHistory().onSuccess { cloud ->
+                val local = localProgressRepository.loadSnapshot().localMatches
+                    .map { it.toCloudEntry(uid) }
+                _progressionHistory.value = (cloud + local).distinctBy { it.id }.take(25)
+            }
         }
+    }
+
+    private fun mergeCloudProfileIntoLocal(
+        localStats: PlayerStats,
+        cloud: UserAccountCloud
+    ): PlayerStats {
+        val cloudStats = cloud.toPlayerStats()
+        return localStats.copy(
+            selectedCharacterId = cloudStats.selectedCharacterId,
+            selectedGuitarId = cloudStats.selectedGuitarId,
+            selectedBassId = cloudStats.selectedBassId,
+            selectedDrumsId = cloudStats.selectedDrumsId,
+            selectedVocalMicId = cloudStats.selectedVocalMicId,
+            selectedHighwayThemeId = cloudStats.selectedHighwayThemeId,
+            customRocker = cloudStats.customRocker,
+            glassAdaptiveEnabled = cloudStats.glassAdaptiveEnabled,
+            audioLatencyOffsetMs = cloudStats.audioLatencyOffsetMs,
+            controlMode = cloudStats.controlMode,
+            graphicsQuality = cloudStats.graphicsQuality,
+            nickname = cloud.nickname,
+            email = cloud.email,
+            unlockedCosmetics = (localStats.unlockedCosmetics + cloudStats.unlockedCosmetics).distinct(),
+            achievementsUnlocked = (localStats.achievementsUnlocked + cloudStats.achievementsUnlocked).distinct(),
+            studioProfile = cloudStats.studioProfile,
+            syncRevision = cloud.syncRevision
+        )
     }
 
     fun syncCloudNow() {
@@ -744,17 +797,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             _cloudSyncStatus.value = "Sincronizando..."
             val res = repo.syncPlayerStats(_playerStats.value)
             res.onSuccess { cloud ->
-                val synced = cloud.toPlayerStats()
+                val synced = mergeCloudProfileIntoLocal(_playerStats.value, cloud)
                 _playerStats.value = synced
-                _hasUnlinkedGuestProgress.value = false
+                val snapshot = localProgressRepository.loadSnapshot()
+                _hasUnlinkedGuestProgress.value = snapshot.hasUnlinkedGuestProgress
                 localProgressRepository.saveSnapshot(
-                    localProgressRepository.loadSnapshot().copy(
+                    snapshot.copy(
                         stats = synced,
-                        hasUnlinkedGuestProgress = false,
                         hasLocalCustomizationChanges = false
                     )
                 )
-                _cloudSyncStatus.value = "Sincronizado (rev. ${cloud.syncRevision})"
+                _cloudSyncStatus.value = if (snapshot.hasUnlinkedGuestProgress) {
+                    "Perfil sincronizado; progresso local preservado neste aparelho"
+                } else "Perfil sincronizado na nuvem (rev. ${cloud.syncRevision})"
             }.onFailure { err ->
                 _cloudSyncStatus.value = "Falha na sincronização: ${err.message}"
             }
@@ -768,8 +823,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val isSignedIn = accountRepo?.currentUidOrNull() != null &&
             _authUiState.value is AuthUiState.Authenticated
         val current = localProgressRepository.loadSnapshot()
-        val updatedMatches = if (newMatchRecord != null && !isSignedIn) {
-            (listOf(newMatchRecord) + current.localMatches).take(25)
+        val updatedMatches = if (newMatchRecord != null) {
+            (listOf(newMatchRecord) + current.localMatches).distinctBy { it.id }.take(25)
         } else {
             current.localMatches
         }
@@ -780,8 +835,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val nextWeeklyCoins = if (newMatchRecord != null && !isSignedIn) {
             (weeklyUsed + newMatchRecord.coinsEarned).coerceIn(0, 100)
         } else if (current.localRewardWeekStart == rewardWeekStart) weeklyUsed else 0
-        val nextUnlinked = if (isSignedIn) false else true
-        val nextCustomization = if (isSignedIn) false else (current.hasLocalCustomizationChanges || customizationChanged)
+        val nextUnlinked = if (isSignedIn) {
+            current.hasUnlinkedGuestProgress || newMatchRecord != null
+        } else true
+        val nextCustomization = current.hasLocalCustomizationChanges || customizationChanged
         _hasUnlinkedGuestProgress.value = nextUnlinked
 
         localProgressRepository.saveSnapshot(
@@ -794,7 +851,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 localWeeklyCoinsGranted = nextWeeklyCoins
             )
         )
-        if (!isSignedIn && newMatchRecord != null) {
+        if (newMatchRecord != null) {
             _progressionHistory.value = updatedMatches.map { it.toCloudEntry() }
         }
     }
@@ -805,16 +862,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (repo.currentUidOrNull() == null || _playerStats.value.nickname.isBlank()) return
         viewModelScope.launch {
             repo.syncPlayerStats(_playerStats.value).onSuccess { cloud ->
-                val synced = cloud.toPlayerStats()
+                val synced = mergeCloudProfileIntoLocal(_playerStats.value, cloud)
                 _playerStats.value = synced
+                val snapshot = localProgressRepository.loadSnapshot()
                 localProgressRepository.saveSnapshot(
-                    localProgressRepository.loadSnapshot().copy(
+                    snapshot.copy(
                         stats = synced,
-                        hasUnlinkedGuestProgress = false,
                         hasLocalCustomizationChanges = false
                     )
                 )
-                _cloudSyncStatus.value = "Nuvem atualizada (rev. ${cloud.syncRevision})"
+                _cloudSyncStatus.value = if (snapshot.hasUnlinkedGuestProgress) {
+                    "Perfil atualizado; progresso local preservado neste aparelho"
+                } else "Perfil atualizado na nuvem (rev. ${cloud.syncRevision})"
             }
         }
     }
