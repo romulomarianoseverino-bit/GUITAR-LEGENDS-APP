@@ -296,6 +296,22 @@ object DailyRewardWeeklyLimit {
         )
     }.getOrNull()
 
+    fun weekStartDayKey(dayKey: String): String? = runCatching {
+        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            isLenient = false
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val date = parser.parse(dayKey) ?: return null
+        val calendar = java.util.GregorianCalendar(java.util.TimeZone.getTimeZone("UTC"), java.util.Locale.US).apply {
+            time = date
+        }
+        val daysSinceMonday = (calendar.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7
+        calendar.add(java.util.Calendar.DAY_OF_MONTH, -daysSinceMonday)
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }.format(calendar.time)
+    }.getOrNull()
+
     fun grant(requestedCoins: Int, alreadyClaimedThisWeek: Int): Int {
         val remaining = (MAX_COINS_PER_WEEK - alreadyClaimedThisWeek.coerceAtLeast(0)).coerceAtLeast(0)
         return requestedCoins.coerceAtLeast(0).coerceAtMost(remaining)
