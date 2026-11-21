@@ -45,19 +45,31 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Criar chave de assinatura de depuração temporária
+      - name: Preparar chave permanente já cadastrada no repositório
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo KEYSTORE_BASE64 existente não está disponível."; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo "::error::O segredo KEYSTORE_PASSWORD existente não está disponível."; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "::error::O segredo KEY_PASSWORD existente não está disponível."; exit 1; }
+          KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >/dev/null
+          echo "DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "DEBUG_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "DEBUG_KEY_ALIAS=upload" >> "$GITHUB_ENV"
+          echo "DEBUG_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Compilar variante de depuração
+      - name: Compilar variante de depuração com a chave permanente
+        env:
+          DEBUG_KEYSTORE_PATH: ${{ env.DEBUG_KEYSTORE_PATH }}
+          DEBUG_KEYSTORE_PASSWORD: ${{ env.DEBUG_KEYSTORE_PASSWORD }}
+          DEBUG_KEY_ALIAS: upload
+          DEBUG_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle --no-daemon assembleDebug
 
       - name: Instalar Firebase CLI para emuladores locais
