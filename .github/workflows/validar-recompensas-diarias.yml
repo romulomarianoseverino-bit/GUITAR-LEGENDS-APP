@@ -3,6 +3,7 @@ name: Validar recompensas diárias
 on:
   pull_request:
     branches:
+      - main
       - fix/auth-profile-spark-mainline
     paths:
       - 'app/**'
