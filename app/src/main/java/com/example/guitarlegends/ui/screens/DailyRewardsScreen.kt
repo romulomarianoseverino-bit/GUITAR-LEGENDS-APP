@@ -52,6 +52,16 @@ fun DailyRewardsScreen(viewModel: GameViewModel) {
         (stats.rewardStreak % 30) + 1
     }
     val featuredReward = DailyRewardCatalog.rewardForDay(nextDayNumber)
+    val currentWeekKey = DailyRewardWeeklyLimit.weekKey(todayUtc)
+    val claimedDailyCoinsThisWeek = rewardHistory
+        .filter { DailyRewardWeeklyLimit.weekKey(it.dayKey) == currentWeekKey }
+        .sumOf { it.coinsGranted }
+    val remainingDailyCoinsThisWeek = (DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK - claimedDailyCoinsThisWeek)
+        .coerceAtLeast(0)
+    val previewDailyCoins = DailyRewardWeeklyLimit.grant(
+        featuredReward.coinsGranted,
+        claimedDailyCoinsThisWeek
+    )
 
     Column(
         modifier = Modifier
@@ -123,10 +133,17 @@ fun DailyRewardsScreen(viewModel: GameViewModel) {
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
-                                    Text(featuredReward.title, color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                                    Text(
+                                        text = if (previewDailyCoins < featuredReward.coinsGranted) {
+                                            "${featuredReward.title} (limite semanal aplicado)"
+                                        } else featuredReward.title,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.sp
+                                    )
                                     Text(featuredReward.description, color = Color.White.copy(alpha = 0.78f), fontSize = 10.sp)
                                     Text(
-                                        text = "+${featuredReward.coinsGranted} Moedas" +
+                                        text = "+${previewDailyCoins} Moedas" +
                                             if (featuredReward.cosmeticId.isNotBlank()) " + Item Desbloqueado" else "",
                                         color = RockAccentCyan,
                                         fontWeight = FontWeight.Bold,
@@ -149,7 +166,7 @@ fun DailyRewardsScreen(viewModel: GameViewModel) {
                         }
 
                         Text(
-                            text = "Controle diário em UTC ($todayUtc). No modo visitante o progresso fica salvo no aparelho; conecte uma conta em Minha Conta para sincronizar na nuvem.",
+                            text = "Limite de recompensas diárias: ${DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK} moedas por semana. Usadas: ${claimedDailyCoinsThisWeek.coerceAtMost(DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK)}/${DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK}. Reinicia segunda-feira às 00:00 UTC. O limite não afeta moedas conquistadas nas músicas.",
                             color = Color.White.copy(alpha = 0.55f),
                             fontSize = 9.sp,
                             lineHeight = 13.sp
