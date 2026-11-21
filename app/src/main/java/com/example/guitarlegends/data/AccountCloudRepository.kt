@@ -234,12 +234,19 @@ class AccountCloudRepository(
                 unlockedStars = current.unlockedStars,
                 selectedCharacterId = localStats.selectedCharacterId.takeIf {
                     it == "custom_rocker" || it in unlocked
-                } ?: current.selectedCharacterId,
-                selectedGuitarId = localStats.selectedGuitarId.takeIf { it in unlocked } ?: current.selectedGuitarId,
-                selectedBassId = localStats.selectedBassId.takeIf { it in unlocked } ?: current.selectedBassId,
-                selectedDrumsId = localStats.selectedDrumsId.takeIf { it in unlocked } ?: current.selectedDrumsId,
-                selectedVocalMicId = localStats.selectedVocalMicId.takeIf { it in unlocked } ?: current.selectedVocalMicId,
-                selectedHighwayThemeId = localStats.selectedHighwayThemeId.takeIf { it in unlocked } ?: current.selectedHighwayThemeId,
+                } ?: current.selectedCharacterId.takeIf {
+                    it == "custom_rocker" || it in unlocked
+                } ?: "axel_rocker",
+                selectedGuitarId = localStats.selectedGuitarId.takeIf { it in unlocked }
+                    ?: current.selectedGuitarId.takeIf { it in unlocked } ?: "flame_caster",
+                selectedBassId = localStats.selectedBassId.takeIf { it in unlocked }
+                    ?: current.selectedBassId.takeIf { it in unlocked } ?: "thunder_bass",
+                selectedDrumsId = localStats.selectedDrumsId.takeIf { it in unlocked }
+                    ?: current.selectedDrumsId.takeIf { it in unlocked } ?: "arena_beast_kit",
+                selectedVocalMicId = localStats.selectedVocalMicId.takeIf { it in unlocked }
+                    ?: current.selectedVocalMicId.takeIf { it in unlocked } ?: "vintage_shure_55s",
+                selectedHighwayThemeId = localStats.selectedHighwayThemeId.takeIf { it in unlocked }
+                    ?: current.selectedHighwayThemeId.takeIf { it in unlocked } ?: "theme_ps2_wood",
                 nickname = current.nickname,
                 email = current.email,
                 unlockedCosmetics = current.unlockedCosmetics,
