@@ -65,11 +65,6 @@ jobs:
           echo "DEBUG_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Compilar variante de depuração com a chave permanente
-        env:
-          DEBUG_KEYSTORE_PATH: ${{ env.DEBUG_KEYSTORE_PATH }}
-          DEBUG_KEYSTORE_PASSWORD: ${{ env.DEBUG_KEYSTORE_PASSWORD }}
-          DEBUG_KEY_ALIAS: upload
-          DEBUG_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle --no-daemon assembleDebug
 
       - name: Instalar Firebase CLI para emuladores locais
