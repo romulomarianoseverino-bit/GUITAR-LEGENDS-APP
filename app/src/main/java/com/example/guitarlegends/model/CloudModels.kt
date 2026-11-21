@@ -312,6 +312,29 @@ object DailyRewardWeeklyLimit {
         }.format(calendar.time)
     }.getOrNull()
 
+    fun dayKeysInWeekThrough(dayKey: String): List<String> = runCatching {
+        val startKey = weekStartDayKey(dayKey) ?: return emptyList()
+        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            isLenient = false
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val startDate = parser.parse(startKey) ?: return emptyList()
+        val endDate = parser.parse(dayKey) ?: return emptyList()
+        val calendar = java.util.GregorianCalendar(
+            java.util.TimeZone.getTimeZone("UTC"),
+            java.util.Locale.US
+        ).apply { time = startDate }
+        val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        buildList {
+            while (!calendar.time.after(endDate)) {
+                add(formatter.format(calendar.time))
+                calendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            }
+        }
+    }.getOrDefault(emptyList())
+
     fun grant(requestedCoins: Int, alreadyClaimedThisWeek: Int): Int {
         val remaining = (MAX_COINS_PER_WEEK - alreadyClaimedThisWeek.coerceAtLeast(0)).coerceAtLeast(0)
         return requestedCoins.coerceAtLeast(0).coerceAtMost(remaining)
