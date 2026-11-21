@@ -36,11 +36,17 @@ android {
     create("debugConfig") {
       // CI reuses the repository's existing permanent publication key for debug APKs too.
       // This keeps the Android certificate/SHA-1 stable across every build.
-      val debugKeystorePath = System.getenv("DEBUG_KEYSTORE_PATH") ?: "${rootDir}/debug.keystore"
+      val configuredKeystore = System.getenv("DEBUG_KEYSTORE_PATH") ?: System.getenv("KEYSTORE_PATH")
+      val debugKeystorePath = configuredKeystore ?: "${rootDir}/debug.keystore"
       storeFile = file(debugKeystorePath)
-      storePassword = System.getenv("DEBUG_KEYSTORE_PASSWORD") ?: "android"
-      keyAlias = System.getenv("DEBUG_KEY_ALIAS") ?: "androiddebugkey"
-      keyPassword = System.getenv("DEBUG_KEY_PASSWORD") ?: "android"
+      storePassword = System.getenv("DEBUG_KEYSTORE_PASSWORD")
+        ?: System.getenv("STORE_PASSWORD")
+        ?: "android"
+      keyAlias = System.getenv("DEBUG_KEY_ALIAS")
+        ?: if (configuredKeystore != null) "upload" else "androiddebugkey"
+      keyPassword = System.getenv("DEBUG_KEY_PASSWORD")
+        ?: System.getenv("KEY_PASSWORD")
+        ?: "android"
     }
   }
 
