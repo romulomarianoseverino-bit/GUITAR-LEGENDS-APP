@@ -747,10 +747,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshAccountSubcollections() {
         val repo = accountRepo ?: return
-        if (repo.currentUidOrNull() == null) return
+        val uid = repo.currentUidOrNull() ?: return
         viewModelScope.launch {
-            repo.fetchRewardHistory().onSuccess { _rewardHistory.value = it }
-            repo.fetchProgressionHistory().onSuccess { _progressionHistory.value = it }
+            repo.fetchRewardHistory().onSuccess { cloud ->
+                val local = localProgressRepository.loadSnapshot().localRewards
+                    .map { it.toCloudClaim(uid) }
+                _rewardHistory.value = (cloud + local).distinctBy { it.dayKey }.take(30)
+            }
+            repo.fetchProgressionHistory().onSuccess { cloud ->
+                val local = localProgressRepository.loadSnapshot().localMatches
+                    .map { it.toCloudEntry(uid) }
+                _progressionHistory.value = (cloud + local).distinctBy { it.id }.take(25)
+            }
         }
     }
 
