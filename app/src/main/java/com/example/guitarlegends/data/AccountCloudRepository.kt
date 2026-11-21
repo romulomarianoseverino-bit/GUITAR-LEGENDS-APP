@@ -331,11 +331,12 @@ class AccountCloudRepository(
                 // A leitura ocorre dentro da mesma transação para não conceder uma nova cota a contas antigas.
                 val weekStartKey = DailyRewardWeeklyLimit.weekStartDayKey(todayKey)
                     ?: throw IllegalStateException("Não foi possível determinar o início da semana da recompensa.")
-                val weekClaimsQuery = userRef.collection("reward_claims")
-                    .whereGreaterThanOrEqualTo("dayKey", weekStartKey)
-                    .whereLessThanOrEqualTo("dayKey", todayKey)
-                val weekClaimsSnapshot = tx.get(weekClaimsQuery)
-                val historicalClaimedThisWeek = weekClaimsSnapshot.documents.sumOf { document ->
+                // A API Android do Firestore permite ler DocumentReference na transação,
+                // não executar Query com tx.get(). Os IDs dos registros diários são as próprias datas.
+                val weekClaimSnapshots = DailyRewardWeeklyLimit.dayKeysInWeekThrough(todayKey).map { claimDayKey ->
+                    tx.get(userRef.collection("reward_claims").document(claimDayKey))
+                }
+                val historicalClaimedThisWeek = weekClaimSnapshots.sumOf { document ->
                     (document.getLong("coinsGranted") ?: 0L).coerceAtLeast(0L)
                 }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
                 val storedClaimedThisWeek = if (existingUser.dailyRewardWeekKey == currentWeekKey) {
