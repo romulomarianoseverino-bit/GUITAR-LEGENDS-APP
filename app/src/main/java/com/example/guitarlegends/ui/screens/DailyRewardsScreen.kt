@@ -166,7 +166,7 @@ fun DailyRewardsScreen(viewModel: GameViewModel) {
                         }
 
                         Text(
-                            text = "Limite de recompensas diárias: ${DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK} moedas por semana. Usadas: ${claimedDailyCoinsThisWeek.coerceAtMost(DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK)}/${DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK}. Reinicia segunda-feira às 00:00 UTC. O limite não afeta moedas conquistadas nas músicas.",
+                            text = "Limite de recompensas diárias: ${DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK} moedas por semana. Usadas: ${claimedDailyCoinsThisWeek.coerceAtMost(DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK)}/${DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK}; restam ${remainingDailyCoinsThisWeek}. Reinicia segunda-feira às 00:00 UTC. O limite não afeta moedas conquistadas nas músicas.",
                             color = Color.White.copy(alpha = 0.55f),
                             fontSize = 9.sp,
                             lineHeight = 13.sp
