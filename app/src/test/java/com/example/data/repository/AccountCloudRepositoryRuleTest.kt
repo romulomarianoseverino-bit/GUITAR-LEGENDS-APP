@@ -5,6 +5,7 @@ import com.example.guitarlegends.analysis.AudioAnalyzer
 import com.example.guitarlegends.data.AccountCloudRepository
 import com.example.guitarlegends.model.ControlMode
 import com.example.guitarlegends.model.Difficulty
+import com.example.guitarlegends.model.DailyRewardWeeklyLimit
 import com.example.guitarlegends.model.Instrument
 import com.example.guitarlegends.model.MatchResult
 import com.example.guitarlegends.model.PlayerStats
