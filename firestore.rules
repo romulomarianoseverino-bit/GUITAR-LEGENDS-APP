@@ -37,66 +37,6 @@ service cloud.firestore {
              (ts.day() < 10 ? '0' + string(ts.day()) : string(ts.day()));
     }
 
-    function isValidCustomRocker(rocker) {
-      return rocker is map &&
-             rocker.keys().hasAll([
-               'creationMethod', 'artStyle', 'hairStyle', 'hairColorHex',
-               'topClothing', 'pantsClothing', 'shoesClothing', 'accessories', 'bodyTattoos'
-             ]) &&
-             rocker.keys().hasOnly([
-               'photoUri', 'creationMethod', 'artStyle', 'hairStyle', 'hairColorHex',
-               'topClothing', 'pantsClothing', 'shoesClothing', 'accessories', 'bodyTattoos'
-             ]) &&
-             (!('photoUri' in rocker) || rocker.photoUri == null || (rocker.photoUri is string && rocker.photoUri.size() <= 512)) &&
-             rocker.creationMethod is string && rocker.creationMethod.size() <= 64 &&
-             rocker.artStyle is string && rocker.artStyle.size() <= 64 &&
-             rocker.hairStyle is string && rocker.hairStyle.size() <= 80 &&
-             rocker.hairColorHex is int &&
-             rocker.topClothing is string && rocker.topClothing.size() <= 80 &&
-             rocker.pantsClothing is string && rocker.pantsClothing.size() <= 80 &&
-             rocker.shoesClothing is string && rocker.shoesClothing.size() <= 80 &&
-             rocker.accessories is string && rocker.accessories.size() <= 100 &&
-             rocker.bodyTattoos is string && rocker.bodyTattoos.size() <= 100;
-    }
-
-    function isValidUserAccount(data) {
-      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
-             data.email is string && data.email.size() <= 200 &&
-             data.nickname is string && data.nickname.size() >= 3 && data.nickname.size() <= 24 &&
-             data.nicknameNormalized is string && isValidNicknameKey(data.nicknameNormalized) &&
-             data.coins is int && data.coins >= 0 && data.coins <= 10000000 &&
-             data.totalScore is int && data.totalScore >= 0 &&
-             data.notesHitTotal is int && data.notesHitTotal >= 0 &&
-             data.maxStreakOverall is int && data.maxStreakOverall >= 0 &&
-             data.songsCompleted is int && data.songsCompleted >= 0 &&
-             data.unlockedStars is int && data.unlockedStars >= 0 &&
-             data.competitiveWins is int && data.competitiveWins >= 0 &&
-             data.competitiveMatches is int && data.competitiveMatches >= 0 &&
-             data.careerStageMax is int && data.careerStageMax >= 0 &&
-             data.selectedCharacterId is string && data.selectedCharacterId.size() <= 64 &&
-             data.selectedGuitarId is string && data.selectedGuitarId.size() <= 64 &&
-             data.selectedBassId is string && data.selectedBassId.size() <= 64 &&
-             data.selectedDrumsId is string && data.selectedDrumsId.size() <= 64 &&
-             data.selectedVocalMicId is string && data.selectedVocalMicId.size() <= 64 &&
-             data.selectedHighwayThemeId is string && data.selectedHighwayThemeId.size() <= 64 &&
-             data.unlockedCosmetics is list && data.unlockedCosmetics.size() <= 150 &&
-             (data.unlockedCosmetics.size() == 0 || data.unlockedCosmetics[0] is string) &&
-             data.achievementsUnlocked is list && data.achievementsUnlocked.size() <= 60 &&
-             (data.achievementsUnlocked.size() == 0 || data.achievementsUnlocked[0] is string) &&
-             isValidCustomRocker(data.customRocker) &&
-             data.glassAdaptiveEnabled is bool &&
-             data.audioLatencyOffsetMs is int && data.audioLatencyOffsetMs >= -500 && data.audioLatencyOffsetMs <= 500 &&
-             data.controlMode is string && data.controlMode.size() <= 32 &&
-             data.graphicsQuality is string && data.graphicsQuality.size() <= 32 &&
-             data.rewardStreak is int && data.rewardStreak >= 0 && data.rewardStreak <= 3650 &&
-             data.lastRewardDayKey is string && data.lastRewardDayKey.size() <= 20 &&
-             data.schemaVersion is int && data.schemaVersion >= 1 &&
-             data.syncRevision is int && data.syncRevision >= 1 &&
-             (!('studioProfileJson' in data) || (data.studioProfileJson is string && data.studioProfileJson.size() <= 24576)) &&
-             data.createdAt is timestamp && data.createdAt <= request.time &&
-             data.updatedAt is timestamp && data.updatedAt <= request.time;
-    }
-
     function isValidNicknameClaim(data) {
       return data.keys().hasAll(['userId', 'nickname', 'createdAt']) &&
              data.keys().hasOnly(['userId', 'nickname', 'createdAt']) &&
@@ -105,92 +45,6 @@ service cloud.firestore {
              data.createdAt == request.time;
     }
 
-
-    function isValidInitialUser(data, userId) {
-      return data.keys().hasAll([
-               'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
-               'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
-               'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-               'selectedCharacterId', 'selectedGuitarId', 'selectedBassId', 'selectedDrumsId',
-               'selectedVocalMicId', 'selectedHighwayThemeId', 'unlockedCosmetics',
-               'achievementsUnlocked', 'customRocker', 'glassAdaptiveEnabled',
-               'audioLatencyOffsetMs', 'controlMode', 'graphicsQuality', 'rewardStreak',
-               'lastRewardDayKey', 'schemaVersion', 'syncRevision', 'studioProfileJson',
-               'createdAt', 'updatedAt'
-             ]) &&
-             data.keys().hasOnly([
-               'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
-               'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
-               'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-               'selectedCharacterId', 'selectedGuitarId', 'selectedBassId', 'selectedDrumsId',
-               'selectedVocalMicId', 'selectedHighwayThemeId', 'unlockedCosmetics',
-               'achievementsUnlocked', 'customRocker', 'glassAdaptiveEnabled',
-               'audioLatencyOffsetMs', 'controlMode', 'graphicsQuality', 'rewardStreak',
-               'lastRewardDayKey', 'schemaVersion', 'syncRevision', 'studioProfileJson',
-               'createdAt', 'updatedAt'
-             ]) &&
-             isValidUserAccount(data) &&
-             data.userId == userId &&
-             data.email is string && data.email.size() <= 200 &&
-             data.nickname.matches('^[a-zA-Z0-9_-]{3,24}$') &&
-             data.nicknameNormalized.matches('^[a-z0-9_-]{3,24}$') &&
-             data.nickname.lower() == data.nicknameNormalized &&
-             data.coins == 0 &&
-             data.totalScore == 0 &&
-             data.notesHitTotal == 0 &&
-             data.maxStreakOverall == 0 &&
-             data.songsCompleted == 0 &&
-             data.unlockedStars == 6 &&
-             data.competitiveWins == 0 &&
-             data.competitiveMatches == 0 &&
-             data.careerStageMax == 1 &&
-             data.unlockedCosmetics == [
-               'axel_rocker', 'roxie_riot', 'flame_caster', 'void_v',
-               'thunder_bass', 'skull_bass', 'arena_beast_kit', 'punk_garage_kit',
-               'vintage_shure_55s', 'golden_supreme_mic', 'theme_ps2_wood',
-               'theme_neon_cyber', 'theme_inferno_flame', 'theme_galactic_star',
-               'outfit_skin_none', 'outfit_skin_ps2_legend', 'skin_none',
-               'stamp_none', 'stamp_ps2_flames', 'stamp_checker_punk'
-             ] &&
-             data.achievementsUnlocked.size() == 0 &&
-             data.rewardStreak == 0 &&
-             data.lastRewardDayKey == '' &&
-             data.syncRevision == 1 &&
-             data.selectedCharacterId in ['axel_rocker', 'roxie_riot', 'custom_rocker'] &&
-             data.selectedGuitarId in ['flame_caster', 'void_v'] &&
-             data.selectedBassId in ['thunder_bass', 'skull_bass'] &&
-             data.selectedDrumsId in ['arena_beast_kit', 'punk_garage_kit'] &&
-             data.selectedVocalMicId in ['vintage_shure_55s', 'golden_supreme_mic'] &&
-             data.selectedHighwayThemeId in [
-               'theme_ps2_wood', 'theme_neon_cyber',
-               'theme_inferno_flame', 'theme_galactic_star'
-             ] &&
-             data.createdAt == request.time &&
-             data.updatedAt == request.time;
-    }
-
-    function isProfileOnlyUpdate(userId) {
-      return isOwner(userId) &&
-             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-               'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
-               'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
-               'customRocker', 'glassAdaptiveEnabled', 'audioLatencyOffsetMs',
-               'controlMode', 'graphicsQuality', 'studioProfileJson',
-               'syncRevision', 'updatedAt'
-             ]) &&
-             request.resource.data.syncRevision == resource.data.syncRevision + 1 &&
-             request.resource.data.updatedAt == request.time &&
-             isValidUserAccount(request.resource.data) &&
-             (
-               request.resource.data.selectedCharacterId == 'custom_rocker' ||
-               request.resource.data.selectedCharacterId in resource.data.unlockedCosmetics
-             ) &&
-             request.resource.data.selectedGuitarId in resource.data.unlockedCosmetics &&
-             request.resource.data.selectedBassId in resource.data.unlockedCosmetics &&
-             request.resource.data.selectedDrumsId in resource.data.unlockedCosmetics &&
-             request.resource.data.selectedVocalMicId in resource.data.unlockedCosmetics &&
-             request.resource.data.selectedHighwayThemeId in resource.data.unlockedCosmetics;
-    }
 
     function isValidDailyRewardClaim(data, userId, claimId) {
       return data.userId is string && data.userId == userId &&
@@ -223,6 +77,122 @@ service cloud.firestore {
     // 1. Perfil privado: leitura do próprio documento e atualização limitada às preferências.
     // Saldo, inventário, recompensas, estatísticas verificadas e histórico nunca são graváveis pelo cliente.
     match /users/{userId} {
+
+      function isValidCustomRocker(rocker) {
+        return rocker is map &&
+               rocker.keys().hasAll([
+                 'creationMethod', 'artStyle', 'hairStyle', 'hairColorHex',
+                 'topClothing', 'pantsClothing', 'shoesClothing', 'accessories', 'bodyTattoos'
+               ]) &&
+               rocker.keys().hasOnly([
+                 'photoUri', 'creationMethod', 'artStyle', 'hairStyle', 'hairColorHex',
+                 'topClothing', 'pantsClothing', 'shoesClothing', 'accessories', 'bodyTattoos'
+               ]) &&
+               (!('photoUri' in rocker) || rocker.photoUri == null || (rocker.photoUri is string && rocker.photoUri.size() <= 512)) &&
+               rocker.creationMethod is string && rocker.creationMethod.size() <= 64 &&
+               rocker.artStyle is string && rocker.artStyle.size() <= 64 &&
+               rocker.hairStyle is string && rocker.hairStyle.size() <= 80 &&
+               rocker.hairColorHex is int &&
+               rocker.topClothing is string && rocker.topClothing.size() <= 80 &&
+               rocker.pantsClothing is string && rocker.pantsClothing.size() <= 80 &&
+               rocker.shoesClothing is string && rocker.shoesClothing.size() <= 80 &&
+               rocker.accessories is string && rocker.accessories.size() <= 100 &&
+               rocker.bodyTattoos is string && rocker.bodyTattoos.size() <= 100;
+      }
+
+      function isValidInitialUser(data, expectedUserId) {
+        return data.keys().hasOnly([
+                 'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
+                 'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
+                 'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
+                 'selectedCharacterId', 'selectedGuitarId', 'selectedBassId', 'selectedDrumsId',
+                 'selectedVocalMicId', 'selectedHighwayThemeId', 'unlockedCosmetics',
+                 'achievementsUnlocked', 'customRocker', 'glassAdaptiveEnabled',
+                 'audioLatencyOffsetMs', 'controlMode', 'graphicsQuality', 'rewardStreak',
+                 'lastRewardDayKey', 'schemaVersion', 'syncRevision', 'studioProfileJson',
+                 'createdAt', 'updatedAt'
+               ]) &&
+               data.userId == expectedUserId &&
+               data.email is string && data.email.size() <= 200 &&
+               data.nickname is string && data.nickname.matches('^[a-zA-Z0-9_-]{3,24}$') &&
+               data.nicknameNormalized == data.nickname.lower() &&
+               data.coins is int && data.coins == 0 &&
+               data.totalScore is int && data.totalScore == 0 &&
+               data.notesHitTotal is int && data.notesHitTotal == 0 &&
+               data.maxStreakOverall is int && data.maxStreakOverall == 0 &&
+               data.songsCompleted is int && data.songsCompleted == 0 &&
+               data.unlockedStars is int && data.unlockedStars == 6 &&
+               data.competitiveWins is int && data.competitiveWins == 0 &&
+               data.competitiveMatches is int && data.competitiveMatches == 0 &&
+               data.careerStageMax is int && data.careerStageMax == 1 &&
+               data.selectedCharacterId in ['axel_rocker', 'roxie_riot', 'custom_rocker'] &&
+               data.selectedGuitarId in ['flame_caster', 'void_v'] &&
+               data.selectedBassId in ['thunder_bass', 'skull_bass'] &&
+               data.selectedDrumsId in ['arena_beast_kit', 'punk_garage_kit'] &&
+               data.selectedVocalMicId in ['vintage_shure_55s', 'golden_supreme_mic'] &&
+               data.selectedHighwayThemeId in [
+                 'theme_ps2_wood', 'theme_neon_cyber',
+                 'theme_inferno_flame', 'theme_galactic_star'
+               ] &&
+               data.unlockedCosmetics == [
+                 'axel_rocker', 'roxie_riot', 'flame_caster', 'void_v',
+                 'thunder_bass', 'skull_bass', 'arena_beast_kit', 'punk_garage_kit',
+                 'vintage_shure_55s', 'golden_supreme_mic', 'theme_ps2_wood',
+                 'theme_neon_cyber', 'theme_inferno_flame', 'theme_galactic_star',
+                 'outfit_skin_none', 'outfit_skin_ps2_legend', 'skin_none',
+                 'stamp_none', 'stamp_ps2_flames', 'stamp_checker_punk'
+               ] &&
+               data.achievementsUnlocked is list && data.achievementsUnlocked.size() == 0 &&
+               isValidCustomRocker(data.customRocker) &&
+               data.glassAdaptiveEnabled is bool &&
+               data.audioLatencyOffsetMs is int && data.audioLatencyOffsetMs >= -500 && data.audioLatencyOffsetMs <= 500 &&
+               data.controlMode is string && data.controlMode.size() <= 32 &&
+               data.graphicsQuality is string && data.graphicsQuality.size() <= 32 &&
+               data.rewardStreak is int && data.rewardStreak == 0 &&
+               data.lastRewardDayKey == '' &&
+               data.schemaVersion is int && data.schemaVersion >= 1 &&
+               data.syncRevision is int && data.syncRevision == 1 &&
+               data.studioProfileJson is string && data.studioProfileJson.size() <= 24576 &&
+               data.createdAt == request.time &&
+               data.updatedAt == request.time;
+      }
+
+      function isValidProfileData(data, unlocked) {
+        return data.selectedCharacterId is string && data.selectedCharacterId.size() <= 64 &&
+               data.selectedGuitarId is string && data.selectedGuitarId.size() <= 64 &&
+               data.selectedBassId is string && data.selectedBassId.size() <= 64 &&
+               data.selectedDrumsId is string && data.selectedDrumsId.size() <= 64 &&
+               data.selectedVocalMicId is string && data.selectedVocalMicId.size() <= 64 &&
+               data.selectedHighwayThemeId is string && data.selectedHighwayThemeId.size() <= 64 &&
+               (data.selectedCharacterId == 'custom_rocker' || data.selectedCharacterId in unlocked) &&
+               data.selectedGuitarId in unlocked &&
+               data.selectedBassId in unlocked &&
+               data.selectedDrumsId in unlocked &&
+               data.selectedVocalMicId in unlocked &&
+               data.selectedHighwayThemeId in unlocked &&
+               isValidCustomRocker(data.customRocker) &&
+               data.glassAdaptiveEnabled is bool &&
+               data.audioLatencyOffsetMs is int && data.audioLatencyOffsetMs >= -500 && data.audioLatencyOffsetMs <= 500 &&
+               data.controlMode is string && data.controlMode.size() <= 32 &&
+               data.graphicsQuality is string && data.graphicsQuality.size() <= 32 &&
+               data.studioProfileJson is string && data.studioProfileJson.size() <= 24576;
+      }
+
+      function isProfileOnlyUpdate(targetUserId) {
+        return isOwner(targetUserId) &&
+               request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                 'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
+                 'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
+                 'customRocker', 'glassAdaptiveEnabled', 'audioLatencyOffsetMs',
+                 'controlMode', 'graphicsQuality', 'studioProfileJson',
+                 'syncRevision', 'updatedAt'
+               ]) &&
+               request.resource.data.syncRevision is int &&
+               request.resource.data.syncRevision == resource.data.syncRevision + 1 &&
+               request.resource.data.updatedAt == request.time &&
+               isValidProfileData(request.resource.data, resource.data.unlockedCosmetics);
+      }
+
       allow get, list: if isOwner(userId) && isValidId(userId);
       allow create: if isOwner(userId) &&
                        isValidId(userId) &&
