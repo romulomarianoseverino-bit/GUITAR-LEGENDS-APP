@@ -6,6 +6,7 @@ on:
       - fix/zero-start-rewards-security
       - fix/full-launch-scope-on-rewards-branch
       - fix/multiplayer-create-room-stage-diagnostics
+      - fix/free-tier-account-profile-sync
   pull_request:
     branches:
       - main
