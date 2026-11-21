@@ -17,7 +17,6 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 
 sealed class GoogleCredentialResult {
     data class Success(val idToken: String, val displayName: String?, val email: String) : GoogleCredentialResult()
-    object Cancelled : GoogleCredentialResult()
     data class Error(val message: String) : GoogleCredentialResult()
 }
 
@@ -72,8 +71,19 @@ object GoogleSignInHelper {
                 request = request
             )
             extractGoogleToken(result.credential)
-        } catch (_: GetCredentialCancellationException) {
-            GoogleCredentialResult.Cancelled
+        } catch (e: GetCredentialCancellationException) {
+            // Credential Manager can report this both for a user dismissal and
+            // for an authorization flow rejected by OAuth configuration (for example,
+            // an unregistered signing-certificate SHA-1). Do not label every case
+            // as a deliberate user cancellation.
+            Log.w(
+                "GoogleSignInHelper",
+                "Google authorization was not completed; verify OAuth client and APK signing SHA-1 if unexpected.",
+                e
+            )
+            GoogleCredentialResult.Error(
+                "A autorização do Google não foi concluída. Isso pode acontecer se o login foi fechado ou se a assinatura deste APK (SHA-1) não está cadastrada no Firebase. Se você não cancelou, é necessário conferir a chave usada para assinar o APK."
+            )
         } catch (_: NoCredentialException) {
             GoogleCredentialResult.Error(
                 "Nenhuma conta Google encontrada neste aparelho. Adicione uma conta Google nas configurações do Android."
