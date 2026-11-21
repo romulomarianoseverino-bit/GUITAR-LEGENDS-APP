@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.guitarlegends.model.DailyRewardCatalog
+import com.example.guitarlegends.model.DailyRewardWeeklyLimit
 import com.example.guitarlegends.ui.components.*
 import com.example.guitarlegends.viewmodel.GameViewModel
 import java.text.SimpleDateFormat
