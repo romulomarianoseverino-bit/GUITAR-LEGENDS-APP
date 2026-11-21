@@ -165,6 +165,20 @@ test("Account creation: nickname reservation and zero-balance profile must be at
     createdAt: serverTimestamp(),
   });
   await assertFails(bobBatch.commit());
+
+  // A user cannot reserve the same visible nickname under a forged normalized key.
+  const eveUid = "eve_789";
+  const eveDb = testEnv.authenticatedContext(eveUid).firestore();
+  const forgedAccount = makeValidUserAccount(eveUid, "Axel_Shredder", 1);
+  forgedAccount.nicknameNormalized = "different_key";
+  const eveBatch = eveDb.batch();
+  eveBatch.set(eveDb.collection("users").doc(eveUid), forgedAccount);
+  eveBatch.set(eveDb.collection("nicknames").doc("different_key"), {
+    userId: eveUid,
+    nickname: "Axel_Shredder",
+    createdAt: serverTimestamp(),
+  });
+  await assertFails(eveBatch.commit());
 });
 
 test("Cross-user isolation: Bob cannot read or modify Alice profile or subcollections", async () => {
