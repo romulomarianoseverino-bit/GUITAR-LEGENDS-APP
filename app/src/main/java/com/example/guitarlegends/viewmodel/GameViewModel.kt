@@ -567,19 +567,25 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 val guestSnapshot = localProgressRepository.loadSnapshot()
                 val remoteStats = remote.toPlayerStats()
+                val syncedProfile = if (
+                    guestSnapshot.hasUnlinkedGuestProgress &&
+                    guestSnapshot.hasLocalCustomizationChanges
+                ) {
+                    repo.syncPlayerStats(guestSnapshot.stats).getOrNull()
+                } else null
                 val finalStats = if (guestSnapshot.hasUnlinkedGuestProgress) {
                     // No plano gratuito, somente preferências de perfil são sincronizadas.
                     // O progresso local não é enviado nem descartado: permanece neste aparelho.
-                    val syncedProfile = if (guestSnapshot.hasLocalCustomizationChanges) {
-                        repo.syncPlayerStats(guestSnapshot.stats).getOrNull()
-                    } else null
-                    val profileSource = syncedProfile ?: remote
                     _cloudSyncStatus.value = if (syncedProfile != null) {
                         "Perfil sincronizado; progresso local preservado neste aparelho"
                     } else {
                         "Conta conectada; progresso local preservado neste aparelho"
                     }
-                    mergeCloudProfileIntoLocal(guestSnapshot.stats, profileSource)
+                    if (guestSnapshot.hasLocalCustomizationChanges && syncedProfile == null) {
+                        guestSnapshot.stats.copy(nickname = remote.nickname, email = remote.email)
+                    } else {
+                        mergeCloudProfileIntoLocal(guestSnapshot.stats, syncedProfile ?: remote)
+                    }
                 } else {
                     _cloudSyncStatus.value = "Sincronizado na nuvem"
                     remoteStats
@@ -592,9 +598,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     guestSnapshot.copy(
                         stats = finalStats,
                         hasUnlinkedGuestProgress = guestSnapshot.hasUnlinkedGuestProgress,
-                        hasLocalCustomizationChanges = if (guestSnapshot.hasUnlinkedGuestProgress) {
-                            guestSnapshot.hasLocalCustomizationChanges && guestSnapshot.stats.nickname.isBlank()
-                        } else false
+                        hasLocalCustomizationChanges = guestSnapshot.hasLocalCustomizationChanges && syncedProfile == null
                     )
                 )
                 _authUiState.value = AuthUiState.Authenticated(
