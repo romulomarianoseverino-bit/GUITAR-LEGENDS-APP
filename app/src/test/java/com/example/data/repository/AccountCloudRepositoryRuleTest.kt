@@ -48,7 +48,9 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         val created = claimRes.getOrThrow()
         assertEquals(uid, created.userId)
         assertEquals(nick, created.nickname)
-        assertEquals(1200, created.coins)
+        assertEquals("New cloud accounts must not import client-controlled coins", 0, created.coins)
+        assertEquals("New cloud accounts must not import client-controlled score", 0L, created.totalScore)
+        assertEquals("Unowned cosmetics must not become unlocked during registration", "flame_caster", created.selectedGuitarId)
 
         // Atualiza e sincroniza sem destruir progresso
         val updatedStats = created.toPlayerStats().copy(coins = 1550, songsCompleted = 3)
