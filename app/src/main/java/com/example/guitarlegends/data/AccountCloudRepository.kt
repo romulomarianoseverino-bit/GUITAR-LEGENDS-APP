@@ -327,11 +327,26 @@ class AccountCloudRepository(
                 val rewardDef = DailyRewardCatalog.rewardForDay(dayNumber)
                 val currentWeekKey = DailyRewardWeeklyLimit.weekKey(todayKey)
                     ?: throw IllegalStateException("Não foi possível determinar a semana da recompensa.")
-                val alreadyClaimedThisWeek = if (existingUser.dailyRewardWeekKey == currentWeekKey) {
-                    existingUser.dailyRewardCoinsClaimed
+                // Recupera também resgates já gravados antes da introdução do contador semanal.
+                // A leitura ocorre dentro da mesma transação para não conceder uma nova cota a contas antigas.
+                val weekStartKey = DailyRewardWeeklyLimit.weekStartDayKey(todayKey)
+                    ?: throw IllegalStateException("Não foi possível determinar o início da semana da recompensa.")
+                val weekClaimsQuery = userRef.collection("reward_claims")
+                    .whereGreaterThanOrEqualTo("dayKey", weekStartKey)
+                    .whereLessThanOrEqualTo("dayKey", todayKey)
+                val weekClaimsSnapshot = tx.get(weekClaimsQuery)
+                val historicalClaimedThisWeek = weekClaimsSnapshot.documents.sumOf { document ->
+                    (document.getLong("coinsGranted") ?: 0L).coerceAtLeast(0L)
+                }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                val storedClaimedThisWeek = if (existingUser.dailyRewardWeekKey == currentWeekKey) {
+                    existingUser.dailyRewardCoinsClaimed.coerceAtLeast(0)
                 } else {
                     0
                 }
+                val alreadyClaimedThisWeek = maxOf(
+                    storedClaimedThisWeek,
+                    historicalClaimedThisWeek
+                ).coerceAtMost(DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK)
                 val coinsGranted = DailyRewardWeeklyLimit.grant(
                     rewardDef.coinsGranted,
                     alreadyClaimedThisWeek
