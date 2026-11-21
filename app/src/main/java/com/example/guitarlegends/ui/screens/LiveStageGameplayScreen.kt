@@ -85,11 +85,20 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
         )
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        // A largura e a posição dos controles usam a mesma proporção da esteira
+        // desenhada em HighwayRenderer (46% da tela, strike line em 82% da altura).
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val highwayControlWidth = with(density) {
+            (constraints.maxWidth.toFloat() * 0.46f)
+                .coerceIn(310f, 540f)
+                .toDp()
+        }
+        val strikeCenterY = maxHeight * 0.82f
         // Concert Stage Visual Background
         Image(
             painter = painterResource(id = R.drawable.stage_background_1794455515273),
@@ -376,25 +385,27 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             )
         }
 
-        // Bottom Controls: Fret Strike Touch Buttons (Multi-touch enabled)
+        // Controles de traste integrados à própria esteira.
+        // Cada área de toque ocupa exatamente a largura de uma faixa e fica
+        // centralizada na mesma linha de impacto desenhada pelo HighwayRenderer.
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(0.84f)
-                .padding(bottom = 12.dp)
-                .height(68.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .align(Alignment.TopCenter)
+                .offset(y = strikeCenterY - 30.dp)
+                .width(highwayControlWidth)
+                .height(60.dp)
+                .testTag("gameplay_highway_fret_controls"),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             for (lane in 0 until numLanes) {
                 val color = LaneColors[lane]
                 val isPressed = activeFretLanes.contains(lane)
 
-                Surface(
+                Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(18.dp))
                         .testTag("fret_touch_button_$lane")
                         .pointerInteropFilter { motionEvent ->
                             when (motionEvent.actionMasked) {
@@ -409,57 +420,52 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                                 else -> false
                             }
                         },
-                    color = if (isPressed) color else color.copy(alpha = 0.25f),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = Brush.verticalGradient(
-                            listOf(if (isPressed) Color.White else color, color.copy(alpha = 0.5f))
-                        ),
-                        width = if (isPressed) 4.dp else 2.dp
-                    ),
-                    shape = RoundedCornerShape(18.dp)
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Botão visual limpo de traste (sem textos 'PISTA 1', 'PISTA 2', etc.)
-                    Box(contentAlignment = Alignment.Center) {
+                    // Círculo sobre o alvo 3D; a área de toque invisível ao redor
+                    // continua oferecendo uma zona confortável para o jogador.
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                color = if (isPressed) Color.White else color.copy(alpha = 0.30f),
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = if (isPressed) 3.dp else 2.dp,
+                                color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(14.dp)
                                 .background(
-                                    color = if (isPressed) Color.White else color.copy(alpha = 0.55f),
+                                    color = if (isPressed) color else Color.White.copy(alpha = 0.90f),
                                     shape = CircleShape
                                 )
-                                .border(
-                                    width = if (isPressed) 3.dp else 2.dp,
-                                    color = if (isPressed) color else Color.White.copy(alpha = 0.7f),
-                                    shape = CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .background(
-                                        color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
-                                        shape = CircleShape
-                                    )
-                            )
-                        }
+                        )
                     }
                 }
             }
+        }
 
-            // Optional Strum bar for Fret+Strum mode
-            if (stats.controlMode == ControlMode.FRET_AND_STRUM) {
-                Button(
-                    onClick = { viewModel.onStrumBar() },
-                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .fillMaxHeight()
-                        .testTag("strum_bar_button")
-                ) {
-                    Text("PALHETA ⚡", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 12.sp)
-                }
+        // A palheta permanece no modo que exige palhetada, sem deslocar as cinco faixas.
+        if (stats.controlMode == ControlMode.FRET_AND_STRUM) {
+            Button(
+                onClick = { viewModel.onStrumBar() },
+                colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = strikeCenterY + 32.dp)
+                    .width(highwayControlWidth * 0.58f)
+                    .height(34.dp)
+                    .testTag("strum_bar_button")
+            ) {
+                Text("PALHETA ⚡", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 11.sp)
             }
         }
 
