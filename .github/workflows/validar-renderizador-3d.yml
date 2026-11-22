@@ -11,6 +11,7 @@ on:
     paths:
       - 'app/build.gradle.kts'
       - 'app/src/main/java/com/example/guitarlegends/engine/Character3DSceneProof.kt'
+      - 'app/src/debug/**'
       - '.github/workflows/validar-renderizador-3d.yml'
 
 permissions:
@@ -18,7 +19,7 @@ permissions:
 
 jobs:
   compile-3d-proof:
-    name: Compilar prova do SceneView sem gerar APK
+    name: Compilar tela isolada de teste 3D
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -43,5 +44,6 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Compilar fontes Kotlin do aplicativo
-        run: gradle --no-daemon :app:compileDebugKotlin
+      - name: Validar manifesto e compilar fontes Kotlin
+        run: |
+          gradle --no-daemon :app:processDebugManifest :app:compileDebugKotlin
