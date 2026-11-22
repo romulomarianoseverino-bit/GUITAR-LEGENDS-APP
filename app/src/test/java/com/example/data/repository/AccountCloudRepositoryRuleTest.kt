@@ -99,6 +99,41 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
     }
 
     @Test
+    fun changeNickname_movesReservationAtomicallyAndReleasesPreviousName() = runBlocking {
+        val tag = uniqueSuffix()
+        val uid = signInTestUser("rename_$tag@test.com")
+        val repo = AccountCloudRepository(firestore, auth)
+        val oldNickname = "Old_$tag"
+        val newNickname = "New_$tag"
+
+        val created = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(oldNickname, PlayerStats()).getOrThrow()
+        }
+        val renamed = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(newNickname, created.toPlayerStats())
+        }
+
+        assertTrue("Nickname change must succeed: ${renamed.exceptionOrNull()?.message}", renamed.isSuccess)
+        assertEquals(uid, renamed.getOrThrow().userId)
+        assertEquals(newNickname, renamed.getOrThrow().nickname)
+        assertEquals(newNickname.lowercase(), renamed.getOrThrow().nicknameNormalized)
+
+        val oldReservation = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("nicknames").document(oldNickname.lowercase()).get().await()
+        }
+        val newReservation = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("nicknames").document(newNickname.lowercase()).get().await()
+        }
+        assertFalse("Previous nickname reservation must be released", oldReservation.exists())
+        assertEquals(uid, newReservation.getString("userId"))
+
+        signInTestUser("reuse_$tag@test.com")
+        val secondRepo = AccountCloudRepository(firestore, auth)
+        assertEquals(true, secondRepo.isNicknameAvailable(oldNickname).getOrNull())
+        assertEquals(false, secondRepo.isNicknameAvailable(newNickname).getOrNull())
+    }
+
+    @Test
     fun crossUserReadWrite_usersDocument_failsWithPermissionDenied() = runBlocking {
         val tag = uniqueSuffix()
         val aliceUid = signInTestUser("alice_iso_$tag@test.com")
