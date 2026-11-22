@@ -266,6 +266,11 @@ class StudioAndHardwareTest {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithTag("character_3d_viewer").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("character_3d_preview_animation").assertExists()
+        composeTestRule.onNodeWithTag("character_style_CARTOON").performClick()
+        assertEquals(CharacterArtStyle.CARTOON, vm.playerStats.value.customRocker.artStyle)
+        composeTestRule.onNodeWithTag("character_style_STYLIZED_REALISTIC").performClick()
+        assertEquals(CharacterArtStyle.STYLIZED_REALISTIC, vm.playerStats.value.customRocker.artStyle)
         composeTestRule.onAllNodesWithTag("color_wheel_button").onFirst().performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("color_wheel_dialog").assertIsDisplayed()
