@@ -4,12 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import io.github.sceneview.math.Size
 import io.github.sceneview.SceneView
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
 import io.github.sceneview.rememberModelLoader
-import io.github.sceneview.math.Float3
 import io.github.sceneview.math.Position
 
 /**
@@ -64,7 +64,7 @@ fun Character3DSceneProof(modifier: Modifier = Modifier) {
 
         // Tronco e braços
         CubeNode(
-            size = Float3(0.42f, 0.52f, 0.22f),
+            size = Size(x = 0.42f, y = 0.52f, z = 0.22f),
             materialInstance = jacket,
             position = Position(0f, 0.31f, 0f)
         )
@@ -97,7 +97,7 @@ fun Character3DSceneProof(modifier: Modifier = Modifier) {
 
         // Detalhe visual de palco no peito
         CubeNode(
-            size = Float3(0.10f, 0.10f, 0.035f),
+            size = Size(x = 0.10f, y = 0.10f, z = 0.035f),
             materialInstance = accent,
             position = Position(0f, 0.37f, 0.13f)
         )
