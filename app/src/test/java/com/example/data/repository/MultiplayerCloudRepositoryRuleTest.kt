@@ -188,12 +188,12 @@ class MultiplayerCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
 
         val firstUid = signInTestUser("transfer_first_$tag@test.com")
         withTimeout(DEFAULT_TIMEOUT_MS) {
-            repo.joinRoom(roomCode, "FirstRocker", Instrument.BASS, Difficulty.HARD).getOrThrow()
+            repo.joinRoom(roomCode, "FirstRocker", Instrument.ACOUSTIC_GUITAR, Difficulty.HARD).getOrThrow()
         }
 
         val secondUid = signInTestUser("transfer_second_$tag@test.com")
         withTimeout(DEFAULT_TIMEOUT_MS) {
-            repo.joinRoom(roomCode, "SecondRocker", Instrument.DRUMS, Difficulty.EXPERT).getOrThrow()
+            repo.joinRoom(roomCode, "SecondRocker", Instrument.ACOUSTIC_GUITAR, Difficulty.EXPERT).getOrThrow()
         }
 
         signInTestUser("transfer_host_$tag@test.com")
@@ -212,6 +212,16 @@ class MultiplayerCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         val participants = withTimeout(FLOW_TIMEOUT_MS) { repo.observeParticipants(roomCode).first() }
         assertFalse("O antigo anfitrião deve ser removido", participants.any { it.userId == hostUid })
         assertTrue(participants.any { it.userId == firstUid })
+        assertEquals(
+            "O primeiro jogador deve manter o violão acústico escolhido",
+            Instrument.ACOUSTIC_GUITAR,
+            participants.first { it.userId == firstUid }.instrumentEnum
+        )
+        assertEquals(
+            "Dois jogadores podem escolher o mesmo violão acústico",
+            Instrument.ACOUSTIC_GUITAR,
+            participants.first { it.userId == secondUid }.instrumentEnum
+        )
     }
 
     private companion object {
