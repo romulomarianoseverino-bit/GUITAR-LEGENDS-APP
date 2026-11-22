@@ -49,21 +49,22 @@ jobs:
 
       - name: Preparar chave permanente já cadastrada no repositório
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.DEBUG_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo KEYSTORE_BASE64 existente não está disponível."; exit 1; }
+          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo DEBUG_KEYSTORE_BASE64 não está disponível."; exit 1; }
           test -n "$STORE_PASSWORD" || { echo "::error::O segredo KEYSTORE_PASSWORD existente não está disponível."; exit 1; }
           test -n "$KEY_PASSWORD" || { echo "::error::O segredo KEY_PASSWORD existente não está disponível."; exit 1; }
           KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
-          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >/dev/null
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
           echo "DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "DEBUG_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "DEBUG_KEY_ALIAS=upload" >> "$GITHUB_ENV"
+          echo "DEBUG_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "DEBUG_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Compilar variante de depuração com a chave permanente
