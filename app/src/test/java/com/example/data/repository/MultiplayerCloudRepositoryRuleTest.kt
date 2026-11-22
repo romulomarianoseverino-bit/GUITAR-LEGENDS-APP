@@ -168,6 +168,52 @@ class MultiplayerCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertEquals(RoomStatus.CLOSED, closedSnap?.statusEnum)
     }
 
+    @Test
+    fun hostLeavingWaitingRoomTransfersLeadershipToNextOnlineParticipant() = runBlocking {
+        val tag = uniqueSuffix()
+        val roomCode = "HOST-$tag"
+        val hostUid = signInTestUser("transfer_host_$tag@test.com")
+        val repo = MultiplayerCloudRepository(firestore, auth)
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.createRoom(
+                mode = MultiplayerMode.BAND_COOP,
+                track = AudioAnalyzer.BUILT_IN_TRACKS[0],
+                nickname = "OriginalHost",
+                instrument = Instrument.GUITAR,
+                difficulty = Difficulty.MEDIUM,
+                customRoomCode = roomCode
+            ).getOrThrow()
+        }
+
+        val firstUid = signInTestUser("transfer_first_$tag@test.com")
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.joinRoom(roomCode, "FirstRocker", Instrument.BASS, Difficulty.HARD).getOrThrow()
+        }
+
+        val secondUid = signInTestUser("transfer_second_$tag@test.com")
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.joinRoom(roomCode, "SecondRocker", Instrument.DRUMS, Difficulty.EXPERT).getOrThrow()
+        }
+
+        signInTestUser("transfer_host_$tag@test.com")
+        withTimeout(DEFAULT_TIMEOUT_MS) { repo.leaveOrCloseRoom(roomCode).getOrThrow() }
+
+        signInTestUser("transfer_first_$tag@test.com")
+        val transferred = withTimeout(FLOW_TIMEOUT_MS) { repo.observeRoom(roomCode).first() }
+        assertNotNull(transferred)
+        assertEquals("A sala deve permanecer aguardando", RoomStatus.WAITING, transferred!!.statusEnum)
+        assertEquals("O primeiro participante válido assume a liderança", firstUid, transferred.hostUid)
+        assertEquals("FirstRocker", transferred.hostNickname)
+        assertFalse(transferred.memberUids.contains(hostUid))
+        assertTrue(transferred.memberUids.contains(firstUid))
+        assertTrue(transferred.memberUids.contains(secondUid))
+
+        val participants = withTimeout(FLOW_TIMEOUT_MS) { repo.observeParticipants(roomCode).first() }
+        assertFalse("O antigo anfitrião deve ser removido", participants.any { it.userId == hostUid })
+        assertTrue(participants.any { it.userId == firstUid })
+    }
+
     private companion object {
         const val DEFAULT_TIMEOUT_MS = 6000L
         const val FLOW_TIMEOUT_MS = 4000L
