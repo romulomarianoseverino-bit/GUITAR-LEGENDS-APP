@@ -17,7 +17,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Baixar o repositório
         uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
       - name: Preparar dependências do sistema
         run: |
           sudo apt-get update
-          sudo apt-get install -y xz-utils git libx11-6 libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libsm6 libice6
+          sudo apt-get install -y aria2 xz-utils git libx11-6 libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libsm6 libice6
 
       - name: Instalar Blender 4.2.5
         run: |
@@ -55,43 +55,70 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/mpfb-packs
-          key: mpfb-assets-v1
+          key: mpfb-assets-v2-${{ runner.os }}-${{ hashFiles('tools/generate_mpfb_human_prototype.py') }}
 
-      - name: Baixar pacotes oficiais de recursos humanos
-        timeout-minutes: 45
+      - name: Baixar pacotes oficiais de recursos humanos em paralelo
+        timeout-minutes: 60
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/mpfb-packs"
           cd "$RUNNER_TEMP/mpfb-packs"
+
           download_pack() {
             local file="$1"
             local primary="$2"
             local mirror="$3"
             if [ -s "$file" ] && unzip -t "$file" >/dev/null 2>&1; then
               echo "Pacote já disponível no cache: $file"
-              return
+              return 0
             fi
             rm -f "$file"
             local partial="${file}.part"
-            if ! curl --connect-timeout 30 --max-time 1800 --retry 5 --retry-all-errors --retry-delay 5 -C - -L --fail "$primary" -o "$partial"; then
+            local url="$primary"
+            if ! aria2c --continue=true --allow-overwrite=true --auto-file-renaming=false \
+              --file-allocation=none --max-connection-per-server=8 --split=8 --min-split-size=1M \
+              --max-tries=5 --retry-wait=5 --connect-timeout=30 --timeout=1800 \
+              --dir="$PWD" --out="$partial" "$url"; then
               rm -f "$partial"
-              curl --connect-timeout 30 --max-time 1800 --retry 5 --retry-all-errors --retry-delay 5 -C - -L --fail "$mirror" -o "$partial"
+              aria2c --continue=true --allow-overwrite=true --auto-file-renaming=false \
+                --file-allocation=none --max-connection-per-server=8 --split=8 --min-split-size=1M \
+                --max-tries=5 --retry-wait=5 --connect-timeout=30 --timeout=1800 \
+                --dir="$PWD" --out="$partial" "$mirror"
             fi
-            unzip -t "$partial"
+            unzip -t "$partial" >/dev/null
             mv "$partial" "$file"
+            echo "DOWNLOAD_OK:$file"
           }
+
           download_pack system.zip \
             https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip \
-            https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+            https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip &
+          p1=$!
           download_pack shirts.zip \
             https://files2.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip \
-            https://files.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip
+            https://files.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip &
+          p2=$!
           download_pack pants.zip \
             https://files2.makehumancommunity.org/asset_packs/pants02/pants02_ccby.zip \
-            https://files.makehumancommunity.org/asset_packs/pants02/pants02_ccby.zip
+            https://files.makehumancommunity.org/asset_packs/pants02/pants02_ccby.zip &
+          p3=$!
           download_pack shoes.zip \
             https://files2.makehumancommunity.org/asset_packs/shoes01/shoes01_cc0.zip \
-            https://files.makehumancommunity.org/asset_packs/shoes01/shoes01_cc0.zip
+            https://files.makehumancommunity.org/asset_packs/shoes01/shoes01_cc0.zip &
+          p4=$!
+
+          status=0
+          wait "$p1" || status=1
+          wait "$p2" || status=1
+          wait "$p3" || status=1
+          wait "$p4" || status=1
+          test "$status" -eq 0
+          for file in system.zip shirts.zip pants.zip shoes.zip; do
+            test -s "$file"
+            unzip -t "$file" >/dev/null
+            sha256sum "$file"
+          done
 
       - name: Instalar recursos no diretório de dados MPFB2
         run: |
@@ -118,6 +145,7 @@ jobs:
         run: |
           test -s artifacts/character-prototype/guitar-legends-human-prototype.glb
           test -s artifacts/character-prototype/preview-front-3q.png
+          test -s artifacts/character-prototype/prototype-report.json
           cat > artifacts/character-prototype/ASSET-LICENSES.txt <<'EOF'
           MakeHuman system assets: CC0 1.0, MakeHuman Community.
           Shirts01: CC0 1.0, MakeHuman Community / contributing authors.
@@ -128,13 +156,14 @@ jobs:
           EOF
           ls -lh artifacts/character-prototype
 
-      - name: Guardar relatório da auditoria
+      - name: Guardar relatório e personagem 3D gerado
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: auditoria-ambiente-3d
+          name: prototipo-personagem-3d-mpfb2
           path: |
             artifacts/mpfb-environment-report.json
             artifacts/mpfb-environment-report.txt
+            artifacts/character-prototype/**
           if-no-files-found: warn
           retention-days: 14
