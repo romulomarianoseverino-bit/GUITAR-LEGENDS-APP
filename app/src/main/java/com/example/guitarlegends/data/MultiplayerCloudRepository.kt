@@ -399,7 +399,6 @@ class MultiplayerCloudRepository(
             firestore.runTransaction { tx ->
                 val snap = tx.get(roomRef)
                 if (!snap.exists()) {
-                    tx.delete(partRef)
                     return@runTransaction Unit
                 }
 
