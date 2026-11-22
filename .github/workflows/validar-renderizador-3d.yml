@@ -44,9 +44,40 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Validar manifesto, compilar e gerar APK debug
+      - name: Criar chave descartável apenas para depuração
         run: |
-          gradle --no-daemon :app:processDebugManifest :app:compileDebugKotlin :app:assembleDebug
+          # O arquivo é ignorado pelo Git e existe somente no runner desta execução.
+          # Nunca reutiliza nem altera a chave permanente de distribuição.
+          if [ -e "$GITHUB_WORKSPACE/debug.keystore" ]; then
+            echo "Arquivo debug.keystore já existe; interrompendo para não sobrescrever nada."
+            exit 1
+          fi
+          keytool -genkeypair -v \
+            -keystore "$GITHUB_WORKSPACE/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          chmod 600 "$GITHUB_WORKSPACE/debug.keystore"
+          test -f "$GITHUB_WORKSPACE/debug.keystore"
+
+      - name: Validar manifesto, compilar e gerar APK debug
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            echo "Tentativa $attempt de 3"
+            if gradle --no-daemon --no-configuration-cache :app:processDebugManifest :app:compileDebugKotlin :app:assembleDebug; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Falha na tentativa $attempt; aguardando antes de repetir."
+              sleep 25
+            fi
+          done
+          exit 1
 
       - name: Publicar APK de teste
         uses: actions/upload-artifact@v4
