@@ -685,7 +685,7 @@ fun UpdateAvailableDialog(viewModel: GameViewModel) {
         },
         confirmButton = {
             Button(
-                onClick = { viewModel.launchOfficialUpdate() },
+                onClick = { viewModel.downloadAndInstallUpdate() },
                 colors = ButtonDefaults.buttonColors(containerColor = RockAccentGreen),
                 modifier = Modifier.testTag("update_now_button")
             ) {
