@@ -39,7 +39,7 @@ def make_mesh(distance, axes, name, color, step=STEP):
     )
     lower = np.array([x[0], y[0], z[0]])
     upper = np.array([x[-1], y[-1], z[-1]])
-    margin = step * 1.5
+    margin = step * 0.5
     if np.any(vertices.min(axis=0) <= margin) or np.any(vertices.max(axis=0) >= (upper - lower) - margin):
         raise RuntimeError(
             f"A superfície {name} encosta no limite da grade; amplie a região de cálculo."
