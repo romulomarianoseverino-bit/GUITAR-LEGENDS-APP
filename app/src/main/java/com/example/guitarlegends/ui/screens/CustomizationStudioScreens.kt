@@ -507,7 +507,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                                 ),
                                                 shape = RoundedCornerShape(8.dp),
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f).testTag("character_style_${art.name}")
                                             ) {
                                                 Text(art.displayName, color = Color(art.badgeColorHex), fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
                                             }
