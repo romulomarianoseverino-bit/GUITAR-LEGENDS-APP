@@ -25,9 +25,10 @@ def ellipsoid(grid, cx, cy, cz, rx, ry, rz):
     q = np.sqrt(((X-cx)/rx)**2 + ((Y-cy)/ry)**2 + ((Z-cz)/rz)**2)
     return (q - 1.0) * min(rx, ry, rz)
 
-def loft(grid, profile):
+def loft(grid, profile, z_center=0.0):
     """Campo aproximado de uma superfície orgânica definida por anéis (y, rx, rz)."""
     X, Y, Z = grid
+    Z = Z - z_center
     profile = np.asarray(profile, dtype=float)
     ys, rxs, rzs = profile[:, 0], profile[:, 1], profile[:, 2]
     rx = np.interp(Y, ys, rxs)
@@ -55,8 +56,7 @@ def tapered_segment(grid, a, b, radius_a, radius_b, depth_scale=1.0):
                     ((Z-a[2])/depth_scale)**2) - radius_a
     cap_b = np.sqrt((X-b[0])**2 + (Y-b[1])**2 +
                     ((Z-b[2])/depth_scale)**2) - radius_b
-    return np.minimum(np.maximum(radial, np.minimum(cap_a, cap_b)),
-                      np.maximum(cap_a, cap_b))
+    return radial
 
 def smooth_union(fields, blend=0.055):
     distance = fields[0]
@@ -131,7 +131,7 @@ def main():
 
     shirt = [loft(grid, [
         (-.06,.105,.025), (.08,.108,.03), (.25,.115,.03), (.39,.105,.025)
-    ])]
+    ], z_center=.158)]
     meshes.append(make_mesh(smooth_union(shirt,.025),axes,"T_Shirt",[125,126,128,255]))
 
     pants = [loft(grid, [
