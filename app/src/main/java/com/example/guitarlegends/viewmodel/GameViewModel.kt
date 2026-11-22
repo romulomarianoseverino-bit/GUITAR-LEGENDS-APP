@@ -492,6 +492,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             resolveInitialAuthSilently()
         }
+
+        // Verifica atualizações também no modo visitante, sem exigir login.
+        checkForUpdates(silent = true)
     }
 
     fun enterGame() {
@@ -883,16 +886,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun checkForUpdates(silent: Boolean = false) {
         viewModelScope.launch {
             if (!silent) _updateStatus.value = UpdateCheckStatus.Checking
+            val catalog = mutableListOf<AppReleaseInfo>()
+            updateManager.fetchLatestGithubRelease().getOrNull()?.let { catalog.add(it) }
             val repo = accountRepo
-            val catalog = if (repo != null && repo.currentUidOrNull() != null) {
-                repo.fetchReleasesCatalog().getOrElse { LocalReleaseCatalog.history }
-            } else {
-                LocalReleaseCatalog.history
+            if (repo != null && repo.currentUidOrNull() != null) {
+                catalog.addAll(repo.fetchReleasesCatalog().getOrElse { emptyList() })
             }
-            _releasesCatalog.value = catalog
-            val evaluated = updateManager.evaluateUpdateStatus(catalog)
+            if (catalog.isEmpty()) catalog.addAll(LocalReleaseCatalog.history)
+            _releasesCatalog.value = catalog.distinctBy { it.versionCode }
+            val evaluated = updateManager.evaluateUpdateStatus(_releasesCatalog.value)
             _updateStatus.value = evaluated
-            if (evaluated is UpdateCheckStatus.UpdateAvailable && (!silent || evaluated.isMandatory)) {
+            // Atualização disponível é avisada mesmo no modo visitante e em verificação silenciosa.
+            if (evaluated is UpdateCheckStatus.UpdateAvailable) {
                 _showUpdateDialog.value = true
             }
         }
@@ -906,15 +911,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _showUpdateDialog.value = false
     }
 
-    fun launchOfficialUpdate() {
+    fun downloadAndInstallUpdate() {
         val current = _updateStatus.value
-        val url = if (current is UpdateCheckStatus.UpdateAvailable) {
-            current.latestRelease.downloadUrl
-        } else {
-            _releasesCatalog.value.firstOrNull()?.downloadUrl.orEmpty()
-        }
-        updateManager.openOfficialUpdateChannel(url).onFailure { err ->
-            _updateStatus.value = UpdateCheckStatus.Error(err.message ?: "Erro ao abrir link de atualização.")
+        if (current !is UpdateCheckStatus.UpdateAvailable) return
+        viewModelScope.launch {
+            _updateStatus.value = UpdateCheckStatus.Downloading
+            updateManager.downloadAndInstall(current.latestRelease).onFailure { err ->
+                _updateStatus.value = UpdateCheckStatus.Error(err.message ?: "Erro ao baixar ou iniciar a atualização.")
+            }
         }
     }
 
