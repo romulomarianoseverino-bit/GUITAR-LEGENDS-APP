@@ -3,9 +3,14 @@
     <application>
         <activity
             android:name="com.example.guitarlegends.engine.Character3DSceneProofActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="Teste do personagem 3D"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.MyApplication" />
+            android:theme="@style/Theme.MyApplication">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>
