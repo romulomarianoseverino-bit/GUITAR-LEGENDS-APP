@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <!-- Tela de prova 3D disponível apenas por intent explícita em depuração.
+             Não substitui mais o lançador normal do Guitar Legends. -->
         <activity
             android:name="com.example.guitarlegends.engine.Character3DSceneProofActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="Teste do personagem 3D"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.MyApplication">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.MyApplication" />
     </application>
 </manifest>
