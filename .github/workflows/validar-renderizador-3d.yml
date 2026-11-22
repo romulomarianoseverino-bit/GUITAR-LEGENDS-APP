@@ -12,6 +12,7 @@ on:
       - 'app/build.gradle.kts'
       - 'app/src/main/java/com/example/guitarlegends/engine/Character3DSceneProof.kt'
       - 'app/src/debug/**'
+      - 'tools/generate_continuous_human_base.py'
       - '.github/workflows/validar-renderizador-3d.yml'
 
 permissions:
@@ -43,6 +44,19 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
+
+      - name: Gerar e validar malha humana contínua
+        run: |
+          python3 -m pip install --disable-pip-version-check numpy scikit-image trimesh
+          python3 tools/generate_continuous_human_base.py
+          test -s app/src/main/assets/models/continuous_human_base.glb
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/assets/models/continuous_human_base.glb')
+          data = p.read_bytes()
+          assert data[:4] == b'glTF', 'Cabeçalho GLB inválido'
+          print(f'GLB válido para empacotamento: {len(data)} bytes')
+          PY
 
       - name: Criar chave descartável apenas para depuração
         run: |
@@ -78,6 +92,10 @@ jobs:
             fi
           done
           exit 1
+
+      - name: Confirmar malha dentro do APK
+        run: |
+          unzip -l app/build/outputs/apk/debug/*.apk | grep 'assets/models/continuous_human_base.glb'
 
       - name: Publicar APK de teste
         uses: actions/upload-artifact@v4
