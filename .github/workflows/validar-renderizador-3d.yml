@@ -1,0 +1,117 @@
+name: Validar renderizador 3D real
+
+on:
+  push:
+    branches:
+      - feat/sceneview-3d-proof
+  pull_request:
+    branches:
+      - main
+      - feat/character-3d-mainline
+    paths:
+      - 'app/build.gradle.kts'
+      - 'app/src/main/java/com/example/guitarlegends/engine/Character3DSceneProof.kt'
+      - 'app/src/debug/**'
+      - 'tools/generate_continuous_human_base.py'
+      - '.github/workflows/validar-renderizador-3d.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile-3d-proof:
+    name: Gerar APK de depuração para teste 3D
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configurar SDK Android
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Configurar Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Gerar e validar malha humana contínua
+        run: |
+          python3 -m pip install --disable-pip-version-check numpy scikit-image trimesh
+          python3 tools/generate_continuous_human_base.py
+          test -s app/src/main/assets/models/continuous_human_base.glb
+          python3 - <<'PY'
+          from pathlib import Path
+          import trimesh
+          p = Path('app/src/main/assets/models/continuous_human_base.glb')
+          data = p.read_bytes()
+          assert data[:4] == b'glTF', 'Cabeçalho GLB inválido'
+          scene = trimesh.load(p, force='scene')
+          required = {
+              'Skin_Base', 'Leather_Jacket', 'T_Shirt', 'Dark_Denim',
+              'Leather_Boots', 'Hair', 'Face_Skin_Details', 'Ears',
+              'Eye_Whites', 'Eye_Pupils', 'Eyebrows', 'Mouth'
+          }
+          names = set(scene.geometry.keys())
+          missing = required - names
+          assert not missing, f'Partes visuais ausentes: {sorted(missing)}'
+          assert all(mesh.is_watertight for mesh in scene.geometry.values()), 'Há malha aberta'
+          print(f'GLB validado: {len(data)} bytes; {len(names)} partes; malhas fechadas')
+          PY
+
+      - name: Criar chave descartável apenas para depuração
+        run: |
+          # O arquivo é ignorado pelo Git e existe somente no runner desta execução.
+          # Nunca reutiliza nem altera a chave permanente de distribuição.
+          if [ -e "$GITHUB_WORKSPACE/debug.keystore" ]; then
+            echo "Arquivo debug.keystore já existe; interrompendo para não sobrescrever nada."
+            exit 1
+          fi
+          keytool -genkeypair -v \
+            -keystore "$GITHUB_WORKSPACE/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          chmod 600 "$GITHUB_WORKSPACE/debug.keystore"
+          test -f "$GITHUB_WORKSPACE/debug.keystore"
+
+      - name: Validar manifesto, compilar e gerar APK debug
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            echo "Tentativa $attempt de 3"
+            if gradle --no-daemon --no-configuration-cache :app:processDebugManifest :app:compileDebugKotlin :app:assembleDebug; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Falha na tentativa $attempt; aguardando antes de repetir."
+              sleep 25
+            fi
+          done
+          exit 1
+
+      - name: Confirmar malha dentro do APK
+        run: |
+          unzip -l app/build/outputs/apk/debug/*.apk | grep 'assets/models/continuous_human_base.glb'
+
+      - name: Publicar APK de teste
+        uses: actions/upload-artifact@v4
+        with:
+          name: guitar-legends-sceneview-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
