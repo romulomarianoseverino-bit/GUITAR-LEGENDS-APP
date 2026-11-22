@@ -914,6 +914,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun downloadAndInstallUpdate() {
         val current = _updateStatus.value
         if (current !is UpdateCheckStatus.UpdateAvailable) return
+        _showUpdateDialog.value = false
         viewModelScope.launch {
             _updateStatus.value = UpdateCheckStatus.Downloading
             updateManager.downloadAndInstall(current.latestRelease).onFailure { err ->
