@@ -1,4 +1,4 @@
-name: Auditoria do ambiente 3D na nuvem
+name: Gerar personagem humano 3D MPFB2
 
 on:
   push:
@@ -51,15 +51,41 @@ jobs:
         run: |
           "$RUNNER_TEMP/blender/blender" --background --python-expr "import bpy; bpy.ops.preferences.addon_enable(module='bl_ext.user_default.mpfb'); print('MPFB2_EXTENSION_ENABLED')" --python tools/audit_mpfb_environment.py
 
+      - name: Restaurar cache dos pacotes MPFB2
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mpfb-packs
+          key: mpfb-assets-v1
+
       - name: Baixar pacotes oficiais de recursos humanos
         run: |
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/mpfb-packs"
           cd "$RUNNER_TEMP/mpfb-packs"
-          curl -L --fail --retry 3 https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip -o system.zip
-          curl -L --fail --retry 3 https://files2.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip -o shirts.zip
-          curl -L --fail --retry 3 https://files2.makehumancommunity.org/asset_packs/pants02/pants02_cc_by.zip -o pants.zip
-          curl -L --fail --retry 3 https://files2.makehumancommunity.org/asset_packs/shoes01/shoes01_cc0.zip -o shoes.zip
-          for f in system.zip shirts.zip pants.zip shoes.zip; do unzip -t "$f"; done
+          download_pack() {
+            local file="$1"
+            local primary="$2"
+            local mirror="$3"
+            if [ ! -s "$file" ]; then
+              if ! curl --connect-timeout 30 --max-time 300 -L --fail --retry 2 "$primary" -o "$file"; then
+                rm -f "$file"
+                curl --connect-timeout 30 --max-time 300 -L --fail --retry 2 "$mirror" -o "$file"
+              fi
+            fi
+            unzip -t "$file"
+          }
+          download_pack system.zip \
+            https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip \
+            https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          download_pack shirts.zip \
+            https://files2.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip \
+            https://files.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip
+          download_pack pants.zip \
+            https://files2.makehumancommunity.org/asset_packs/pants02/pants02_cc_by.zip \
+            https://files.makehumancommunity.org/asset_packs/pants02/pants02_cc_by.zip
+          download_pack shoes.zip \
+            https://files2.makehumancommunity.org/asset_packs/shoes01/shoes01_cc0.zip \
+            https://files.makehumancommunity.org/asset_packs/shoes01/shoes01_cc0.zip
 
       - name: Instalar recursos no diretório de dados MPFB2
         run: |
