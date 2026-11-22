@@ -42,7 +42,7 @@ jobs:
           gradle-version: "9.3.1"
 
       - name: Instalar Firebase CLI
-        run: npm install --global firebase-tools
+        run: npm install --global firebase-tools@13.35.1
 
       - name: Compilar e executar testes focados com Auth e Firestore Emulator
         run: |
