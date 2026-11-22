@@ -224,6 +224,51 @@ class MultiplayerCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         )
     }
 
+
+    @Test
+    fun hostLeavingWaitingRoom_skipsDisconnectedParticipantWhenChoosingNextHost() = runBlocking {
+        val tag = uniqueSuffix()
+        val roomCode = "ACTIVE-$tag"
+        signInTestUser("active_host_$tag@test.com")
+        val hostRepo = MultiplayerCloudRepository(firestore, auth)
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            hostRepo.createRoom(
+                mode = MultiplayerMode.BAND_COOP,
+                track = AudioAnalyzer.BUILT_IN_TRACKS[0],
+                nickname = "ActiveHost",
+                instrument = Instrument.GUITAR,
+                difficulty = Difficulty.MEDIUM,
+                customRoomCode = roomCode
+            ).getOrThrow()
+        }
+
+        val disconnectedUid = signInTestUser("inactive_$tag@test.com")
+        val disconnectedRepo = MultiplayerCloudRepository(firestore, auth)
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            disconnectedRepo.joinRoom(roomCode, "InactiveRocker", Instrument.BASS, Difficulty.HARD).getOrThrow()
+        }
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            disconnectedRepo.sendHeartbeat(roomCode, ParticipantConnectionState.DISCONNECTED).getOrThrow()
+        }
+
+        val activeUid = signInTestUser("next_active_$tag@test.com")
+        val activeRepo = MultiplayerCloudRepository(firestore, auth)
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            activeRepo.joinRoom(roomCode, "NextActive", Instrument.DRUMS, Difficulty.EXPERT).getOrThrow()
+        }
+
+        signInTestUser("active_host_$tag@test.com")
+        withTimeout(DEFAULT_TIMEOUT_MS) { hostRepo.leaveOrCloseRoom(roomCode).getOrThrow() }
+
+        signInTestUser("next_active_$tag@test.com")
+        val room = withTimeout(FLOW_TIMEOUT_MS) { activeRepo.observeRoom(roomCode).first() }
+        assertNotNull(room)
+        assertEquals("A sala deve continuar aguardando", RoomStatus.WAITING, room!!.statusEnum)
+        assertEquals("O participante desconectado não pode assumir a sala", activeUid, room.hostUid)
+        assertTrue(room.memberUids.contains(disconnectedUid))
+    }
+
     private companion object {
         const val DEFAULT_TIMEOUT_MS = 6000L
         const val FLOW_TIMEOUT_MS = 4000L
