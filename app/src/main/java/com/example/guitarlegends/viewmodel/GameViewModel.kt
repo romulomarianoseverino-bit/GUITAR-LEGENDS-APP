@@ -632,54 +632,68 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun checkNicknameAvailability(nickname: String) {
-        val repo = accountRepo ?: return
+        val repo = accountRepo ?: run {
+            _nicknameAvailability.value = null
+            _authErrorMessage.value = "O serviço de conta na nuvem não está disponível neste momento."
+            return
+        }
         viewModelScope.launch {
             _nicknameAvailability.value = null
+            _authErrorMessage.value = null
             val res = repo.isNicknameAvailable(nickname)
             res.onSuccess { avail ->
                 _nicknameAvailability.value = avail
                 if (!avail) {
                     _authErrorMessage.value = "O nickname '$nickname' já está sendo usado por outro jogador."
-                } else {
-                    _authErrorMessage.value = null
                 }
             }.onFailure { err ->
-                _nicknameAvailability.value = false
-                _authErrorMessage.value = err.message
+                // Falha de rede/permissão não significa que o nickname esteja ocupado.
+                _nicknameAvailability.value = null
+                _authErrorMessage.value =
+                    "Não foi possível verificar o nickname. Confira a conexão e tente novamente. ${err.message.orEmpty()}"
             }
         }
     }
 
     fun submitNickname(nickname: String) {
-        val repo = accountRepo ?: return
+        val repo = accountRepo ?: run {
+            _authErrorMessage.value = "O serviço de conta na nuvem não está disponível neste momento. Seu progresso local foi mantido."
+            return
+        }
         viewModelScope.launch {
             _isAuthBusy.value = true
             _authErrorMessage.value = null
-            val guestSnapshot = localProgressRepository.loadSnapshot()
-            val res = repo.claimNicknameAndSaveAccount(nickname, _playerStats.value)
-            res.onSuccess { cloud ->
-                uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
-                val cloudStats = cloud.toPlayerStats()
-                _playerStats.value = cloudStats
-                _hasUnlinkedGuestProgress.value = false
-                localProgressRepository.saveSnapshot(
-                    LocalProgressSnapshot(
-                        stats = cloudStats,
-                        hasUnlinkedGuestProgress = false,
-                        hasLocalCustomizationChanges = false
+            try {
+                val guestSnapshot = localProgressRepository.loadSnapshot()
+                val res = repo.claimNicknameAndSaveAccount(nickname, _playerStats.value)
+                res.onSuccess { cloud ->
+                    uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
+                    val cloudStats = cloud.toPlayerStats()
+                    _playerStats.value = cloudStats
+                    _hasUnlinkedGuestProgress.value = false
+                    localProgressRepository.saveSnapshot(
+                        LocalProgressSnapshot(
+                            stats = cloudStats,
+                            hasUnlinkedGuestProgress = false,
+                            hasLocalCustomizationChanges = false
+                        )
                     )
-                )
-                _authUiState.value = AuthUiState.Authenticated(cloud.userId, cloud.email, cloud.nickname)
-                _cloudSyncStatus.value = "Conta salva e sincronizada na nuvem"
-                refreshAccountSubcollections()
-                checkForUpdates(silent = true)
-                if (_currentScreen.value is GameScreen.Auth) {
-                    navigateTo(GameScreen.MainMenu, pushStack = false)
+                    _authUiState.value = AuthUiState.Authenticated(cloud.userId, cloud.email, cloud.nickname)
+                    _cloudSyncStatus.value = "Conta salva e sincronizada na nuvem"
+                    refreshAccountSubcollections()
+                    checkForUpdates(silent = true)
+                    if (_currentScreen.value is GameScreen.Auth) {
+                        navigateTo(GameScreen.MainMenu, pushStack = false)
+                    }
+                }.onFailure { err ->
+                    _authErrorMessage.value = err.message ?: "Não foi possível salvar o nickname. Seu progresso local foi mantido."
                 }
-            }.onFailure { err ->
-                _authErrorMessage.value = err.message ?: "Não foi possível reservar este nickname."
+            } catch (e: Exception) {
+                _authErrorMessage.value =
+                    "Não foi possível concluir o salvamento do perfil. Seu progresso local foi mantido. ${e.message.orEmpty()}"
+            } finally {
+                _isAuthBusy.value = false
             }
-            _isAuthBusy.value = false
         }
     }
 
