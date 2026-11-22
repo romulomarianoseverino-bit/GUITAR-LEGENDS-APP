@@ -37,7 +37,14 @@ def make_mesh(distance, axes, name, color, step=STEP):
     vertices, faces, _, _ = marching_cubes(
         distance, 0.0, spacing=(step, step, step), allow_degenerate=False
     )
-    vertices += np.array([x[0], y[0], z[0]])
+    lower = np.array([x[0], y[0], z[0]])
+    upper = np.array([x[-1], y[-1], z[-1]])
+    margin = step * 1.5
+    if np.any(vertices.min(axis=0) <= margin) or np.any(vertices.max(axis=0) >= (upper - lower) - margin):
+        raise RuntimeError(
+            f"A superfície {name} encosta no limite da grade; amplie a região de cálculo."
+        )
+    vertices += lower
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=True)
     mesh.remove_unreferenced_vertices()
     mesh.fix_normals()
@@ -127,7 +134,7 @@ def main():
     meshes.append(make_mesh(smooth_union(hair, .02), axes, "Hair", [35, 29, 27, 255]))
 
     fx, fy, fz, face_grid = grid_field(
-        (-.23, .23, .75, 1.04, -.035, .205), FACE_STEP
+        (-.23, .23, .75, 1.04, -.06, .22), FACE_STEP
     )
     face_axes = (fx, fy, fz)
     face_skin = []
