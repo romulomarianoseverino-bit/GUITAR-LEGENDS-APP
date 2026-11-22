@@ -149,7 +149,9 @@ jobs:
       - name: Gerar personagem humano vestido e exportar GLB
         run: |
           mkdir -p artifacts/character-prototype
-          "$RUNNER_TEMP/blender/blender" --background --python tools/generate_mpfb_human_prototype.py
+          "$RUNNER_TEMP/blender/blender" --background \
+            --python-expr "import bpy; bpy.ops.preferences.addon_enable(module='bl_ext.user_default.mpfb')" \
+            --python tools/generate_mpfb_human_prototype.py
 
       - name: Validar e registrar licenças dos recursos
         run: |
