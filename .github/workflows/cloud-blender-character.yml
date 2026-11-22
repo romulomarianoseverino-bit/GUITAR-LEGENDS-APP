@@ -31,13 +31,13 @@ jobs:
         run: |
           if ! aria2c --continue=true --allow-overwrite=true --auto-file-renaming=false \
             --file-allocation=none --max-connection-per-server=16 --split=16 --min-split-size=1M \
-            --max-tries=8 --retry-wait=5 --connect-timeout=30 --timeout=1800 \
+            --max-tries=8 --retry-wait=5 --connect-timeout=30 --timeout=600 \
             --dir=/tmp --out=blender.tar.xz \
             https://download.blender.org/release/Blender4.2/blender-4.2.5-linux-x64.tar.xz; then
             rm -f /tmp/blender.tar.xz
             aria2c --continue=true --allow-overwrite=true --auto-file-renaming=false \
               --file-allocation=none --max-connection-per-server=16 --split=16 --min-split-size=1M \
-              --max-tries=8 --retry-wait=5 --connect-timeout=30 --timeout=1800 \
+              --max-tries=8 --retry-wait=5 --connect-timeout=30 --timeout=600 \
               --dir=/tmp --out=blender.tar.xz \
               https://mirror.blender.org/release/Blender4.2/blender-4.2.5-linux-x64.tar.xz
           fi
@@ -88,12 +88,12 @@ jobs:
             local url="$primary"
             if ! aria2c --continue=true --allow-overwrite=true --auto-file-renaming=false \
               --file-allocation=none --max-connection-per-server=8 --split=8 --min-split-size=1M \
-              --max-tries=5 --retry-wait=5 --connect-timeout=30 --timeout=1800 \
+              --max-tries=5 --retry-wait=5 --connect-timeout=30 --timeout=600 \
               --dir="$PWD" --out="$partial" "$url"; then
               rm -f "$partial"
               aria2c --continue=true --allow-overwrite=true --auto-file-renaming=false \
                 --file-allocation=none --max-connection-per-server=8 --split=8 --min-split-size=1M \
-                --max-tries=5 --retry-wait=5 --connect-timeout=30 --timeout=1800 \
+                --max-tries=5 --retry-wait=5 --connect-timeout=30 --timeout=600 \
                 --dir="$PWD" --out="$partial" "$mirror"
             fi
             unzip -t "$partial" >/dev/null
