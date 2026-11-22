@@ -294,38 +294,60 @@ fun drawInstrument3D(
                     drawScope.drawPath(pgPath, color = Color.White.copy(alpha = 0.35f), style = Stroke(width = 1f))
                 }
 
-                // Captadores Humbucker Duplos (EMG/Chrome) & Ponte Floyd-Rose + Alavanca Tremolo
-                for (py in listOf(0.18f, 0.36f)) {
-                    val pTL = projectVec3(Vec3(-0.12f, py - 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                    val pTR = projectVec3(Vec3(0.12f, py - 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                    val pBR = projectVec3(Vec3(0.12f, py + 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                    val pBL = projectVec3(Vec3(-0.12f, py + 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                    val pickupPath = Path().apply {
-                        moveTo(pTL.x, pTL.y); lineTo(pTR.x, pTR.y); lineTo(pBR.x, pBR.y); lineTo(pBL.x, pBL.y); close()
+                if (config.modelStyleId == "acoustic_dreadnought") {
+                    // Boca acústica escura com roseta e ponte de madeira; sem captadores ou controles elétricos.
+                    val soundHole = projectVec3(Vec3(0f, 0.31f, -thickness - 0.014f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawCircle(
+                        color = Color(0xFF24150E),
+                        radius = (scale * 0.105f).coerceAtLeast(5f),
+                        center = soundHole
+                    )
+                    drawScope.drawCircle(
+                        color = Color(0xFFD7B47A),
+                        radius = (scale * 0.112f).coerceAtLeast(5.5f),
+                        center = soundHole,
+                        style = Stroke(width = (scale * 0.018f).coerceAtLeast(1.2f))
+                    )
+                    val bridgeLeft = projectVec3(Vec3(-0.13f, 0.55f, -thickness - 0.016f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    val bridgeRight = projectVec3(Vec3(0.13f, 0.55f, -thickness - 0.016f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawLine(
+                        color = Color(0xFF4B2B1B),
+                        start = bridgeLeft,
+                        end = bridgeRight,
+                        strokeWidth = (scale * 0.055f).coerceAtLeast(4.5f)
+                    )
+                } else {
+                    // Captadores Humbucker Duplos (EMG/Chrome) & Ponte Floyd-Rose + Alavanca Tremolo
+                    for (py in listOf(0.18f, 0.36f)) {
+                        val pTL = projectVec3(Vec3(-0.12f, py - 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                        val pTR = projectVec3(Vec3(0.12f, py - 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                        val pBR = projectVec3(Vec3(0.12f, py + 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                        val pBL = projectVec3(Vec3(-0.12f, py + 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                        val pickupPath = Path().apply {
+                            moveTo(pTL.x, pTL.y); lineTo(pTR.x, pTR.y); lineTo(pBR.x, pBR.y); lineTo(pBL.x, pBL.y); close()
+                        }
+                        drawScope.drawPath(pickupPath, color = Color(0xFF14141A), style = Fill)
+                        drawScope.drawPath(pickupPath, color = hardware, style = Stroke(width = 1.6f))
+                        for (pole in -2..2) {
+                            val polePt = projectVec3(Vec3(pole * 0.04f, py, -thickness - 0.014f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                            drawScope.drawCircle(color = hardware.copy(alpha = 0.85f), radius = (scale * 0.012f).coerceAtLeast(1.3f), center = polePt)
+                        }
                     }
-                    drawScope.drawPath(pickupPath, color = Color(0xFF14141A), style = Fill)
-                    drawScope.drawPath(pickupPath, color = hardware, style = Stroke(width = 1.6f))
-                    // Polos magnéticos
-                    for (pole in -2..2) {
-                        val polePt = projectVec3(Vec3(pole * 0.04f, py, -thickness - 0.014f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                        drawScope.drawCircle(color = hardware.copy(alpha = 0.85f), radius = (scale * 0.012f).coerceAtLeast(1.3f), center = polePt)
-                    }
-                }
-                // Ponte & Whammy Bar
-                val brL = projectVec3(Vec3(-0.13f, 0.53f, -thickness - 0.014f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                val brR = projectVec3(Vec3(0.13f, 0.53f, -thickness - 0.014f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                drawScope.drawLine(color = hardware, start = brL, end = brR, strokeWidth = (scale * 0.06f).coerceAtLeast(5f))
-                val whammyStart = projectVec3(Vec3(0.11f, 0.54f, -thickness - 0.016f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                val whammyMid = projectVec3(Vec3(0.17f, 0.43f, -thickness - 0.045f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                val whammyTip = projectVec3(Vec3(0.22f, 0.34f, -thickness - 0.055f), yawDeg, pitchDeg, centerX, centerY, scale).first
-                drawScope.drawLine(color = hardware, start = whammyStart, end = whammyMid, strokeWidth = 2.2f)
-                drawScope.drawLine(color = hardware, start = whammyMid, end = whammyTip, strokeWidth = 2.2f)
+                    val brL = projectVec3(Vec3(-0.13f, 0.53f, -thickness - 0.014f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    val brR = projectVec3(Vec3(0.13f, 0.53f, -thickness - 0.014f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawLine(color = hardware, start = brL, end = brR, strokeWidth = (scale * 0.06f).coerceAtLeast(5f))
+                    val whammyStart = projectVec3(Vec3(0.11f, 0.54f, -thickness - 0.016f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    val whammyMid = projectVec3(Vec3(0.17f, 0.43f, -thickness - 0.045f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    val whammyTip = projectVec3(Vec3(0.22f, 0.34f, -thickness - 0.055f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawLine(color = hardware, start = whammyStart, end = whammyMid, strokeWidth = 2.2f)
+                    drawScope.drawLine(color = hardware, start = whammyMid, end = whammyTip, strokeWidth = 2.2f)
 
-                // Knobs de Volume / Tone + Chave Seletora
-                listOf(Vec3(0.16f, 0.58f, -thickness - 0.014f), Vec3(0.23f, 0.52f, -thickness - 0.014f)).forEach { kp ->
-                    val kPos = projectVec3(kp, yawDeg, pitchDeg, centerX, centerY, scale).first
-                    drawScope.drawCircle(color = Color(0xFF121018), radius = (scale * 0.028f).coerceAtLeast(2.5f), center = kPos)
-                    drawScope.drawCircle(color = hardware, radius = (scale * 0.028f).coerceAtLeast(2.5f), center = kPos, style = Stroke(width = 1.4f))
+                    // Knobs de Volume / Tone + Chave Seletora
+                    listOf(Vec3(0.16f, 0.58f, -thickness - 0.014f), Vec3(0.23f, 0.52f, -thickness - 0.014f)).forEach { kp ->
+                        val kPos = projectVec3(kp, yawDeg, pitchDeg, centerX, centerY, scale).first
+                        drawScope.drawCircle(color = Color(0xFF121018), radius = (scale * 0.028f).coerceAtLeast(2.5f), center = kPos)
+                        drawScope.drawCircle(color = hardware, radius = (scale * 0.028f).coerceAtLeast(2.5f), center = kPos, style = Stroke(width = 1.4f))
+                    }
                 }
 
                 // Cordas esticadas
