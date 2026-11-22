@@ -265,7 +265,7 @@ service cloud.firestore {
       return data.userId is string && data.userId == participantUid &&
              data.roomCode is string && data.roomCode == roomCode &&
              data.nickname is string && data.nickname.size() >= 2 && data.nickname.size() <= 24 &&
-             data.instrument is string && data.instrument in ['GUITAR', 'BASS', 'DRUMS', 'VOCALS'] &&
+             data.instrument is string && data.instrument in ['GUITAR', 'ACOUSTIC_GUITAR', 'BASS', 'DRUMS', 'VOCALS'] &&
              data.difficulty is string && data.difficulty in ['EASY', 'MEDIUM', 'HARD', 'EXPERT'] &&
              data.ready is bool &&
              data.connectionState is string && data.connectionState in ['ONLINE', 'RECONNECTING', 'DISCONNECTED'] &&
