@@ -1058,7 +1058,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getInstrumentConfig(stats: PlayerStats, instrument: Instrument): InstrumentCustomConfig {
         return when (instrument) {
-            Instrument.GUITAR -> stats.studioProfile.guitarConfig
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> stats.studioProfile.guitarConfig
             Instrument.BASS -> stats.studioProfile.bassConfig
             Instrument.DRUMS -> stats.studioProfile.drumsConfig
             Instrument.VOCALS -> stats.studioProfile.vocalConfig
@@ -1068,7 +1068,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun updateInstrumentCustomConfig(instrument: Instrument, config: InstrumentCustomConfig) {
         val studio = _playerStats.value.studioProfile
         val updatedStudio = when (instrument) {
-            Instrument.GUITAR -> studio.copy(guitarConfig = config)
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> studio.copy(guitarConfig = config)
             Instrument.BASS -> studio.copy(bassConfig = config)
             Instrument.DRUMS -> studio.copy(drumsConfig = config)
             Instrument.VOCALS -> studio.copy(vocalConfig = config)
@@ -2061,7 +2061,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val updatedCoins = _playerStats.value.coins - price
             val unlocked = (_playerStats.value.unlockedCosmetics + id).distinct()
             _playerStats.value = when (instrumentType) {
-                Instrument.GUITAR -> _playerStats.value.copy(coins = updatedCoins, selectedGuitarId = id, unlockedCosmetics = unlocked)
+                Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> _playerStats.value.copy(coins = updatedCoins, selectedGuitarId = id, unlockedCosmetics = unlocked)
                 Instrument.BASS -> _playerStats.value.copy(coins = updatedCoins, selectedBassId = id, unlockedCosmetics = unlocked)
                 Instrument.DRUMS -> _playerStats.value.copy(coins = updatedCoins, selectedDrumsId = id, unlockedCosmetics = unlocked)
                 Instrument.VOCALS -> _playerStats.value.copy(coins = updatedCoins, selectedVocalMicId = id, unlockedCosmetics = unlocked)
@@ -2072,7 +2072,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectGear(instrumentType: Instrument, id: String) {
         _playerStats.value = when (instrumentType) {
-            Instrument.GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
             Instrument.BASS -> _playerStats.value.copy(selectedBassId = id)
             Instrument.DRUMS -> _playerStats.value.copy(selectedDrumsId = id)
             Instrument.VOCALS -> _playerStats.value.copy(selectedVocalMicId = id)
