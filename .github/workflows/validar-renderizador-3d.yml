@@ -52,10 +52,21 @@ jobs:
           test -s app/src/main/assets/models/continuous_human_base.glb
           python3 - <<'PY'
           from pathlib import Path
+          import trimesh
           p = Path('app/src/main/assets/models/continuous_human_base.glb')
           data = p.read_bytes()
           assert data[:4] == b'glTF', 'Cabeçalho GLB inválido'
-          print(f'GLB válido para empacotamento: {len(data)} bytes')
+          scene = trimesh.load(p, force='scene')
+          required = {
+              'Skin_Base', 'Leather_Jacket', 'T_Shirt', 'Dark_Denim',
+              'Leather_Boots', 'Hair', 'Eye_Whites', 'Eye_Pupils',
+              'Eyebrows', 'Mouth'
+          }
+          names = set(scene.geometry.keys())
+          missing = required - names
+          assert not missing, f'Partes visuais ausentes: {sorted(missing)}'
+          assert all(mesh.is_watertight for mesh in scene.geometry.values()), 'Há malha aberta'
+          print(f'GLB validado: {len(data)} bytes; {len(names)} partes; malhas fechadas')
           PY
 
       - name: Criar chave descartável apenas para depuração
