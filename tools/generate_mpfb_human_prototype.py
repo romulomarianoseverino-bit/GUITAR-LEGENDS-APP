@@ -7,6 +7,7 @@ from __future__ import annotations
 import importlib, json, os, sys
 from pathlib import Path
 import bpy
+from mathutils import Vector
 
 def dynamic_import(package_suffix, symbol):
     for module_name in list(sys.modules):
@@ -99,7 +100,7 @@ cam = bpy.data.objects.new("PrototypeCamera", cam_data)
 bpy.context.collection.objects.link(cam)
 cam.location = (4.2, -8.5, 3.3)
 target = (0.0, 0.0, 0.95)
-direction = (bpy.mathutils.Vector(target) - cam.location)
+direction = (Vector(target) - cam.location)
 cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 cam.data.lens = 55
 bpy.context.scene.camera = cam
@@ -110,7 +111,7 @@ points = []
 for obj in bpy.context.scene.objects:
     if obj.type == "MESH":
         evaluated = obj.evaluated_get(depsgraph)
-        points.extend([evaluated.matrix_world @ bpy.mathutils.Vector(corner)
+        points.extend([evaluated.matrix_world @ Vector(corner)
                        for corner in evaluated.bound_box])
 if points:
     min_z = min(p.z for p in points)
