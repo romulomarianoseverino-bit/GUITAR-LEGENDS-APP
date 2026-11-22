@@ -29,9 +29,19 @@ jobs:
 
       - name: Instalar Blender 4.2.5
         run: |
-          curl -L --fail --retry 3 \
-            https://mirror.blender.org/release/Blender4.2/blender-4.2.5-linux-x64.tar.xz \
-            -o /tmp/blender.tar.xz
+          if ! aria2c --continue=true --allow-overwrite=true --auto-file-renaming=false \
+            --file-allocation=none --max-connection-per-server=16 --split=16 --min-split-size=1M \
+            --max-tries=8 --retry-wait=5 --connect-timeout=30 --timeout=1800 \
+            --dir=/tmp --out=blender.tar.xz \
+            https://download.blender.org/release/Blender4.2/blender-4.2.5-linux-x64.tar.xz; then
+            rm -f /tmp/blender.tar.xz
+            aria2c --continue=true --allow-overwrite=true --auto-file-renaming=false \
+              --file-allocation=none --max-connection-per-server=16 --split=16 --min-split-size=1M \
+              --max-tries=8 --retry-wait=5 --connect-timeout=30 --timeout=1800 \
+              --dir=/tmp --out=blender.tar.xz \
+              https://mirror.blender.org/release/Blender4.2/blender-4.2.5-linux-x64.tar.xz
+          fi
+          test -s /tmp/blender.tar.xz
           mkdir -p "$RUNNER_TEMP/blender"
           tar -xJf /tmp/blender.tar.xz -C "$RUNNER_TEMP/blender" --strip-components=1
           echo "$RUNNER_TEMP/blender" >> "$GITHUB_PATH"
