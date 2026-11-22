@@ -513,6 +513,14 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                             }
                                         }
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = stats.customRocker.artStyle.eraDescription,
+                                        color = Color(stats.customRocker.artStyle.badgeColorHex),
+                                        fontSize = 9.sp,
+                                        lineHeight = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 }
                             }
                         }
