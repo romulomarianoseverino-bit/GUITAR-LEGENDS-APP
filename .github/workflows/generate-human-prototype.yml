@@ -1,0 +1,98 @@
+name: Gerar prototipo humano 3D MPFB2
+
+on:
+  push:
+    branches:
+      - feat/cloud-blender-character-pipeline
+    paths:
+      - ".github/workflows/cloud-blender-character.yml"
+      - ".github/workflows/generate-human-prototype.yml"
+      - "tools/audit_mpfb_environment.py"
+      - "tools/generate_mpfb_human_prototype.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xz-utils git libx11-6 libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libsm6 libice6
+
+      - name: Instalar Blender 4.2.5
+        run: |
+          curl -L --fail --retry 3 https://mirror.blender.org/release/Blender4.2/blender-4.2.5-linux-x64.tar.xz -o /tmp/blender.tar.xz
+          mkdir -p "$RUNNER_TEMP/blender"
+          tar -xJf /tmp/blender.tar.xz -C "$RUNNER_TEMP/blender" --strip-components=1
+          echo "$RUNNER_TEMP/blender" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/blender/blender" --version
+
+      - name: Instalar MPFB2
+        run: |
+          git clone --depth 1 https://github.com/makehumancommunity/mpfb2.git "$RUNNER_TEMP/mpfb2"
+          EXT="$HOME/.config/blender/4.2/extensions/user_default"
+          mkdir -p "$EXT"
+          cp -a "$RUNNER_TEMP/mpfb2/src/mpfb" "$EXT/mpfb"
+          "$RUNNER_TEMP/blender/blender" --background --python-expr "import bpy; bpy.ops.preferences.addon_enable(module='bl_ext.user_default.mpfb'); print('MPFB2_EXTENSION_ENABLED')"
+
+      - name: Baixar pacotes oficiais de recursos
+        run: |
+          mkdir -p "$RUNNER_TEMP/mpfb-packs"
+          cd "$RUNNER_TEMP/mpfb-packs"
+          curl -L --fail --retry 3 https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip -o system.zip
+          curl -L --fail --retry 3 https://files2.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip -o shirts.zip
+          curl -L --fail --retry 3 https://files2.makehumancommunity.org/asset_packs/pants02/pants02_cc_by.zip -o pants.zip
+          curl -L --fail --retry 3 https://files2.makehumancommunity.org/asset_packs/shoes01/shoes01_cc0.zip -o shoes.zip
+          for f in system.zip shirts.zip pants.zip shoes.zip; do unzip -t "$f"; done
+
+      - name: Instalar pacotes no diretório de dados MPFB2
+        run: |
+          USER_DATA="$HOME/.config/blender/4.2/extensions/user_default/mpfb/data"
+          mkdir -p "$USER_DATA"
+          python3 - "$RUNNER_TEMP/mpfb-packs" "$USER_DATA" <<'PY'
+          import sys, zipfile, pathlib
+          source, target = map(pathlib.Path, sys.argv[1:])
+          for archive in source.glob("*.zip"):
+              with zipfile.ZipFile(archive) as z:
+                  z.extractall(target)
+          packs = target / "packs"
+          if not packs.exists() or not list(packs.glob("*.json")):
+              raise SystemExit("Os pacotes não produziram metadados em packs/*.json")
+          print("Pacotes instalados:", sorted(p.name for p in packs.glob("*.json")))
+          PY
+
+      - name: Gerar personagem humano vestido e exportar GLB
+        run: |
+          mkdir -p artifacts/character-prototype
+          "$RUNNER_TEMP/blender/blender" --background --python tools/generate_mpfb_human_prototype.py
+
+      - name: Validar artefatos e registrar licenças
+        run: |
+          test -s artifacts/character-prototype/guitar-legends-human-prototype.glb
+          test -s artifacts/character-prototype/preview-front-3q.png
+          cat > artifacts/character-prototype/ASSET-LICENSES.txt <<'EOF'
+          MakeHuman system assets: CC0 1.0, MakeHuman Community.
+          Shirts01: CC0 1.0, MakeHuman Community / contributing authors.
+          Shoes01: CC0 1.0, MakeHuman Community / contributing authors.
+          Pants02: CC-BY, attribution required. Asset used: punkduck_male_classic_jeans by punkduck.
+          Source asset-pack catalog: https://download.makehumancommunity.org/assets/assetpacks/index.html
+          This prototype is not integrated into the Android production renderer.
+          EOF
+          ls -lh artifacts/character-prototype
+
+      - name: Publicar GLB, preview e relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prototipo-personagem-humano-3d
+          path: artifacts/character-prototype/
+          if-no-files-found: warn
+          retention-days: 14
