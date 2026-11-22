@@ -23,7 +23,7 @@ jobs:
       - name: Preparar dependências do sistema
         run: |
           sudo apt-get update
-          sudo apt-get install -y xz-utils libx11-6 libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libsm6 libice6
+          sudo apt-get install -y xz-utils git libx11-6 libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libsm6 libice6
 
       - name: Instalar Blender 4.2.5
         run: |
@@ -35,13 +35,19 @@ jobs:
           echo "$RUNNER_TEMP/blender" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/blender/blender" --version
 
-      - name: Instalar a extensão MPFB2
+      - name: Instalar MPFB2 diretamente do repositório oficial
         run: |
-          "$RUNNER_TEMP/blender/blender" --command extension install -e mpfb
+          git clone --depth 1 https://github.com/makehumancommunity/mpfb2.git "$RUNNER_TEMP/mpfb2"
+          export BLENDER_USER_SCRIPTS="$RUNNER_TEMP/blender-user/scripts"
+          mkdir -p "$BLENDER_USER_SCRIPTS/addons"
+          cp -a "$RUNNER_TEMP/mpfb2/src/mpfb" "$BLENDER_USER_SCRIPTS/addons/mpfb"
+          echo "BLENDER_USER_SCRIPTS=$BLENDER_USER_SCRIPTS" >> "$GITHUB_ENV"
+          test -f "$BLENDER_USER_SCRIPTS/addons/mpfb/__init__.py"
+          echo "MPFB2 copiado para o diretório de complementos do Blender."
 
       - name: Auditar Blender, MPFB2 e recursos disponíveis
         run: |
-          "$RUNNER_TEMP/blender/blender" --background --python tools/audit_mpfb_environment.py
+          "$RUNNER_TEMP/blender/blender" --background --python-expr "import bpy; bpy.ops.preferences.addon_enable(module='mpfb'); bpy.ops.wm.save_userpref(); print('MPFB2_ADDON_ENABLED')" --python tools/audit_mpfb_environment.py
 
       - name: Guardar relatório da auditoria
         if: always()
