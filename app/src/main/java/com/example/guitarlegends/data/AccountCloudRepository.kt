@@ -101,12 +101,45 @@ class AccountCloudRepository(
                         DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
                     ) ?: throw IllegalStateException("O perfil existente está inválido.")
 
-                    if (existing.nicknameNormalized != normalized ||
-                        !nicknameSnap.exists() ||
-                        nicknameSnap.getString("userId") != uid
-                    ) {
+                    val oldNormalized = existing.nicknameNormalized
+                    if (oldNormalized.isBlank()) {
                         throw IllegalStateException(
-                            "Esta conta já possui outro nickname ou uma reserva inconsistente. Nenhuma alteração foi feita."
+                            "O perfil atual não possui uma reserva de nickname válida. Nenhuma alteração foi feita."
+                        )
+                    }
+
+                    if (oldNormalized == normalized) {
+                        if (!nicknameSnap.exists() || nicknameSnap.getString("userId") != uid) {
+                            throw IllegalStateException(
+                                "A reserva deste nickname não foi encontrada. Nenhuma alteração foi feita."
+                            )
+                        }
+                    } else {
+                        val oldNicknameRef = firestore.collection("nicknames").document(oldNormalized)
+                        val oldNicknameSnap = tx.get(oldNicknameRef)
+                        if (!oldNicknameSnap.exists() || oldNicknameSnap.getString("userId") != uid) {
+                            throw IllegalStateException(
+                                "A reserva do nickname atual não foi encontrada. Nenhuma alteração foi feita."
+                            )
+                        }
+
+                        tx.delete(oldNicknameRef)
+                        tx.set(
+                            nicknameRef,
+                            mapOf(
+                                "userId" to uid,
+                                "nickname" to trimmed,
+                                "createdAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                        tx.update(
+                            userRef,
+                            mapOf(
+                                "nickname" to trimmed,
+                                "nicknameNormalized" to normalized,
+                                "syncRevision" to (existing.syncRevision + 1L),
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
                         )
                     }
                     true
