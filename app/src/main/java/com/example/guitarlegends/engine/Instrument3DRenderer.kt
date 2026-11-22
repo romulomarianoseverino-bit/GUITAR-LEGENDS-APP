@@ -86,9 +86,23 @@ fun drawInstrument3D(
     val facingFront = yawNorm <= 90f || yawNorm >= 270f
 
     when (instrument) {
-        Instrument.GUITAR, Instrument.BASS -> {
+        Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR, Instrument.BASS -> {
             val isBass = instrument == Instrument.BASS
             val outline = when (config.modelStyleId) {
+                "acoustic_dreadnought" -> listOf(
+                    Vec3(-0.20f, -0.18f, 0f),
+                    Vec3(0.20f, -0.18f, 0f),
+                    Vec3(0.34f, 0.02f, 0f),
+                    Vec3(0.30f, 0.20f, 0f),
+                    Vec3(0.42f, 0.42f, 0f),
+                    Vec3(0.36f, 0.66f, 0f),
+                    Vec3(0.22f, 0.78f, 0f),
+                    Vec3(-0.22f, 0.78f, 0f),
+                    Vec3(-0.36f, 0.66f, 0f),
+                    Vec3(-0.42f, 0.42f, 0f),
+                    Vec3(-0.30f, 0.20f, 0f),
+                    Vec3(-0.34f, 0.02f, 0f)
+                )
                 "flying_v" -> listOf(
                     Vec3(-0.22f, -0.05f, 0f),
                     Vec3(0.22f, -0.05f, 0f),
