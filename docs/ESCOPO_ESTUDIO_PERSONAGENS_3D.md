@@ -26,6 +26,21 @@ Não copiar modelos, roupas, texturas, interface, código, nomes de opções ou 
 - Durante as partidas, o personagem deve executar animações coerentes com o instrumento selecionado: guitarra, violão acústico, baixo, bateria ou vocal.
 - As mesmas personalizações devem aparecer de forma consistente no estúdio, nas salas multiplayer e durante a partida.
 
+
+
+## Biblioteca de poses e animações musicais
+A referência a movimentos de ataque e defesa de jogos de luta pode inspirar apenas a variedade, a expressividade e a qualidade das poses. Não implementar combate, golpes, ataques, defesas ou movimentos de lutador.
+
+Criar uma biblioteca original de animações apropriadas a um jogo musical, incluindo:
+- Poses de vitória, comemoração e celebração após boas apresentações.
+- Poses de derrota, frustração leve ou desapontamento após resultados ruins, sem exageros caricatos obrigatórios.
+- Entrada no palco, apresentação ao público, saudações, agradecimentos e saída do palco.
+- Movimentos de espera e repouso, reações, gestos de incentivo e interações entre integrantes da banda.
+- Animações específicas e sincronizadas para guitarra, violão acústico, baixo, bateria e vocal.
+- Transições suaves entre repouso, execução musical, reações e poses de resultado.
+
+As animações devem combinar com o estilo visual escolhido (“3D Estilizado”, “3D Cartoon” ou “3D Anime”), respeitar o rig do personagem e poder ser reutilizadas nas telas de personalização, resultados, salas multiplayer e partidas quando fizer sentido. A seleção deve priorizar contexto musical e desempenho da partida; nenhuma animação de combate deve ser adicionada.
+
 ## Critérios de validação
 1. Trocar peças de diferentes categorias sem falhas de encaixe ou deformações graves.
 2. Girar o personagem em 360 graus e inspecionar frente, laterais e costas.
