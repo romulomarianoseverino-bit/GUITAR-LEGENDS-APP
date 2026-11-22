@@ -25,6 +25,16 @@ LocationService = dynamic_import("mpfb.services.locationservice", "LocationServi
 
 out = Path("artifacts/character-prototype")
 out.mkdir(parents=True, exist_ok=True)
+
+# Blender starts with a default cube, camera and light in a new scene.
+# Remove them before creating the human; otherwise the cube is exported and
+# also dominates the world-space bounds used to frame the preview camera.
+bpy.ops.object.select_all(action="SELECT")
+bpy.ops.object.delete(use_global=False)
+for datablocks in (bpy.data.meshes, bpy.data.cameras, bpy.data.lights):
+    for datablock in (list(datablocks)):
+        if datablock.users == 0:
+            datablocks.remove(datablock)
 report = {"stage": "first_clothed_human_glb", "production_integrated": False,
           "animation_exported": False, "assets": {}, "mesh_count": 0,
           "material_count": 0, "armature_count": 0}
@@ -113,11 +123,20 @@ for obj in bpy.context.scene.objects:
         evaluated = obj.evaluated_get(depsgraph)
         points.extend([evaluated.matrix_world @ Vector(corner)
                        for corner in evaluated.bound_box])
-if points:
-    min_z = min(p.z for p in points)
-    max_z = max(p.z for p in points)
-    cam.location.z = (min_z + max_z) * 0.52
-    cam.data.lens = 52
+if not points:
+    raise RuntimeError("No character meshes found for preview framing")
+min_z = min(p.z for p in points)
+max_z = max(p.z for p in points)
+height = max_z - min_z
+if height <= 0.1:
+    raise RuntimeError(f"Invalid character bounds: height={height}")
+# Aim at the center of the complete human and pull the camera back far enough
+# to keep head, feet and footwear inside the square preview.
+target = (0.0, 0.0, (min_z + max_z) * 0.5)
+cam.location = (4.2, -8.5, target[2] + height * 0.08)
+direction = Vector(target) - cam.location
+cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+cam.data.lens = 42
 bpy.context.scene.render.filepath = str(out / "preview-front-3q.png")
 bpy.ops.render.render(write_still=True)
 
