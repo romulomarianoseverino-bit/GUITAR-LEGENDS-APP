@@ -3,13 +3,13 @@ package com.example.guitarlegends.engine
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import io.github.sceneview.SceneView
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
 import io.github.sceneview.rememberModelLoader
+import io.github.sceneview.math.Float3
 import io.github.sceneview.math.Position
 
 /**
@@ -25,20 +25,22 @@ fun Character3DSceneProof(modifier: Modifier = Modifier) {
     val modelLoader = rememberModelLoader(engine)
     val materialLoader = rememberMaterialLoader(engine)
 
+    // SceneView 4.18.0 recebe a cor Compose diretamente; a sobrecarga com
+    // parâmetro "unlit" pertence a versões posteriores da API.
     val skin = remember(materialLoader) {
-        materialLoader.createColorInstance(Color(0xFFE2B58F), unlit = true)
+        materialLoader.createColorInstance(Color(0xFFE2B58F))
     }
     val jacket = remember(materialLoader) {
-        materialLoader.createColorInstance(Color(0xFF252B3A), unlit = true)
+        materialLoader.createColorInstance(Color(0xFF252B3A))
     }
     val pants = remember(materialLoader) {
-        materialLoader.createColorInstance(Color(0xFF171B25), unlit = true)
+        materialLoader.createColorInstance(Color(0xFF171B25))
     }
     val hair = remember(materialLoader) {
-        materialLoader.createColorInstance(Color(0xFF24170F), unlit = true)
+        materialLoader.createColorInstance(Color(0xFF24170F))
     }
     val accent = remember(materialLoader) {
-        materialLoader.createColorInstance(Color(0xFFFFB300), unlit = true)
+        materialLoader.createColorInstance(Color(0xFFFFB300))
     }
 
     SceneView(
@@ -62,7 +64,7 @@ fun Character3DSceneProof(modifier: Modifier = Modifier) {
 
         // Tronco e braços
         CubeNode(
-            size = Size(0.42f, 0.52f, 0.22f),
+            size = Float3(0.42f, 0.52f, 0.22f),
             materialInstance = jacket,
             position = Position(0f, 0.31f, 0f)
         )
@@ -95,7 +97,7 @@ fun Character3DSceneProof(modifier: Modifier = Modifier) {
 
         // Detalhe visual de palco no peito
         CubeNode(
-            size = Size(0.10f, 0.10f, 0.035f),
+            size = Float3(0.10f, 0.10f, 0.035f),
             materialInstance = accent,
             position = Position(0f, 0.37f, 0.13f)
         )
