@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo DEBUG_KEYSTORE_BASE64 não está disponível."; exit 1; }
-          test -n "$STORE_PASSWORD" || { echo "::error::O segredo KEYSTORE_PASSWORD existente não está disponível."; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo "::error::O segredo DEBUG_STORE_PASSWORD não está disponível."; exit 1; }
           test -n "$KEY_PASSWORD" || { echo "::error::O segredo KEY_PASSWORD existente não está disponível."; exit 1; }
           KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
@@ -66,17 +66,23 @@ jobs:
             echo "::error::O arquivo DEBUG_KEYSTORE_BASE64 foi decodificado, mas DEBUG_STORE_PASSWORD não foi aceita (ou o arquivo está danificado)."
             exit 1
           fi
-          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >"$KEYTOOL_LOG" 2>&1; then
-            ENTRY_COUNT="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" | sed -n '1p')"
-            if [[ "$ENTRY_COUNT" == "Keystore contains 1 entry" ]]; then
-              KEY_ALIAS="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" | sed -n '2s/,.*//p')"
-              test -n "$KEY_ALIAS" || { echo "::error::Não foi possível identificar o alias único do keystore."; exit 1; }
-              echo "::notice::Alias único identificado automaticamente no keystore; usando a entrada existente."
-            else
-              echo "::error::KEY_ALIAS não corresponde a uma entrada e o keystore possui múltiplas entradas; não será escolhida uma chave arbitrariamente."
-              exit 1
+          # Seleciona somente a entrada cujo certificado corresponde ao APK anterior.
+          EXPECTED_SHA1="224c341775b433e31b5f05782cdc628cd15b141c"
+          MATCHING_ALIAS=""
+          while IFS= read -r candidate; do
+            [[ -z "$candidate" ]] && continue
+            candidate_sha1="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$candidate" 2>/dev/null | awk '/SHA1:/{gsub(/:/,"",$2); print tolower($2); exit}')"
+            if [[ "$candidate_sha1" == "$EXPECTED_SHA1" ]]; then
+              MATCHING_ALIAS="$candidate"
+              break
             fi
+          done < <(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" | sed -n '2,$s/,.*//p')
+          if [[ -z "$MATCHING_ALIAS" ]]; then
+            echo "::error::Nenhuma entrada do keystore corresponde ao SHA-1 do APK anterior. A compilação foi bloqueada para evitar uma assinatura incompatível."
+            exit 1
           fi
+          KEY_ALIAS="$MATCHING_ALIAS"
+          echo "::notice::A entrada de assinatura foi identificada pelo certificado SHA-1 do APK anterior."
           keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" | grep -E '^(Alias name:|SHA1:|SHA256:)'
           echo "DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "DEBUG_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
