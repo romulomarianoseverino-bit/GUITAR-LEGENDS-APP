@@ -11,6 +11,7 @@ import trimesh
 from skimage.measure import marching_cubes
 
 STEP = 0.018
+FACE_STEP = 0.006
 OUT = Path("app/src/main/assets/models/continuous_human_base.glb")
 
 def grid_field(bounds, step=STEP):
@@ -31,10 +32,10 @@ def smooth_union(fields, blend=0.065):
         distance = np.minimum(distance, field) - h*h*blend*0.25
     return distance
 
-def make_mesh(distance, axes, name, color):
+def make_mesh(distance, axes, name, color, step=STEP):
     x, y, z = axes
     vertices, faces, _, _ = marching_cubes(
-        distance, 0.0, spacing=(STEP, STEP, STEP), allow_degenerate=False
+        distance, 0.0, spacing=(step, step, step), allow_degenerate=False
     )
     vertices += np.array([x[0], y[0], z[0]])
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=True)
@@ -120,28 +121,36 @@ def main():
         ])
     meshes.append(make_mesh(smooth_union(boots, .035), axes, "Leather_Boots", [28, 27, 27, 255]))
 
-    # Cabelo e detalhes faciais discretos voltados para a frente (+Z).
+    # Cabelo e detalhes faciais em grade de maior resolução para preservar
+    # olhos, sobrancelhas, nariz, orelhas e boca sem desaparecerem na voxelização.
     hair = [ellipsoid(grid, 0, .985, -.005, .151, .105, .137)]
     meshes.append(make_mesh(smooth_union(hair, .02), axes, "Hair", [35, 29, 27, 255]))
 
+    fx, fy, fz, face_grid = grid_field(
+        (-.23, .23, .75, 1.04, -.035, .205), FACE_STEP
+    )
+    face_axes = (fx, fy, fz)
     face_skin = []
     eye_whites = []
     pupils = []
     brows = []
+    ears = []
     for side in (-1, 1):
-        face_skin.append(ellipsoid(grid, side*.158, .875, 0, .035, .065, .045))
-        eye_whites.append(ellipsoid(grid, side*.058, .91, .128, .023, .016, .012))
-        pupils.append(ellipsoid(grid, side*.058, .91, .139, .008, .010, .006))
-        brows.append(ellipsoid(grid, side*.058, .94, .126, .029, .006, .008))
+        ears.append(ellipsoid(face_grid, side*.158, .875, 0, .035, .065, .045))
+        eye_whites.append(ellipsoid(face_grid, side*.058, .91, .128, .023, .016, .012))
+        pupils.append(ellipsoid(face_grid, side*.058, .91, .141, .009, .011, .008))
+        brows.append(ellipsoid(face_grid, side*.058, .944, .126, .032, .009, .009))
     face_skin.extend([
-        ellipsoid(grid, 0, .865, .145, .025, .045, .025),
+        ellipsoid(face_grid, 0, .865, .145, .025, .045, .025),
+        ellipsoid(face_grid, 0, .852, .155, .018, .025, .025),
     ])
-    meshes.append(make_mesh(smooth_union(face_skin, .008), axes, "Face_Skin_Details", [190, 158, 137, 255]))
-    meshes.append(make_mesh(smooth_union(eye_whites, .004), axes, "Eye_Whites", [238, 231, 218, 255]))
-    meshes.append(make_mesh(smooth_union(pupils, .003), axes, "Eye_Pupils", [35, 30, 28, 255]))
-    meshes.append(make_mesh(smooth_union(brows, .003), axes, "Eyebrows", [48, 38, 34, 255]))
-    mouth = [ellipsoid(grid, 0, .815, .142, .035, .008, .006)]
-    meshes.append(make_mesh(smooth_union(mouth, .002), axes, "Mouth", [105, 58, 53, 255]))
+    meshes.append(make_mesh(smooth_union(face_skin, .006), face_axes, "Face_Skin_Details", [190, 158, 137, 255], FACE_STEP))
+    meshes.append(make_mesh(smooth_union(ears, .006), face_axes, "Ears", [190, 158, 137, 255], FACE_STEP))
+    meshes.append(make_mesh(smooth_union(eye_whites, .004), face_axes, "Eye_Whites", [238, 231, 218, 255], FACE_STEP))
+    meshes.append(make_mesh(smooth_union(pupils, .003), face_axes, "Eye_Pupils", [35, 30, 28, 255], FACE_STEP))
+    meshes.append(make_mesh(smooth_union(brows, .003), face_axes, "Eyebrows", [48, 38, 34, 255], FACE_STEP))
+    mouth = [ellipsoid(face_grid, 0, .815, .15, .035, .009, .008)]
+    meshes.append(make_mesh(smooth_union(mouth, .002), face_axes, "Mouth", [105, 58, 53, 255], FACE_STEP))
 
     scene = trimesh.Scene()
     for mesh in meshes:
