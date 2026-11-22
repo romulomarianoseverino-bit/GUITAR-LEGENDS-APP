@@ -59,8 +59,8 @@ jobs:
           scene = trimesh.load(p, force='scene')
           required = {
               'Skin_Base', 'Leather_Jacket', 'T_Shirt', 'Dark_Denim',
-              'Leather_Boots', 'Hair', 'Eye_Whites', 'Eye_Pupils',
-              'Eyebrows', 'Mouth'
+              'Leather_Boots', 'Hair', 'Face_Skin_Details', 'Ears',
+              'Eye_Whites', 'Eye_Pupils', 'Eyebrows', 'Mouth'
           }
           names = set(scene.geometry.keys())
           missing = required - names
