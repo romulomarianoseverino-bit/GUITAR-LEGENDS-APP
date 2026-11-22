@@ -416,7 +416,15 @@ class MultiplayerCloudRepository(
                         for (candidateUid in room.memberUids.filterNot { it == uid }) {
                             val candidateRef = roomRef.collection("participants").document(candidateUid)
                             val candidate = tx.get(candidateRef)
-                            if (candidate.exists()) {
+                            val connection = candidate.getString("connectionState")
+                            val heartbeat = candidate.getLong("lastHeartbeatMs")
+                            val recentlyActive = heartbeat > 0L &&
+                                (System.currentTimeMillis() - heartbeat) <= 14_000L
+                            if (
+                                candidate.exists() &&
+                                connection != ParticipantConnectionState.DISCONNECTED.name &&
+                                recentlyActive
+                            ) {
                                 nextHostUid = candidateUid
                                 nextHostNickname = candidate.getString("nickname")
                                     ?.trim()
