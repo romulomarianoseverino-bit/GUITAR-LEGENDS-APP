@@ -124,17 +124,24 @@ def main():
     hair = [ellipsoid(grid, 0, .985, -.005, .151, .105, .137)]
     meshes.append(make_mesh(smooth_union(hair, .02), axes, "Hair", [35, 29, 27, 255]))
 
-    face_details = []
+    face_skin = []
+    eye_whites = []
+    pupils = []
+    brows = []
     for side in (-1, 1):
-        face_details.extend([
-            ellipsoid(grid, side*.058, .91, .125, .022, .016, .012),  # olhos
-            ellipsoid(grid, side*.158, .875, 0, .035, .065, .045),   # orelhas
-        ])
-    face_details.extend([
-        ellipsoid(grid, 0, .865, .145, .025, .045, .025),  # nariz
-        ellipsoid(grid, 0, .815, .132, .035, .009, .012),  # boca
+        face_skin.append(ellipsoid(grid, side*.158, .875, 0, .035, .065, .045))
+        eye_whites.append(ellipsoid(grid, side*.058, .91, .128, .023, .016, .012))
+        pupils.append(ellipsoid(grid, side*.058, .91, .139, .008, .010, .006))
+        brows.append(ellipsoid(grid, side*.058, .94, .126, .029, .006, .008))
+    face_skin.extend([
+        ellipsoid(grid, 0, .865, .145, .025, .045, .025),
     ])
-    meshes.append(make_mesh(smooth_union(face_details, .008), axes, "Face_Details", [76, 54, 47, 255]))
+    meshes.append(make_mesh(smooth_union(face_skin, .008), axes, "Face_Skin_Details", [190, 158, 137, 255]))
+    meshes.append(make_mesh(smooth_union(eye_whites, .004), axes, "Eye_Whites", [238, 231, 218, 255]))
+    meshes.append(make_mesh(smooth_union(pupils, .003), axes, "Eye_Pupils", [35, 30, 28, 255]))
+    meshes.append(make_mesh(smooth_union(brows, .003), axes, "Eyebrows", [48, 38, 34, 255]))
+    mouth = [ellipsoid(grid, 0, .815, .142, .035, .008, .006)]
+    meshes.append(make_mesh(smooth_union(mouth, .002), axes, "Mouth", [105, 58, 53, 255]))
 
     scene = trimesh.Scene()
     for mesh in meshes:
