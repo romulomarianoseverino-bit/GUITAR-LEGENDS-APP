@@ -61,7 +61,15 @@ jobs:
           KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
-          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          KEYTOOL_LOG="$RUNNER_TEMP/keytool-validation.log"
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" >"$KEYTOOL_LOG" 2>&1; then
+            echo "::error::O arquivo DEBUG_KEYSTORE_BASE64 foi decodificado, mas DEBUG_STORE_PASSWORD não foi aceita (ou o arquivo está danificado)."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >"$KEYTOOL_LOG" 2>&1; then
+            echo "::error::A senha do arquivo foi aceita, mas KEY_ALIAS não corresponde a uma entrada desse keystore."
+            exit 1
+          fi
           echo "DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "DEBUG_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
           echo "DEBUG_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
