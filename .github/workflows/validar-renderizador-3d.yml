@@ -19,9 +19,9 @@ permissions:
 
 jobs:
   compile-3d-proof:
-    name: Compilar tela isolada de teste 3D
+    name: Gerar APK de depuração para teste 3D
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
@@ -44,6 +44,14 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Validar manifesto e compilar fontes Kotlin
+      - name: Validar manifesto, compilar e gerar APK debug
         run: |
-          gradle --no-daemon :app:processDebugManifest :app:compileDebugKotlin
+          gradle --no-daemon :app:processDebugManifest :app:compileDebugKotlin :app:assembleDebug
+
+      - name: Publicar APK de teste
+        uses: actions/upload-artifact@v4
+        with:
+          name: guitar-legends-sceneview-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
