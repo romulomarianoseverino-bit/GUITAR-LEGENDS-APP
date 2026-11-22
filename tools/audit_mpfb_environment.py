@@ -43,7 +43,16 @@ try:
         if root.exists():
             candidates.extend(str(p) for p in root.rglob("*mpfb*") if p.is_dir())
     report["mpfb_extension_candidates"] = sorted(set(candidates))
-    report["checks"]["mpfb_extension_directory_found"] = bool(candidates)
+    report["checks"]["mpfb_extension_directory_found"] = any(
+        (Path(p) / "blender_manifest.toml").is_file() for p in candidates
+    )
+    report["mpfb_extension_module"] = "bl_ext.user_default.mpfb"
+    try:
+        addon = bpy.context.preferences.addons.get("bl_ext.user_default.mpfb")
+        report["checks"]["mpfb_extension_enabled"] = addon is not None
+    except Exception as exc:
+        report["checks"]["mpfb_extension_enabled"] = False
+        report["mpfb_enable_check_error"] = repr(exc)
 
     # MPFB data packs may live outside the extension directory. Record only
     # likely locations; do not assume that a directory means assets are valid.
