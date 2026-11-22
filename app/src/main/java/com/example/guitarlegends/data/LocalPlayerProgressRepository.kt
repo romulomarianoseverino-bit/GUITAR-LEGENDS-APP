@@ -160,6 +160,12 @@ class LocalPlayerProgressRepository(private val context: Context) {
         }
         val dayNumber = ((newStreak - 1) % 30) + 1
         val rewardDef = DailyRewardCatalog.rewardForDay(dayNumber)
+        val currentWeekKey = DailyRewardWeeklyLimit.weekKey(todayKey)
+            ?: return Result.failure(IllegalArgumentException("Data da recompensa inválida."))
+        val claimedThisWeek = current.localRewards
+            .filter { DailyRewardWeeklyLimit.weekKey(it.dayKey) == currentWeekKey }
+            .sumOf { it.coinsGranted }
+        val coinsGranted = DailyRewardWeeklyLimit.grant(rewardDef.coinsGranted, claimedThisWeek)
 
         val updatedCosmetics = buildList {
             addAll(current.stats.unlockedCosmetics)
@@ -172,7 +178,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
         }.distinct()
 
         val updatedStats = current.stats.copy(
-            coins = current.stats.coins + rewardDef.coinsGranted,
+            coins = current.stats.coins + coinsGranted,
             unlockedCosmetics = updatedCosmetics,
             achievementsUnlocked = updatedAchievements,
             rewardStreak = newStreak,
@@ -185,7 +191,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
             streakCount = newStreak,
             rewardTitle = rewardDef.title,
             rewardType = rewardDef.rewardType,
-            coinsGranted = rewardDef.coinsGranted,
+            coinsGranted = coinsGranted,
             cosmeticId = rewardDef.cosmeticId
         )
 
@@ -194,7 +200,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
             hasUnlinkedGuestProgress = true,
             localRewards = (listOf(record) + current.localRewards.filter { it.dayKey != todayKey }).take(30)
         )
-        saveSnapshot(nextSnapshot)
+        saveSnapshot(nextSnapshot).getOrElse { return Result.failure(it) }
         return Result.success(record to nextSnapshot)
     }
 

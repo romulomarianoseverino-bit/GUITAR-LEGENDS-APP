@@ -93,6 +93,8 @@ data class UserAccountCloud(
     val graphicsQuality: String = GraphicsQuality.HIGH.name,
     val rewardStreak: Int = 0,
     val lastRewardDayKey: String = "",
+    val dailyRewardWeekKey: String = "",
+    val dailyRewardCoinsClaimed: Int = 0,
     val schemaVersion: Int = 3,
     val syncRevision: Long = 1L,
     val studioProfileJson: String = "",
@@ -130,6 +132,8 @@ data class UserAccountCloud(
         "graphicsQuality" to graphicsQuality.take(32),
         "rewardStreak" to rewardStreak.coerceIn(0, 3650),
         "lastRewardDayKey" to lastRewardDayKey.take(20),
+        "dailyRewardWeekKey" to dailyRewardWeekKey.take(16),
+        "dailyRewardCoinsClaimed" to dailyRewardCoinsClaimed.coerceIn(0, DailyRewardWeeklyLimit.MAX_COINS_PER_WEEK),
         "schemaVersion" to schemaVersion.coerceAtLeast(1),
         "syncRevision" to syncRevision.coerceAtLeast(1L),
         "studioProfileJson" to studioProfileJson.take(24576),
@@ -265,6 +269,77 @@ data class DailyRewardDefinition(
     val cosmeticId: String = "",
     val isMilestone: Boolean = false
 )
+
+/**
+ * Limite de moedas concedidas exclusivamente por resgates diários.
+ * A semana segue ISO-8601 em UTC (segunda-feira a domingo), igual ao relógio diário já usado no app.
+ */
+object DailyRewardWeeklyLimit {
+    const val MAX_COINS_PER_WEEK = 100
+
+    fun weekKey(dayKey: String): String? = runCatching {
+        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            isLenient = false
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val date = parser.parse(dayKey) ?: return null
+        val calendar = java.util.GregorianCalendar(java.util.TimeZone.getTimeZone("UTC"), java.util.Locale.US).apply {
+            firstDayOfWeek = java.util.Calendar.MONDAY
+            minimalDaysInFirstWeek = 4
+            time = date
+        }
+        java.lang.String.format(
+            java.util.Locale.US,
+            "%04d-W%02d",
+            calendar.getWeekYear(),
+            calendar.get(java.util.Calendar.WEEK_OF_YEAR)
+        )
+    }.getOrNull()
+
+    fun weekStartDayKey(dayKey: String): String? = runCatching {
+        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            isLenient = false
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val date = parser.parse(dayKey) ?: return null
+        val calendar = java.util.GregorianCalendar(java.util.TimeZone.getTimeZone("UTC"), java.util.Locale.US).apply {
+            time = date
+        }
+        val daysSinceMonday = (calendar.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7
+        calendar.add(java.util.Calendar.DAY_OF_MONTH, -daysSinceMonday)
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }.format(calendar.time)
+    }.getOrNull()
+
+    fun dayKeysInWeekThrough(dayKey: String): List<String> = runCatching {
+        val startKey = weekStartDayKey(dayKey) ?: return emptyList()
+        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            isLenient = false
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val startDate = parser.parse(startKey) ?: return emptyList()
+        val endDate = parser.parse(dayKey) ?: return emptyList()
+        val calendar = java.util.GregorianCalendar(
+            java.util.TimeZone.getTimeZone("UTC"),
+            java.util.Locale.US
+        ).apply { time = startDate }
+        val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        buildList {
+            while (!calendar.time.after(endDate)) {
+                add(formatter.format(calendar.time))
+                calendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            }
+        }
+    }.getOrDefault(emptyList())
+
+    fun grant(requestedCoins: Int, alreadyClaimedThisWeek: Int): Int {
+        val remaining = (MAX_COINS_PER_WEEK - alreadyClaimedThisWeek.coerceAtLeast(0)).coerceAtLeast(0)
+        return requestedCoins.coerceAtLeast(0).coerceAtMost(remaining)
+    }
+}
 
 object DailyRewardCatalog {
     val cycleRewards: List<DailyRewardDefinition> = listOf(

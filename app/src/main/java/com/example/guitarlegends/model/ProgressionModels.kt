@@ -37,9 +37,9 @@ enum class CharacterCreationMethod(val label: String, val description: String) {
 }
 
 enum class CharacterArtStyle(val displayName: String, val eraDescription: String, val badgeColorHex: Long) {
-    STYLIZED_REALISTIC("Realista Estilizado", "Estética PlayStation 2 / clássico dos anos 2000", 0xFFFFD700),
-    CARTOON("Cartoon Rocker", "Estilo HQ e animação anos 2000 marcante", 0xFFFF4081),
-    ANIME("Anime Neo-Shredder", "Estilo visual vibrante com traços expressivos", 0xFF00E5FF)
+    STYLIZED_REALISTIC("3D Estilizado", "Proporções estilizadas com acabamento inspirado nos jogos de console", 0xFFFFD700),
+    CARTOON("3D Cartoon", "Formas mais expressivas, silhuetas marcantes e visual de animação", 0xFFFF4081),
+    ANIME("3D Anime", "Traços inspirados em anime, expressões fortes e visual dinâmico", 0xFF00E5FF)
 }
 
 data class CustomRockerAppearance(

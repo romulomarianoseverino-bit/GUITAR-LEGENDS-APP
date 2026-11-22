@@ -34,10 +34,19 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+      // CI reuses the repository's existing permanent publication key for debug APKs too.
+      // This keeps the Android certificate/SHA-1 stable across every build.
+      val configuredKeystore = System.getenv("DEBUG_KEYSTORE_PATH") ?: System.getenv("KEYSTORE_PATH")
+      val debugKeystorePath = configuredKeystore ?: "${rootDir}/debug.keystore"
+      storeFile = file(debugKeystorePath)
+      storePassword = System.getenv("DEBUG_KEYSTORE_PASSWORD")
+        ?: System.getenv("STORE_PASSWORD")
+        ?: "android"
+      keyAlias = System.getenv("DEBUG_KEY_ALIAS")
+        ?: if (configuredKeystore != null) "upload" else "androiddebugkey"
+      keyPassword = System.getenv("DEBUG_KEY_PASSWORD")
+        ?: System.getenv("KEY_PASSWORD")
+        ?: "android"
     }
   }
 
@@ -76,6 +85,9 @@ tasks.withType<Test> {
   timeout.set(Duration.ofMinutes(2))
   testLogging {
     events("passed", "failed", "skipped")
+    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    showCauses = true
+    showStackTraces = true
   }
 }
 

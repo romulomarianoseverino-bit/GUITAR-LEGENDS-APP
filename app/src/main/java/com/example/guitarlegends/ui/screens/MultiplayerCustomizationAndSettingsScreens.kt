@@ -552,6 +552,7 @@ fun SettingsScreen(viewModel: GameViewModel) {
                             val statusLabel = when (val st = updateStatus) {
                                 is com.example.guitarlegends.data.UpdateCheckStatus.Idle -> "Toque para verificar novas versões."
                                 is com.example.guitarlegends.data.UpdateCheckStatus.Checking -> "Verificando servidor oficial..."
+                                is com.example.guitarlegends.data.UpdateCheckStatus.Downloading -> "Baixando atualização oficial..."
                                 is com.example.guitarlegends.data.UpdateCheckStatus.UpToDate -> "✔ Atualizado (${st.installedVersion})"
                                 is com.example.guitarlegends.data.UpdateCheckStatus.UpdateAvailable ->
                                     "🔔 Nova versão ${st.latestRelease.versionName} disponível!"
@@ -585,13 +586,13 @@ fun SettingsScreen(viewModel: GameViewModel) {
                             }
                             if (updateStatus is com.example.guitarlegends.data.UpdateCheckStatus.UpdateAvailable) {
                                 Button(
-                                    onClick = { viewModel.launchOfficialUpdate() },
+                                    onClick = { viewModel.downloadAndInstallUpdate() },
                                     colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
                                     shape = RoundedCornerShape(6.dp),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                     modifier = Modifier.fillMaxWidth().testTag("settings_launch_update_button")
                                 ) {
-                                    Text("ABRIR CANAL OFICIAL DE ATUALIZAÇÃO ▶", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 8.sp)
+                                    Text("BAIXAR E INSTALAR ATUALIZAÇÃO ▶", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 8.sp)
                                 }
                             }
                         }
