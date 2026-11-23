@@ -130,9 +130,20 @@ object AudioAnalyzer {
             )
             val isStarPower = (alignedTime % 28_000L) in 0L..4_000L
             val nextGap = minSpacingMs * 2
-            val isSustain = (instrument == Instrument.VOCALS || instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR) &&
+            val isSustainInstrument = instrument == Instrument.VOCALS ||
+                instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR
+            val isSustain = isSustainInstrument &&
                 phraseStep % 7 == 0 && alignedTime + nextGap < maxAllowedTime
-            val durationMs = if (isSustain) (beatIntervalMs * 1.1).toLong() else 0L
+            val durationMs = if (isSustain) {
+                sustainDurationForPhrase(beatIntervalMs, phraseStep)
+                    .coerceAtMost((maxAllowedTime - alignedTime).coerceAtLeast(0L))
+            } else 0L
+
+            if (isLaneBlockedBySustain(notes, lane, alignedTime)) {
+                lastAcceptedTime = alignedTime
+                phraseStep++
+                continue
+            }
 
             notes.add(
                 Note(
@@ -225,18 +236,28 @@ object AudioAnalyzer {
                 val lane = selectMusicalLane(instrument, lanesCount, stepIndex + section, energy)
                 val isSustain = (instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR || instrument == Instrument.VOCALS) &&
                     barStep == 0 && (currentTimeMs + beatIntervalMs < maxAllowedTime)
-                val duration = if (isSustain) (beatIntervalMs * 1.25).toLong() else 0L
+                val durationBeats = when (section) {
+                    1 -> 3.0
+                    2 -> 6.0
+                    else -> 1.25
+                }
+                val duration = if (isSustain) {
+                    (beatIntervalMs * durationBeats).toLong()
+                        .coerceAtMost((maxAllowedTime - currentTimeMs).coerceAtLeast(0L))
+                } else 0L
                 val isStarPower = (currentTimeMs % 28_000L) in 0L..4_000L
 
-                notes.add(
-                    Note(
-                        id = noteIdCounter++,
-                        lane = lane,
-                        timeMs = currentTimeMs,
-                        durationMs = duration,
-                        isStarPower = isStarPower
+                if (!isLaneBlockedBySustain(notes, lane, currentTimeMs)) {
+                    notes.add(
+                        Note(
+                            id = noteIdCounter++,
+                            lane = lane,
+                            timeMs = currentTimeMs,
+                            durationMs = duration,
+                            isStarPower = isStarPower
+                        )
                     )
-                )
+                }
 
                 if ((difficulty == Difficulty.HARD || difficulty == Difficulty.EXPERT) &&
                     instrument == Instrument.GUITAR &&
@@ -244,7 +265,7 @@ object AudioAnalyzer {
                     lanesCount >= 3
                 ) {
                     val chordLane = (lane + 2) % lanesCount
-                    if (chordLane != lane) {
+                    if (chordLane != lane && !isLaneBlockedBySustain(notes, chordLane, currentTimeMs)) {
                         notes.add(
                             Note(
                                 id = noteIdCounter++,
@@ -264,6 +285,22 @@ object AudioAnalyzer {
 
         return notes
     }
+
+
+    private fun sustainDurationForPhrase(beatIntervalMs: Long, phraseStep: Int): Long {
+        val beats = when {
+            phraseStep % 21 == 0 -> 6.0
+            phraseStep % 14 == 0 -> 3.0
+            else -> 1.25
+        }
+        return (beatIntervalMs * beats).toLong()
+    }
+
+    private fun isLaneBlockedBySustain(notes: List<Note>, lane: Int, timeMs: Long): Boolean =
+        notes.any { note ->
+            note.lane == lane && note.durationMs > 50L &&
+                timeMs > note.timeMs && timeMs <= note.timeMs + note.durationMs
+        }
 
     private fun selectMusicalLane(
         instrument: Instrument,
