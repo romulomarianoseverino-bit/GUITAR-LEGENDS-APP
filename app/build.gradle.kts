@@ -73,7 +73,7 @@ android {
 
 tasks.withType<Test> {
   // Execute the complete suite after a failure so later tests are not silently skipped.
-  // Failures remain failures and still block the candidate APK until triaged.
+  // Failures remain visible in CI; candidate APK generation is a separate CI step for human testing.
   failFast = false
   timeout.set(Duration.ofMinutes(2))
   testLogging {
