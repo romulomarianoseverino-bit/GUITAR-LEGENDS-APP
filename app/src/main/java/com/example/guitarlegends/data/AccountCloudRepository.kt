@@ -101,10 +101,11 @@ class AccountCloudRepository(
                 } else null
 
                 val oldNormalized = existingUser?.nicknameNormalized.orEmpty()
-                if (oldNormalized.isNotBlank() && oldNormalized != normalized) {
-                    val oldNickRef = firestore.collection("nicknames").document(oldNormalized)
-                    tx.delete(oldNickRef)
-                }
+                val oldNickRef = if (oldNormalized.isNotBlank() && oldNormalized != normalized) {
+                    firestore.collection("nicknames").document(oldNormalized)
+                } else null
+                // Todas as leituras da transação precisam ocorrer antes das gravações.
+                val oldNickSnap = oldNickRef?.let { tx.get(it) }
 
                 val nextRevision = maxOf(existingUser?.syncRevision ?: 0L, localStats.syncRevision) + 1L
                 val mergedStats = if (existingUser != null) {
@@ -121,14 +122,21 @@ class AccountCloudRepository(
                     syncRevision = nextRevision
                 )
 
-                tx.set(
-                    nickRef,
-                    mapOf(
-                        "userId" to uid,
-                        "nickname" to trimmed,
-                        "createdAt" to FieldValue.serverTimestamp()
+                // A reserva existente é imutável pelas regras do Firestore.
+                // Reutilizar o mesmo nickname não pode tentar convertê-la em UPDATE.
+                if (!nickSnap.exists()) {
+                    tx.set(
+                        nickRef,
+                        mapOf(
+                            "userId" to uid,
+                            "nickname" to trimmed,
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
                     )
-                )
+                }
+                if (oldNickSnap?.exists() == true && oldNickSnap.getString("userId") == uid) {
+                    tx.delete(oldNickRef!!)
+                }
 
                 if (existingUser == null) {
                     tx.set(userRef, cloudObj.toCreateMap())
