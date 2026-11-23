@@ -75,3 +75,23 @@ A primeira prévia não correspondeu à referência solicitada: cabelo/cor inade
 - Usar fotos públicas apenas como referência visual de pesquisa; não embutir fotos protegidas no APK nem copiar figurinos, logotipos ou marcas.
 - Priorizar assets CC0 e ferramentas gratuitas. Registrar atribuição de qualquer asset CC-BY antes de redistribuir.
 - Este documento é direção artística e critérios de validação; não declara que o modelo final já está pronto.
+
+
+## Revisão da referência visual enviada em 23/11/2026
+
+A imagem `Imagens/file_00000000afa8820e8132233143f51295.png` na `main` foi aberta e confirmada como a base visual indicada pelo usuário. Ela mostra um avatar humano 3D de corpo inteiro, com terno cinza-escuro de aparência corporativa, gravata listrada azul, sapatos marrons, cabelo curto penteado para trás e pose neutra com os braços afastados. Esta é a base de continuidade; não substituir por um personagem de outra versão nem reiniciar a criação do zero.
+
+### Problemas observados na base
+- O conjunto parece roupa social de escritório, não figurino de apresentação musical contemporânea.
+- Gravata azul listrada e sapatos marrons quebram a unidade visual escura de palco.
+- O cabelo está claro e muito assentado, sem o volume/textura escura desejada.
+- O rosto ainda é genérico e não tem semelhança visual suficiente com a referência artística de Luan Santana.
+- A pose é apenas neutra; o modelo precisa continuar sendo preparado para rig e animações musicais.
+
+### Próxima revisão técnica
+- Preservar a malha humana, escala, rig e continuidade do personagem atual.
+- Testar cabelo curto texturizado castanho-escuro e conferir a cor no render final, não apenas no material.
+- Harmonizar o figurino para palco em preto/grafite, com calçado preto e detalhes metálicos discretos; evitar aparência de uniforme corporativo e evitar elementos sertanejos caricatos.
+- Ajustar rosto e cabelo com referência visual pública de forma respeitosa, mantendo um avatar original do jogo em vez de uma cópia fotográfica.
+- Gerar vistas frontal, 3/4, lateral e traseira, além de close do rosto; validar o GLB e a deformação do rig.
+- A primeira execução desta revisão é uma tentativa técnica de paleta e cabelo. Não declarar semelhança facial, figurino final ou aprovação antes de inspecionar as novas imagens e o GLB.
