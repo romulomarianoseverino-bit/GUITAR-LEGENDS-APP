@@ -101,7 +101,7 @@ fun InstrumentCard(
     val icon: ImageVector = when (instrument) {
         Instrument.GUITAR -> Icons.Default.ElectricBolt
         Instrument.ACOUSTIC_GUITAR -> Icons.Default.MusicNote
-        Instrument.BASS -> Icons.Default.GraphicEq)
+        Instrument.BASS -> Icons.Default.GraphicEq
         Instrument.DRUMS -> Icons.Default.MusicNote
         Instrument.VOCALS -> Icons.Default.Mic
     }
