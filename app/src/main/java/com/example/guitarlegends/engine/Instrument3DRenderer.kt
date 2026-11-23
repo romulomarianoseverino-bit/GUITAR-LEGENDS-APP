@@ -86,9 +86,30 @@ fun drawInstrument3D(
     val facingFront = yawNorm <= 90f || yawNorm >= 270f
 
     when (instrument) {
-        Instrument.GUITAR, Instrument.BASS -> {
+        Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR, Instrument.BASS -> {
             val isBass = instrument == Instrument.BASS
+            val isAcoustic = instrument == Instrument.ACOUSTIC_GUITAR
             val outline = when (config.modelStyleId) {
+                "acoustic_dreadnought" -> listOf(
+                    Vec3(-0.20f, -0.10f, 0f), Vec3(0.20f, -0.10f, 0f),
+                    Vec3(0.34f, 0.02f, 0f), Vec3(0.36f, 0.30f, 0f),
+                    Vec3(0.27f, 0.62f, 0f), Vec3(0.15f, 0.76f, 0f),
+                    Vec3(-0.15f, 0.76f, 0f), Vec3(-0.27f, 0.62f, 0f),
+                    Vec3(-0.36f, 0.30f, 0f), Vec3(-0.34f, 0.02f, 0f)
+                )
+                "acoustic_classical" -> listOf(
+                    Vec3(-0.21f, -0.10f, 0f), Vec3(0.21f, -0.10f, 0f),
+                    Vec3(0.32f, 0.08f, 0f), Vec3(0.30f, 0.56f, 0f),
+                    Vec3(0.18f, 0.75f, 0f), Vec3(-0.18f, 0.75f, 0f),
+                    Vec3(-0.30f, 0.56f, 0f), Vec3(-0.32f, 0.08f, 0f)
+                )
+                "acoustic_jumbo" -> listOf(
+                    Vec3(-0.24f, -0.10f, 0f), Vec3(0.24f, -0.10f, 0f),
+                    Vec3(0.40f, 0.08f, 0f), Vec3(0.42f, 0.40f, 0f),
+                    Vec3(0.28f, 0.68f, 0f), Vec3(0.14f, 0.78f, 0f),
+                    Vec3(-0.14f, 0.78f, 0f), Vec3(-0.28f, 0.68f, 0f),
+                    Vec3(-0.42f, 0.40f, 0f), Vec3(-0.40f, 0.08f, 0f)
+                )
                 "flying_v" -> listOf(
                     Vec3(-0.22f, -0.05f, 0f),
                     Vec3(0.22f, -0.05f, 0f),
@@ -237,8 +258,18 @@ fun drawInstrument3D(
             drawScope.drawPath(headPath, color = Color.Black.copy(alpha = 0.5f), style = Stroke(width = 1.5f))
 
             if (facingFront) {
-                // Estampa no corpo
-                drawInstrumentStamp(drawScope, config.stampId, centerX, centerY, scale, yawDeg, pitchDeg, hardware, primary)
+                // Violão acústico: boca, roseta, cavalete e seis cordas; guitarra elétrica mantém captadores e controles.
+                if (isAcoustic) {
+                    val soundHole = projectVec3(Vec3(0f, 0.32f, -thickness - 0.018f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawCircle(color = Color(0xFF24170F), radius = scale * 0.105f, center = soundHole)
+                    drawScope.drawCircle(color = hardware, radius = scale * 0.125f, center = soundHole, style = Stroke(width = (scale * 0.018f).coerceAtLeast(1.2f)))
+                    val bridgeL = projectVec3(Vec3(-0.15f, 0.57f, -thickness - 0.018f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    val bridgeR = projectVec3(Vec3(0.15f, 0.57f, -thickness - 0.018f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawLine(color = Color(0xFF2A1A12), start = bridgeL, end = bridgeR, strokeWidth = (scale * 0.045f).coerceAtLeast(3f))
+                    drawScope.drawLine(color = hardware.copy(alpha = 0.8f), start = bridgeL, end = bridgeR, strokeWidth = 1.2f)
+                } else {
+                    drawInstrumentStamp(drawScope, config.stampId, centerX, centerY, scale, yawDeg, pitchDeg, hardware, primary)
+                }
 
                 // Braço & Escala (com espessura 3D + Inlays Madre-Pérola estilo Sharkfin)
                 val fretsCount = 12
@@ -263,8 +294,8 @@ fun drawInstrument3D(
                     }
                 }
 
-                // Escudo (Pickguard) sutil em guitarras clássicas
-                if (config.modelStyleId == "strat_classic" || config.modelStyleId == "flying_v") {
+                // Escudo (Pickguard) e captadores são exclusivos das guitarras elétricas.
+                if (!isAcoustic && (config.modelStyleId == "strat_classic" || config.modelStyleId == "flying_v")) {
                     val pgPts = listOf(
                         Vec3(0.02f, 0.08f, -thickness - 0.004f),
                         Vec3(0.24f, 0.16f, -thickness - 0.004f),
@@ -280,7 +311,8 @@ fun drawInstrument3D(
                     drawScope.drawPath(pgPath, color = Color.White.copy(alpha = 0.35f), style = Stroke(width = 1f))
                 }
 
-                // Captadores Humbucker Duplos (EMG/Chrome) & Ponte Floyd-Rose + Alavanca Tremolo
+                // Captadores e controles elétricos não aparecem no violão acústico.
+                if (!isAcoustic) {
                 for (py in listOf(0.18f, 0.36f)) {
                     val pTL = projectVec3(Vec3(-0.12f, py - 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
                     val pTR = projectVec3(Vec3(0.12f, py - 0.032f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
@@ -336,6 +368,8 @@ fun drawInstrument3D(
                     drawScope.drawCircle(color = hardware, radius = (scale * 0.022f).coerceAtLeast(2f), center = pegPt)
                 }
 
+                }
+
                 // Brilho Gloss Especular
                 if (config.finish.specularity > 0.6f) {
                     val g1 = projectVec3(Vec3(-0.24f, 0.14f, -thickness - 0.02f), yawDeg, pitchDeg, centerX, centerY, scale).first
@@ -348,8 +382,10 @@ fun drawInstrument3D(
                     )
                 }
 
-                // Adesivo personalizado
-                drawInstrumentSticker(drawScope, config.stickerId, centerX, centerY, scale, yawDeg, pitchDeg, -thickness - 0.025f)
+                // Adesivos ficam disponíveis nos dois instrumentos, sem descaracterizar a boca acústica.
+                if (config.stickerId != "sticker_none") {
+                    drawInstrumentSticker(drawScope, config.stickerId, centerX, centerY, scale, yawDeg, pitchDeg, -thickness - 0.025f)
+                }
             }
         }
 
