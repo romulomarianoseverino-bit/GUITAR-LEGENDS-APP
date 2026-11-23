@@ -441,7 +441,6 @@ class MultiplayerCloudRepository(
                             roomRef,
                             mapOf(
                                 "status" to RoomStatus.CLOSED.name,
-                                "memberUids" to emptyList<String>(),
                                 "updatedAt" to FieldValue.serverTimestamp()
                             )
                         )
