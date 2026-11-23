@@ -663,7 +663,7 @@ class ExampleRobolectricTest {
             // Uma nova instância simula reabertura do app após perda de conexão/encerramento.
             val restored = LocalPlayerProgressRepository(app).loadSnapshot().localMatches
             assertEquals("A fila não pode descartar partidas após 25 registros", 32, restored.size)
-            assertEquals(record.id.replace("123", "0"), restored.first().id.replace("match_offline_", "match_offline_"))
+            assertEquals("match_offline_0", restored.first().id)
             assertEquals("match_offline_31", restored.last().id)
             assertEquals(record.trackId, restored.first().trackId)
             assertEquals(record.instrument, restored.first().instrument)
