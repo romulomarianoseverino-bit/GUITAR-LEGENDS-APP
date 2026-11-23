@@ -59,14 +59,14 @@ jobs:
         id: prepare_signing
         if: always() && !cancelled()
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo KEYSTORE_BASE64 está vazio."; exit 1; }
-          test -n "$STORE_PASSWORD" || { echo "::error::O segredo KEYSTORE_PASSWORD está vazio."; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo "::error::O segredo KEY_PASSWORD está vazio."; exit 1; }
+          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo DEBUG_KEYSTORE_BASE64 está vazio."; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo "::error::O segredo DEBUG_KEYSTORE_PASSWORD está vazio."; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "::error::O segredo DEBUG_KEY_PASSWORD está vazio."; exit 1; }
 
           KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
           if ! printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"; then
