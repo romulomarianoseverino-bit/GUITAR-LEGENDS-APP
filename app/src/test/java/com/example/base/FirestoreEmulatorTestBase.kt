@@ -88,7 +88,8 @@ abstract class FirestoreEmulatorTestBase {
     }
 
     private companion object {
-        const val TEST_FIREBASE_APP_NAME = "guitar-legends-test-emulator"\n        const val EMULATOR_HOST = "127.0.0.1"
+        const val TEST_FIREBASE_APP_NAME = "guitar-legends-test-emulator"
+        const val EMULATOR_HOST = "127.0.0.1"
         const val FIRESTORE_PORT = 8085
         const val AUTH_PORT = 9099
         const val PROJECT_ID = "demo-no-project"
