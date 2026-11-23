@@ -28,7 +28,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [35])
 class ExampleRobolectricTest {
 
     @Test
