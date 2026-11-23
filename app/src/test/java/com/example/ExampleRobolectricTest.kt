@@ -262,18 +262,36 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `04 - test repeated file names do not collide or overwrite previous tracks`() = runBlocking {
+    fun `04 - same file name allows different recordings but rejects an exact duplicate`() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val repo = MusicLibraryRepository(context)
-        val temp1 = createValidMp3File(context, "rock_anthem.mp3", 75_000)
 
-        val track1 = repo.importAudio(Uri.fromFile(temp1)).getOrThrow()
-        val track2 = repo.importAudio(Uri.fromFile(temp1)).getOrThrow()
+        // Importa a primeira gravação.
+        val firstSource = createValidMp3File(context, "rock_anthem.mp3", 75_000)
+        val track1 = repo.importAudio(Uri.fromFile(firstSource)).getOrThrow()
+
+        // Reutiliza o mesmo nome, mas com conteúdo binário diferente:
+        // nome repetido não pode bloquear uma gravação realmente diferente.
+        val secondSource = createValidMp3File(context, "rock_anthem.mp3", 75_001)
+        val track2Result = repo.importAudio(Uri.fromFile(secondSource))
+        assertTrue(
+            "A different recording with the same file name must be accepted: ${track2Result.exceptionOrNull()?.message}",
+            track2Result.isSuccess
+        )
+        val track2 = track2Result.getOrThrow()
 
         assertNotEquals("IDs must be distinct", track1.id, track2.id)
         assertNotEquals("Physical file paths must be distinct", track1.uriString, track2.uriString)
         assertTrue(File(track1.uriString!!).exists())
         assertTrue(File(track2.uriString!!).exists())
+
+        // A mesma gravação, com bytes idênticos, não deve entrar novamente.
+        val exactDuplicate = repo.importAudio(Uri.fromFile(secondSource))
+        assertTrue("An exact duplicate recording must be rejected", exactDuplicate.isFailure)
+        assertTrue(
+            exactDuplicate.exceptionOrNull()?.message.orEmpty().contains("mesma gravação"),
+            "Duplicate rejection should explain that the recording already exists"
+        )
 
         repo.deleteTrack(track1)
         repo.deleteTrack(track2)
