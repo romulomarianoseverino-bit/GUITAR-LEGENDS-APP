@@ -1,4 +1,4 @@
-name: Validar preparação da próxima versão (sem gerar APK)
+name: Validar preparação e gerar APK candidato
 
 on:
   push:
@@ -51,6 +51,19 @@ jobs:
         run: |
           firebase emulators:exec --project demo-no-project --only auth,firestore \
             'gradle --no-daemon testDebugUnitTest'
+
+      - name: Compilar APK candidato (somente após todos os testes passarem)
+        if: success()
+        run: gradle --no-daemon assembleDebug
+
+      - name: Publicar APK candidato
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guitar-Legends-APK-candidato
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Publicar relatórios de testes (inclusive falhas)
         if: always()
