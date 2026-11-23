@@ -47,6 +47,10 @@ class StudioAndHardwareTest {
 
     @Test
     fun `01 - studio customizations, 3D instrument config and presets save apply delete across restart`() {
+        assertEquals("3D Estilizado", CharacterArtStyle.STYLIZED_REALISTIC.displayName)
+        assertEquals("3D Cartoon", CharacterArtStyle.CARTOON.displayName)
+        assertEquals("3D Anime", CharacterArtStyle.ANIME.displayName)
+
         val vm = GameViewModel(app)
 
         vm.updateRockerBodyAndSkin("Neo Cyberpunk", 0xFFC98E66L)
