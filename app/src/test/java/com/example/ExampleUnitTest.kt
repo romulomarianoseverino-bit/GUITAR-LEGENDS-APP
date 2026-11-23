@@ -69,4 +69,17 @@ class ExampleUnitTest {
         assertEquals(2, tracker.update(9040L, isHeld = true, multiplier = 5))
     }
 
+
+    @Test
+    fun generatedGuitarChartIncludesMediumLongAndVeryLongSustains() {
+        val track = AudioAnalyzer.BUILT_IN_TRACKS[0]
+        val chart = AudioAnalyzer.generateChart(track, Instrument.GUITAR, Difficulty.EXPERT)
+        val beatMs = (60_000.0 / track.effectiveBpm).toLong()
+        val sustainDurations = chart.map { it.durationMs }.filter { it > 50L }
+
+        assertTrue("Chart must include medium sustains", sustainDurations.any { it in (beatMs..(beatMs * 2L)) })
+        assertTrue("Chart must include long sustains", sustainDurations.any { it in (beatMs * 2L..(beatMs * 4L)) })
+        assertTrue("Chart must include very long sustains", sustainDurations.any { it >= beatMs * 5L })
+    }
+
 }
