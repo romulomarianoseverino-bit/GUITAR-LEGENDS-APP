@@ -73,7 +73,7 @@ report["art_direction"] = {
     "wardrobe": "contemporary tailored stage suit; no cowboy styling, no boot/buckle/leg accessory",
     "identity": "original game avatar, not a photorealistic replica",
     "macro_phenotype": macro,
-    "body_validation": "MPFB2 gender=0.0 (male), cupsize=0.0; generated preview must be inspected before approval",
+    "body_validation": "MPFB2 gender=1.0 (male), cupsize=0.0; generated preview must be inspected before approval",
 }
 skin = find("young_caucasian_male.mhmat", "skins")
 HumanService.set_character_skin(skin, human, skin_type="GAMEENGINE")
