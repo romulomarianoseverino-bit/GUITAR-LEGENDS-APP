@@ -20,6 +20,7 @@ object StudioProfileJsonCodec {
         put("fullOutfitSkinId", profile.fullOutfitSkinId)
 
         put("guitarConfig", instrumentConfigToJson(profile.guitarConfig))
+        put("acousticGuitarConfig", instrumentConfigToJson(profile.acousticGuitarConfig))
         put("bassConfig", instrumentConfigToJson(profile.bassConfig))
         put("drumsConfig", instrumentConfigToJson(profile.drumsConfig))
         put("vocalConfig", instrumentConfigToJson(profile.vocalConfig))
@@ -200,6 +201,7 @@ object StudioProfileJsonCodec {
             }.getOrDefault(defaults.stageExpression),
             fullOutfitSkinId = obj.optString("fullOutfitSkinId", defaults.fullOutfitSkinId),
             guitarConfig = jsonToInstrumentConfig(obj.optJSONObject("guitarConfig"), defaults.guitarConfig),
+            acousticGuitarConfig = jsonToInstrumentConfig(obj.optJSONObject("acousticGuitarConfig"), defaults.acousticGuitarConfig),
             bassConfig = jsonToInstrumentConfig(obj.optJSONObject("bassConfig"), defaults.bassConfig),
             drumsConfig = jsonToInstrumentConfig(obj.optJSONObject("drumsConfig"), defaults.drumsConfig),
             vocalConfig = jsonToInstrumentConfig(obj.optJSONObject("vocalConfig"), defaults.vocalConfig),
