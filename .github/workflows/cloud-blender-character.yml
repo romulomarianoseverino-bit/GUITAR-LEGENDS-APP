@@ -5,6 +5,7 @@ on:
     branches:
       - feat/cloud-blender-character-pipeline
       - feat/luan-inspired-stage-character
+      - feat/luan-stage-avatar-refinement
     paths:
       - ".github/workflows/cloud-blender-character.yml"
       - "tools/audit_mpfb_environment.py"
