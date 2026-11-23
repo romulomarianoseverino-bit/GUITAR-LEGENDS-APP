@@ -427,6 +427,7 @@ object StudioCatalog {
             )
             "axel_rocker", "roxie_riot", "kai_cyber" -> base.copy(selectedCharacterId = cosmeticId)
             "flame_caster", "void_v", "neon_thunder" -> base.copy(selectedGuitarId = cosmeticId)
+            "acoustic_dreadnought", "acoustic_classical", "acoustic_jumbo" -> base.copy(selectedAcousticGuitarId = cosmeticId)
             "thunder_bass", "skull_bass", "cyber_bass" -> base.copy(selectedBassId = cosmeticId)
             "arena_beast_kit", "punk_garage_kit", "electronic_neon_kit" -> base.copy(selectedDrumsId = cosmeticId)
             "vintage_shure_55s", "golden_supreme_mic", "punk_distress_mic" -> base.copy(selectedVocalMicId = cosmeticId)
