@@ -394,10 +394,21 @@ class AccountCloudRepository(
                 "isCompetitive" to result.isCompetitive,
                 "createdAt" to FieldValue.serverTimestamp()
             )
-            firestore.collection("users").document(uid)
+            val entryRef = firestore.collection("users").document(uid)
                 .collection("progression_history").document(entryId)
-                .set(payload)
-                .await()
+            firestore.runTransaction { transaction ->
+                val existing = transaction.get(entryRef)
+                if (existing.exists()) {
+                    // O histórico é imutável pelas regras do Firestore.
+                    // Uma repetição com o mesmo ID é sucesso idempotente, sem UPDATE.
+                    if (existing.getString("userId") != uid) {
+                        throw IllegalStateException("O identificador do histórico já pertence a outro usuário.")
+                    }
+                } else {
+                    transaction.set(entryRef, payload)
+                }
+                entryId
+            }.await()
             Result.success(entryId)
         } catch (e: Exception) {
             Result.failure(runCatching { handleFirestoreError(e, OperationType.CREATE, path, auth) }.exceptionOrNull() ?: e)
