@@ -323,4 +323,29 @@ class StudioAndHardwareTest {
         composeTestRule.onNodeWithText("MODO VISITANTE ATIVO").assertIsDisplayed()
         composeTestRule.onNodeWithTag("google_sign_in_button").assertIsDisplayed()
     }
+    @Test
+    fun acousticGuitarIsSeparateAndItsStudioConfigAndChartWork() {
+        assertNotEquals(Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR)
+        assertEquals("Violão Acústico", Instrument.ACOUSTIC_GUITAR.displayName)
+
+        val profile = StudioProfileConfig(
+            acousticGuitarConfig = InstrumentCustomConfig(
+                modelStyleId = "acoustic_classical",
+                primaryColorHex = 0xFF8D5A35L
+            )
+        )
+        val restored = StudioProfileJsonCodec.fromJsonString(
+            StudioProfileJsonCodec.toJsonString(profile)
+        )
+        assertEquals("acoustic_classical", restored.acousticGuitarConfig.modelStyleId)
+        assertEquals(0xFF8D5A35L, restored.acousticGuitarConfig.primaryColorHex)
+
+        val chart = AudioAnalyzer.generateChart(
+            AudioAnalyzer.BUILT_IN_TRACKS.first(),
+            Instrument.ACOUSTIC_GUITAR,
+            Difficulty.MEDIUM
+        )
+        assertTrue("O chart do violão acústico não pode ficar vazio", chart.isNotEmpty())
+    }
+
 }
