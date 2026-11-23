@@ -75,6 +75,7 @@ service cloud.firestore {
              data.careerStageMax is int && data.careerStageMax >= 0 &&
              data.selectedCharacterId is string && data.selectedCharacterId.size() <= 64 &&
              data.selectedGuitarId is string && data.selectedGuitarId.size() <= 64 &&
+             data.selectedAcousticGuitarId is string && data.selectedAcousticGuitarId.size() <= 64 &&
              data.selectedBassId is string && data.selectedBassId.size() <= 64 &&
              data.selectedDrumsId is string && data.selectedDrumsId.size() <= 64 &&
              data.selectedVocalMicId is string && data.selectedVocalMicId.size() <= 64 &&
@@ -143,7 +144,7 @@ service cloud.firestore {
                          'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
                          'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
                          'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                         'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
+                         'selectedCharacterId', 'selectedGuitarId', 'selectedAcousticGuitarId', 'selectedBassId',
                          'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                          'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                          'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
@@ -154,7 +155,7 @@ service cloud.firestore {
                          'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
                          'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
                          'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                         'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
+                         'selectedCharacterId', 'selectedGuitarId', 'selectedAcousticGuitarId', 'selectedBassId',
                          'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                          'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                          'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
@@ -175,7 +176,7 @@ service cloud.firestore {
                            'email', 'nickname', 'nicknameNormalized', 'coins',
                            'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
                            'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                           'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
+                           'selectedCharacterId', 'selectedGuitarId', 'selectedAcousticGuitarId', 'selectedBassId',
                            'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                            'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                            'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
