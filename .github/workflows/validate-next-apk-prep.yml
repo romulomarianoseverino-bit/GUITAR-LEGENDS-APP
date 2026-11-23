@@ -53,6 +53,20 @@ jobs:
           firebase emulators:exec --project demo-no-project --only auth,firestore \
             'gradle --no-daemon testDebugUnitTest'
 
+      # O keystore de depuração é ignorado pelo Git e não existe nos runners limpos.
+      # Geramos uma chave temporária padrão de debug apenas para este APK de teste.
+      # Ela não é usada para assinar versões de produção nem altera a configuração release.
+      - name: Gerar chave temporária de assinatura debug
+        if: always() && !cancelled()
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -keyalg RSA -keysize 2048 -validity 10000
+
       # A compilação é independente do resultado dos testes automatizados.
       # Assim, uma falha isolada não impede a geração de um APK para validação humana.
       # O job continuará marcado como falho se os testes falharem; nenhum erro será ocultado.
