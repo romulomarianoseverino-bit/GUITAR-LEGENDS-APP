@@ -246,6 +246,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeFretLanes = MutableStateFlow<Set<Int>>(emptySet())
     val activeFretLanes: StateFlow<Set<Int>> = _activeFretLanes.asStateFlow()
 
+    private val _sustainedLanes = MutableStateFlow<Set<Int>>(emptySet())
+    val sustainedLanes: StateFlow<Set<Int>> = _sustainedLanes.asStateFlow()
+    private var lastSustainScorePositionMs: Long? = null
+    private var sustainScoreRemainder = 0f
+
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
 
@@ -1643,6 +1648,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _isStarPowerActive.value = false
         _lastHitRating.value = null
         _activeFretLanes.value = emptySet()
+        _sustainedLanes.value = emptySet()
+        lastSustainScorePositionMs = null
+        sustainScoreRemainder = 0f
         _isPaused.value = false
         totalHitCount = 0
         totalMissCount = 0
@@ -1676,6 +1684,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     _currentSongTimeMs.value = pos
 
                     checkMissedNotes(pos)
+                    updateSustainScoring(pos)
 
                     // Adaptação dinâmica real de sequências futuras (> 2.2s à frente) quando GLAS está ativo
                     if (_playerStats.value.glassAdaptiveEnabled) {
@@ -1727,6 +1736,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 delay(14L)
             }
+        }
+    }
+
+    /**
+     * Awards sustain points only while the matching lane remains physically held.
+     * Delta is clamped to avoid granting a large score after a pause or a delayed frame.
+     */
+    private fun updateSustainScoring(currentPosMs: Long) {
+        val previousPosition = lastSustainScorePositionMs
+        lastSustainScorePositionMs = currentPosMs
+        val deltaMs = previousPosition?.let { (currentPosMs - it).coerceIn(0L, 40L) } ?: 0L
+        val heldLanes = _activeFretLanes.value
+        val activeSustains = _activeNotes.value.filter { note ->
+            note.isHit &&
+                !note.isMissed &&
+                note.durationMs > 50L &&
+                note.lane in heldLanes &&
+                currentPosMs in note.timeMs..(note.timeMs + note.durationMs)
+        }
+        _sustainedLanes.value = activeSustains.mapTo(mutableSetOf()) { it.lane }
+
+        if (activeSustains.isEmpty()) {
+            sustainScoreRemainder = 0f
+            return
+        }
+        if (deltaMs <= 0L) return
+
+        // 10 base points per second, scaled by the current combo/Star Power multiplier.
+        sustainScoreRemainder += deltaMs * 0.01f * _multiplier.value.coerceAtLeast(1)
+        val earnedPoints = sustainScoreRemainder.toInt()
+        if (earnedPoints > 0) {
+            _score.value += earnedPoints
+            sustainScoreRemainder -= earnedPoints
         }
     }
 
