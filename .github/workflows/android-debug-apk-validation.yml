@@ -55,7 +55,7 @@ jobs:
         id: tests
         if: always() && steps.build.outcome == "success"
         run: |
-          firebase emulators:exec --project demo-no-project --only auth,firestore \\
+          firebase emulators:exec --project demo-no-project --only auth,firestore \
             'gradle --no-daemon testDebugUnitTest'
 
       - name: Publicar APK de validação
