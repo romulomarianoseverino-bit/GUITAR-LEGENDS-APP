@@ -21,6 +21,7 @@ HumanService = dynamic_import("mpfb.services.humanservice", "HumanService")
 AssetService = dynamic_import("mpfb.services.assetservice", "AssetService")
 ExportService = dynamic_import("mpfb.services.exportservice", "ExportService")
 ObjectService = dynamic_import("mpfb.services.objectservice", "ObjectService")
+TargetService = dynamic_import("mpfb.services.targetservice", "TargetService")
 LocationService = dynamic_import("mpfb.services.locationservice", "LocationService")
 
 out = Path("artifacts/character-prototype")
@@ -49,8 +50,27 @@ def find(filename, subdir):
         raise RuntimeError(f"Required asset missing: {subdir}/{filename}")
     return path
 
-# Build the human base, apply a game-engine skin and a compatible game rig.
-human = HumanService.create_human()
+# Build an original stage avatar with a natural, moderately lean phenotype.
+# These macro values are broad art-direction controls, not an exact likeness claim.
+macro = TargetService.get_default_macro_info_dict()
+macro.update({
+    "gender": 0.0,
+    "age": 0.32,
+    "muscle": 0.44,
+    "weight": 0.43,
+    "proportions": 0.52,
+    "height": 0.52,
+    "firmness": 0.50,
+})
+macro["race"] = {"caucasian": 0.72, "african": 0.12, "asian": 0.16}
+human = HumanService.create_human(macro_detail_dict=macro)
+report["art_direction"] = {
+    "inspiration": "modern Brazilian pop/sertanejo stage aesthetic",
+    "hair": "dark brown, textured, lifted top / signature quiff direction",
+    "wardrobe": "dark modern stagewear foundation; tailored and metallic variants planned",
+    "identity": "original game avatar, not a photorealistic replica",
+    "macro_phenotype": macro,
+}
 skin = find("young_caucasian_male.mhmat", "skins")
 HumanService.set_character_skin(skin, human, skin_type="GAMEENGINE")
 HumanService.add_builtin_rig(human, "game_engine")
@@ -61,7 +81,7 @@ report["assets"]["skin"] = Path(skin).name
 wardrobe = [
     ("eyes", "low-poly.mhclo", "Eyes"),
     ("eyebrows", "eyebrow001.mhclo", "Eyebrows"),
-    ("hair", "short01.mhclo", "Hair"),
+    ("hair", "short03.mhclo", "Hair"),
     ("clothes", "toigo_basic_tucked_t-shirt.mhclo", "Clothes"),
     ("clothes", "punkduck_male_classic_jeans.mhclo", "Clothes"),
     ("clothes", "culturalibre_male_boots.mhclo", "Clothes"),
