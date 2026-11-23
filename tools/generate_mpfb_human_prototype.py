@@ -91,8 +91,9 @@ for obj in list(bpy.data.objects):
     if obj.name == "Cube" and obj.type == "MESH":
         bpy.data.objects.remove(obj, do_unlink=True)
 
-# Render evidence from the export hierarchy only. Use an orthographic
-# front three-quarter camera to avoid perspective distortion and clipping.
+# Render evidence from the export hierarchy only. MPFB humanoids face +Z;
+# place the camera on that side so the face is visible instead of the back.
+# Use an orthographic front three-quarter camera to avoid perspective distortion.
 bpy.context.scene.render.engine = "BLENDER_EEVEE_NEXT"
 bpy.context.scene.render.resolution_x = 1200
 bpy.context.scene.render.resolution_y = 1200
@@ -138,7 +139,7 @@ center = Vector(tuple((mins[i] + maxs[i]) * 0.5 for i in range(3)))
 height = maxs[1] - mins[1]
 if height <= 0.1:
     raise RuntimeError(f"Invalid character bounds: height={height}")
-cam.location = center + Vector((height * 0.28, height * 0.08, -height * 4.0))
+cam.location = center + Vector((height * 0.10, height * 0.06, height * 4.0))
 cam.rotation_euler = (center - cam.location).to_track_quat("-Z", "Y").to_euler()
 cam.data.type = "ORTHO"
 cam.data.ortho_scale = height * 1.42
