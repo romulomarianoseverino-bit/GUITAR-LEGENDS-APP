@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   unit-tests:
-    name: Compilar código e executar testes unitários (sem empacotar APK)
+    name: Testar, compilar e publicar APK candidato
     runs-on: ubuntu-22.04
     timeout-minutes: 40
     steps:
