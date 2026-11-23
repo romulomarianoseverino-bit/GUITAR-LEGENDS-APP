@@ -66,8 +66,8 @@ macro["race"] = {"caucasian": 0.72, "african": 0.12, "asian": 0.16}
 human = HumanService.create_human(macro_detail_dict=macro)
 report["art_direction"] = {
     "inspiration": "modern Brazilian pop/sertanejo stage aesthetic",
-    "hair": "dark brown, textured, lifted top / signature quiff direction",
-    "wardrobe": "dark modern stagewear foundation; tailored and metallic variants planned",
+    "hair": "dark brown, textured, lifted and swept top; avoid light/auburn tones and flat side-swept shape",
+    "wardrobe": "contemporary tailored stage suit; no cowboy styling, no boot/buckle/leg accessory",
     "identity": "original game avatar, not a photorealistic replica",
     "macro_phenotype": macro,
 }
@@ -76,20 +76,30 @@ HumanService.set_character_skin(skin, human, skin_type="GAMEENGINE")
 HumanService.add_builtin_rig(human, "game_engine")
 report["assets"]["skin"] = Path(skin).name
 
-# Use specific, documented assets: natural hair, a basic tee, classic jeans,
-# and male boots. The jeans pack is CC-BY and attribution is recorded in-repo.
+# Use a contemporary tailored stage look, not the cowboy/vaqueiro
+# stereotype: no cowboy boots, hat, oversized buckle or leg-hung accessory.
+# The system casual suit assets are CC0 and fit the shared MPFB human rig.
 wardrobe = [
     ("eyes", "low-poly.mhclo", "Eyes"),
     ("eyebrows", "eyebrow001.mhclo", "Eyebrows"),
-    ("hair", "short03.mhclo", "Hair"),
-    ("clothes", "toigo_basic_tucked_t-shirt.mhclo", "Clothes"),
-    ("clothes", "punkduck_male_classic_jeans.mhclo", "Clothes"),
-    ("clothes", "culturalibre_male_boots.mhclo", "Clothes"),
+    ("hair", "short04.mhclo", "Hair"),
+    ("clothes", "male_casualsuit01.mhclo", "Clothes"),
 ]
 for subdir, filename, kind in wardrobe:
     asset = find(filename, subdir)
     HumanService.add_mhclo_asset(asset, human, asset_type=kind, material_type="GAMEENGINE")
     report["assets"][filename] = str(Path(asset).name)
+
+# Enforce a dark-brown hair palette on the hair asset's materials.
+for obj in bpy.data.objects:
+    if obj.type == "MESH" and ("hair" in obj.name.lower() or "short04" in obj.name.lower()):
+        for material in obj.data.materials:
+            if material:
+                material.diffuse_color = (0.055, 0.025, 0.014, 1.0)
+                if material.use_nodes:
+                    for node in material.node_tree.nodes:
+                        if node.type == "BSDF_PRINCIPLED":
+                            node.inputs["Base Color"].default_value = (0.055, 0.025, 0.014, 1.0)
 
 # Duplicate the full character hierarchy for export, leaving the generated
 # working character untouched.
