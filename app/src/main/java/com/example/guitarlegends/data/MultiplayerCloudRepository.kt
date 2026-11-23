@@ -417,9 +417,8 @@ class MultiplayerCloudRepository(
                             val candidateRef = roomRef.collection("participants").document(candidateUid)
                             val candidate = tx.get(candidateRef)
                             val connection = candidate.getString("connectionState")
-                            val heartbeat = candidate.getLong("lastHeartbeatMs")
-                            val recentlyActive = heartbeat != null &&
-                                heartbeat > 0L &&
+                            val heartbeat = candidate.getLong("lastHeartbeatMs") ?: 0L
+                            val recentlyActive = heartbeat > 0L &&
                                 (System.currentTimeMillis() - heartbeat) <= 14_000L
                             if (
                                 candidate.exists() &&
