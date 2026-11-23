@@ -121,7 +121,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
                 put("hasUnlinkedGuestProgress", snapshot.hasUnlinkedGuestProgress)
                 put("hasLocalCustomizationChanges", snapshot.hasLocalCustomizationChanges)
                 put("stats", statsToJson(snapshot.stats))
-                put("localMatches", matchesToJson(snapshot.localMatches.take(25)))
+                put("localMatches", matchesToJson(snapshot.localMatches))
                 put("localRewards", rewardsToJson(snapshot.localRewards.take(30)))
             }
             val payload = root.toString()
