@@ -654,17 +654,25 @@ class ExampleRobolectricTest {
             timestampMs = 1795440000000L
         )
 
-        assertTrue(repository.saveSnapshot(LocalProgressSnapshot(localMatches = listOf(record))).isSuccess)
+        val pendingQueue = (0 until 32).map { index ->
+            record.copy(id = "match_offline_$index", score = record.score + index)
+        }
+        try {
+            assertTrue(repository.saveSnapshot(LocalProgressSnapshot(localMatches = pendingQueue)).isSuccess)
 
-        // Uma nova instância simula reabertura do app após perda de conexão/encerramento.
-        val restored = LocalPlayerProgressRepository(app).loadSnapshot().localMatches
-        assertEquals(1, restored.size)
-        assertEquals(record.id, restored.single().id)
-        assertEquals(record.trackId, restored.single().trackId)
-        assertEquals(record.score, restored.single().score)
-        assertEquals(record.instrument, restored.single().instrument)
-        assertEquals(record.difficulty, restored.single().difficulty)
-        assertEquals(record.coinsEarned, restored.single().coinsEarned)
+            // Uma nova instância simula reabertura do app após perda de conexão/encerramento.
+            val restored = LocalPlayerProgressRepository(app).loadSnapshot().localMatches
+            assertEquals("A fila não pode descartar partidas após 25 registros", 32, restored.size)
+            assertEquals(record.id.replace("123", "0"), restored.first().id.replace("match_offline_", "match_offline_"))
+            assertEquals("match_offline_31", restored.last().id)
+            assertEquals(record.trackId, restored.first().trackId)
+            assertEquals(record.instrument, restored.first().instrument)
+            assertEquals(record.difficulty, restored.first().difficulty)
+            assertEquals(record.coinsEarned, restored.first().coinsEarned)
+        } finally {
+            File(app.filesDir, "local_player_progress.json").delete()
+            File(app.filesDir, "local_player_progress.json.tmp").delete()
+        }
     }
 
 
