@@ -689,12 +689,14 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                 Instrument.GUITAR -> viewModel.guitars.map {
                                     InstrumentGear(it.id, Instrument.GUITAR, it.name, it.type, it.colorHex, it.priceCoins, it.isUnlocked, it.description)
                                 }
+                                Instrument.ACOUSTIC_GUITAR -> viewModel.acousticGuitars
                                 Instrument.BASS -> viewModel.basses
                                 Instrument.DRUMS -> viewModel.drums
                                 Instrument.VOCALS -> viewModel.vocalMics
                             }
                             val equippedId = when (instrumentTab) {
                                 Instrument.GUITAR -> stats.selectedGuitarId
+                                Instrument.ACOUSTIC_GUITAR -> stats.selectedAcousticGuitarId
                                 Instrument.BASS -> stats.selectedBassId
                                 Instrument.DRUMS -> stats.selectedDrumsId
                                 Instrument.VOCALS -> stats.selectedVocalMicId
