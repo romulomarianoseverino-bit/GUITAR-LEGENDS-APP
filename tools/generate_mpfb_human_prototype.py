@@ -77,8 +77,8 @@ if float(macro.get("gender", 1.0)) != 0.0 or float(macro.get("cupsize", 1.0)) !=
 human = HumanService.create_human(macro_detail_dict=macro)
 report["art_direction"] = {
     "inspiration": "modern Brazilian pop/sertanejo stage aesthetic",
-    "hair": "dark brown, textured, lifted and swept top; avoid light/auburn tones and flat side-swept shape",
-    "wardrobe": "contemporary tailored stage suit; no cowboy styling, no boot/buckle/leg accessory",
+    "hair": "dark chestnut, textured short stage cut with controlled sides and visible top volume; avoid light/auburn tones",
+    "wardrobe": "coordinated midnight-black contemporary stage tailoring, black footwear and restrained smoke-silver accents; no cowboy styling",
     "identity": "original game avatar, not a photorealistic replica",
     "macro_phenotype": macro,
     "body_validation": "MPFB2 gender=0.0 (male), cupsize=0.0; generated preview must be inspected before approval",
@@ -94,7 +94,7 @@ report["assets"]["skin"] = Path(skin).name
 wardrobe = [
     ("eyes", "low-poly.mhclo", "Eyes"),
     ("eyebrows", "eyebrow001.mhclo", "Eyebrows"),
-    ("hair", "short04.mhclo", "Hair"),
+    ("hair", "short03.mhclo", "Hair"),
     ("clothes", "male_elegantsuit01.mhclo", "Clothes"),
     ("clothes", "shoes01.mhclo", "Clothes"),
 ]
@@ -103,21 +103,50 @@ for subdir, filename, kind in wardrobe:
     HumanService.add_mhclo_asset(asset, human, asset_type=kind, material_type="GAMEENGINE")
     report["assets"][filename] = str(Path(asset).name)
 
-# Enforce a dark-brown hair palette on the hair asset's materials.
+# Stage styling pass: replace the generic office palette with a coordinated,
+# contemporary black/graphite performance look. Keep material slots separate
+# where the asset provides separate jacket/shirt/tie/shoe surfaces.
+def set_material_color(material, rgba, roughness=None, metallic=None):
+    if not material:
+        return
+    material.diffuse_color = rgba
+    if not material.use_nodes:
+        return
+    for node in material.node_tree.nodes:
+        if node.type != "BSDF_PRINCIPLED":
+            continue
+        base = node.inputs.get("Base Color")
+        if base:
+            for link in list(material.node_tree.links):
+                if link.to_socket == base:
+                    material.node_tree.links.remove(link)
+            base.default_value = rgba
+        if roughness is not None and node.inputs.get("Roughness"):
+            node.inputs["Roughness"].default_value = roughness
+        if metallic is not None and node.inputs.get("Metallic"):
+            node.inputs["Metallic"].default_value = metallic
+
+report["material_style_changes"] = []
 for obj in bpy.data.objects:
-    if obj.type == "MESH" and ("hair" in obj.name.lower() or "short04" in obj.name.lower()):
-        for material in obj.data.materials:
-            if material:
-                material.diffuse_color = (0.012, 0.004, 0.002, 1.0)
-                if material.use_nodes:
-                    for node in material.node_tree.nodes:
-                        if node.type == "BSDF_PRINCIPLED":
-                            base = node.inputs.get("Base Color")
-                            if base:
-                                for link in list(material.node_tree.links):
-                                    if link.to_socket == base:
-                                        material.node_tree.links.remove(link)
-                                base.default_value = (0.012, 0.004, 0.002, 1.0)
+    if obj.type != "MESH":
+        continue
+    object_name = obj.name.lower()
+    for material in obj.data.materials:
+        if not material:
+            continue
+        material_name = material.name.lower()
+        if "short03" in object_name or "hair" in object_name or "hair" in material_name:
+            set_material_color(material, (0.035, 0.012, 0.006, 1.0), roughness=0.72)
+            report["material_style_changes"].append({"material": material.name, "style": "dark_chestnut_hair"})
+        elif "male_elegantsuit01" in object_name or any(k in material_name for k in ("suit", "jacket", "trouser", "pants")):
+            set_material_color(material, (0.012, 0.014, 0.020, 1.0), roughness=0.82)
+            report["material_style_changes"].append({"material": material.name, "style": "midnight_black_stage_tailoring"})
+        elif "shoes01" in object_name or "shoe" in material_name:
+            set_material_color(material, (0.018, 0.016, 0.015, 1.0), roughness=0.58)
+            report["material_style_changes"].append({"material": material.name, "style": "black_stage_footwear"})
+        elif "tie" in material_name:
+            set_material_color(material, (0.11, 0.10, 0.09, 1.0), roughness=0.55, metallic=0.12)
+            report["material_style_changes"].append({"material": material.name, "style": "smoke_silver_detail"})
 
 # Duplicate the full character hierarchy for export, leaving the generated
 # working character untouched.
@@ -204,6 +233,7 @@ report["body_validation"] = {"gender": macro["gender"], "cupsize": macro["cupsiz
 if macro["gender"] != 0.0 or macro["cupsize"] != 0.0:
     raise RuntimeError("A geração não está configurada para anatomia masculina.")
 report["mesh_names"] = [o.name for o in bpy.data.objects if o.type == "MESH"]
+report["material_names"] = [m.name for m in bpy.data.materials]
 report["armature_names"] = [o.name for o in bpy.data.objects if o.type == "ARMATURE"]
 (out / "prototype-report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 print("CHARACTER_PROTOTYPE_REPORT=" + json.dumps(report, ensure_ascii=False))
