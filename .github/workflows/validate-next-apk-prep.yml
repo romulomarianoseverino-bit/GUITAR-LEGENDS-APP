@@ -44,5 +44,21 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Executar testes unitários sem gerar APK
-        run: gradle --no-daemon testDebugUnitTest
+      - name: Instalar Firebase CLI
+        run: npm install --global firebase-tools@13.35.1
+
+      - name: Executar testes unitários com Auth e Firestore Emulator
+        run: |
+          firebase emulators:exec --project demo-no-project --only auth,firestore \
+            'gradle --no-daemon testDebugUnitTest'
+
+      - name: Publicar relatórios de testes (inclusive falhas)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-testes-preparacao
+          path: |
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/test-results/testDebugUnitTest/**
+          if-no-files-found: warn
+          retention-days: 14
