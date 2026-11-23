@@ -41,7 +41,7 @@ import org.robolectric.annotation.LooperMode
 import java.io.File
 import java.util.UUID
 
-@LooperMode(LooperMode.Mode.INSTRUMENTATION_TEST)
+@LooperMode(LooperMode.Mode.PAUSED)
 class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
 
     @get:Rule
@@ -151,6 +151,7 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
     }
 
     @Test
+    @LooperMode(LooperMode.Mode.INSTRUMENTATION_TEST)
     fun `03 - full online room creation, second player join, live sync, disconnect detection, reconnect and exit`() = runBlocking(Dispatchers.Default) {
         val tag = UUID.randomUUID().toString().replace("-", "").take(6).uppercase()
         val roomCode = "ROCK-$tag"
@@ -160,14 +161,14 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
         vm.updateGuestNickname("AliceLead")
         vm.enterGame()
 
-        // Este teste valida o fluxo online pelo ViewModel/repositórios. A interface
-        // é coberta pelos testes Compose 01 e 02, evitando misturar Espresso com
-        // chamadas de rede do Firebase no mesmo teste de integração.
-        // 1. Abre Multiplayer e cria sala real
-        composeTestRule.onNodeWithTag("menu_multiplayer").performClick()
-        composeTestRule.waitForIdle()
+        // Este teste valida o fluxo online diretamente pelo ViewModel/repositórios.
+        // Os testes Compose 01 e 02 cobrem a navegação e a interface.
+        // Mantém o looper de instrumentação para Firebase, sem acionar Espresso
+        // ou Compose dentro deste teste de integração.
+        vm.navigateTo(GameScreen.CompetitiveMultiplayer, pushStack = false)
         assertTrue(vm.currentScreen.value is GameScreen.CompetitiveMultiplayer)
 
+        // 1. Cria uma sala real pelo fluxo online
         vm.createMultiplayerRoom(MultiplayerMode.BATTLE_1V1, customRoomCode = roomCode)
         withTimeout(6000L) {
             while (vm.multiplayerRoom.value == null) delay(60L)
