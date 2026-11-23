@@ -168,6 +168,50 @@ class MultiplayerCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertEquals(RoomStatus.CLOSED, closedSnap?.statusEnum)
     }
 
+    @Test
+    fun hostLeavingWaitingRoom_transfersLeadershipToRemainingParticipant() = runBlocking {
+        val tag = uniqueSuffix()
+        val roomCode = "HAND-$tag"
+        val hostEmail = "handoff_host_$tag@test.com"
+        val guestEmail = "handoff_guest_$tag@test.com"
+
+        val hostUid = signInTestUser(hostEmail)
+        val repo = MultiplayerCloudRepository(firestore, auth)
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.createRoom(
+                mode = MultiplayerMode.BAND_COOP,
+                track = AudioAnalyzer.BUILT_IN_TRACKS[0],
+                nickname = "HostLeave",
+                instrument = Instrument.GUITAR,
+                difficulty = Difficulty.MEDIUM,
+                customRoomCode = roomCode
+            ).getOrThrow()
+        }
+
+        val guestUid = signInTestUser(guestEmail)
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.joinRoom(roomCode, "GuestNext", Instrument.BASS, Difficulty.HARD).getOrThrow()
+        }
+
+        signInTestUser(hostEmail)
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.leaveOrCloseRoom(roomCode).getOrThrow()
+        }
+
+        signInTestUser(guestEmail)
+        val transferred = withTimeout(FLOW_TIMEOUT_MS) { repo.observeRoom(roomCode).first() }
+        assertNotNull(transferred)
+        assertEquals(RoomStatus.WAITING, transferred!!.statusEnum)
+        assertEquals(guestUid, transferred.hostUid)
+        assertEquals("GuestNext", transferred.hostNickname)
+        assertEquals(listOf(guestUid), transferred.memberUids)
+        assertFalse(transferred.memberUids.contains(hostUid))
+
+        withTimeout(DEFAULT_TIMEOUT_MS) { repo.leaveOrCloseRoom(roomCode).getOrThrow() }
+        val closed = withTimeout(FLOW_TIMEOUT_MS) { repo.observeRoom(roomCode).first() }
+        assertEquals(RoomStatus.CLOSED, closed?.statusEnum)
+    }
+
     private companion object {
         const val DEFAULT_TIMEOUT_MS = 6000L
         const val FLOW_TIMEOUT_MS = 4000L
