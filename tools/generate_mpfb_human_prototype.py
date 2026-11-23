@@ -78,7 +78,14 @@ base = ObjectService.find_object_of_type_amongst_nearest_relatives(root, "Baseme
 ExportService.bake_modifiers_remove_helpers(base, bake_masks=True,
     bake_subdiv=True, remove_helpers=True, also_proxy=True)
 
-# Render evidence from the dressed prototype.
+# MPFB2 may leave Blender's startup cube in the scene. It is not part of
+# the human and must never be included in the preview or exported GLB.
+for obj in list(bpy.data.objects):
+    if obj.name == "Cube" and obj.type == "MESH":
+        bpy.data.objects.remove(obj, do_unlink=True)
+
+# Render evidence from the dressed prototype. MPFB/MakeHuman uses Y as its
+# vertical axis, so frame and aim the camera using Y (not Blender's default Z).
 bpy.context.scene.render.engine = "BLENDER_EEVEE_NEXT"
 bpy.context.scene.render.resolution_x = 1200
 bpy.context.scene.render.resolution_y = 1200
@@ -125,18 +132,21 @@ for obj in bpy.context.scene.objects:
                        for corner in evaluated.bound_box])
 if not points:
     raise RuntimeError("No character meshes found for preview framing")
-min_z = min(p.z for p in points)
-max_z = max(p.z for p in points)
-height = max_z - min_z
+min_y = min(p.y for p in points)
+max_y = max(p.y for p in points)
+height = max_y - min_y
 if height <= 0.1:
     raise RuntimeError(f"Invalid character bounds: height={height}")
-# Aim at the center of the complete human and pull the camera back far enough
-# to keep head, feet and footwear inside the square preview.
-target = (0.0, 0.0, (min_z + max_z) * 0.5)
-cam.location = (4.2, -8.5, target[2] + height * 0.08)
+center_x = (min(p.x for p in points) + max(p.x for p in points)) * 0.5
+center_y = (min_y + max_y) * 0.5
+center_z = (min(p.z for p in points) + max(p.z for p in points)) * 0.5
+# Human meshes are Y-up. Place the camera in front of the character along Z
+# and use Y as camera up so the complete body is visible.
+target = (center_x, center_y, center_z)
+cam.location = (center_x + height * 0.35, center_y + height * 0.10, center_z - height * 3.2)
 direction = Vector(target) - cam.location
 cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
-cam.data.lens = 125
+cam.data.lens = 50
 bpy.context.scene.render.filepath = str(out / "preview-front-3q.png")
 bpy.ops.render.render(write_still=True)
 
@@ -150,6 +160,8 @@ if not glb_path.exists() or glb_path.stat().st_size < 100_000:
 report["glb"] = glb_path.name
 report["glb_bytes"] = glb_path.stat().st_size
 report["mesh_count"] = sum(1 for o in bpy.data.objects if o.type == "MESH")
+report["startup_cube_removed"] = not any(o.name == "Cube" for o in bpy.data.objects)
+report["vertical_axis"] = "Y"
 report["armature_count"] = sum(1 for o in bpy.data.objects if o.type == "ARMATURE")
 report["material_count"] = len(bpy.data.materials)
 report["mesh_names"] = [o.name for o in bpy.data.objects if o.type == "MESH"]
