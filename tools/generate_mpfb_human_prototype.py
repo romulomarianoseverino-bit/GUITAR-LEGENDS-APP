@@ -54,7 +54,7 @@ def find(filename, subdir):
 # These macro values are broad art-direction controls, not an exact likeness claim.
 macro = TargetService.get_default_macro_info_dict()
 macro.update({
-    "gender": 0.0,
+    "gender": 1.0,  # MPFB/MakeHuman: 1.0 = masculino; evita a base corporal feminina do protótipo anterior.
     "age": 0.32,
     "muscle": 0.44,
     "weight": 0.43,
