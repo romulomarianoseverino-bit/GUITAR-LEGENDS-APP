@@ -15,11 +15,13 @@ A versão 1.2 é a referência funcional e visual a preservar. As correções de
 - Antes de alterar qualquer tela, comparar com a implementação da `main` e limitar o diff ao problema específico.
 - Uma compilação não é aprovada se apresentar regressão visual evidente ou remover ação existente.
 
-## Login e conta
-- Preservar o fluxo de autenticação já existente na versão 1.2.
-- Não introduzir login obrigatório, bloqueio na tela inicial ou troca de provedor/configuração sem diagnóstico.
-- Validar Firebase Auth, Credential Manager, configuração do aplicativo e leitura do perfil Firestore ponta a ponta.
-- Em falha de rede, manter o modo visitante acessível e não apagar o progresso local.
+## Login, conta e apelido — status corrigido
+- **Login/autenticação: funcionando na versão atual.** Não registrar o login como defeito aberto nem reimplementar ou trocar o provedor sem evidência concreta de regressão.
+- **Defeito pendente: sistema de apelido.** Investigar e corrigir separadamente do login.
+- Verificar criação/definição do apelido, validação, salvamento, leitura do perfil, atualização, exibição no perfil e nas salas multiplayer e sincronização entre dispositivos.
+- Verificar conflitos de apelidos e tratamento de apelidos inválidos/vazios, sem apagar ou substituir dados de conta existentes.
+- Preservar o acesso atual e o modo visitante. Não bloquear a entrada no aplicativo por causa do defeito de apelido.
+- Testar o apelido de ponta a ponta com conta existente, conta nova e reconexão, sem alterar o fluxo de autenticação que já funciona.
 
 ## Moedas e estrelas
 - A barra superior atual exibe moedas e estrelas de carreira por meio de `TopStatusBar(coins, stars)`.
@@ -38,11 +40,12 @@ A versão 1.2 é a referência funcional e visual a preservar. As correções de
 
 ## Critérios de aceite antes de gerar APK
 1. Comparação visual das telas principais com a versão 1.2, sem retorno aos botões antigos.
-2. Login e restauração de perfil testados de ponta a ponta.
-3. Perfil com saldo e estrelas existentes continua igual após reiniciar e após reinstalar com a mesma conta.
-4. Modo visitante continua disponível e informa corretamente a limitação de dados locais após desinstalação.
-5. Testes de migração/sincronização comprovam que falha de rede ou perfil ausente não zera dados.
-6. APK usa identificador, assinatura e versionamento compatíveis com atualização.
-7. Relatar separadamente compilação, testes automatizados, teste em emulador e teste real no aparelho.
+2. Fluxo de login atual continua funcionando, sem regressões.
+3. Sistema de apelido corrigido e testado de ponta a ponta, inclusive sincronização e exibição no multiplayer.
+4. Perfil com saldo e estrelas existentes continua igual após reiniciar e após reinstalar com a mesma conta.
+5. Modo visitante continua disponível e informa corretamente a limitação de dados locais após desinstalação.
+6. Testes de migração/sincronização comprovam que falha de rede ou perfil ausente não zera dados.
+7. APK usa identificador, assinatura e versionamento compatíveis com atualização.
+8. Relatar separadamente compilação, testes automatizados, teste em emulador e teste real no aparelho.
 
 Nenhuma implementação funcional é declarada concluída por este documento. Ele fixa a base e os critérios para as próximas correções.
