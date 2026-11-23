@@ -289,8 +289,8 @@ class ExampleRobolectricTest {
         val exactDuplicate = repo.importAudio(Uri.fromFile(secondSource))
         assertTrue("An exact duplicate recording must be rejected", exactDuplicate.isFailure)
         assertTrue(
-            exactDuplicate.exceptionOrNull()?.message.orEmpty().contains("mesma gravação"),
-            "Duplicate rejection should explain that the recording already exists"
+            "Duplicate rejection should explain that the recording already exists",
+            exactDuplicate.exceptionOrNull()?.message.orEmpty().contains("mesma gravação")
         )
 
         repo.deleteTrack(track1)
