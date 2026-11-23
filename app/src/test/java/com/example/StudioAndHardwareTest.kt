@@ -327,6 +327,11 @@ class StudioAndHardwareTest {
     fun acousticGuitarIsSeparateAndItsStudioConfigAndChartWork() {
         assertNotEquals(Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR)
         assertEquals("Violão Acústico", Instrument.ACOUSTIC_GUITAR.displayName)
+        val onlineParticipant = MultiplayerParticipantCloud(
+            userId = "acoustic-player",
+            instrument = Instrument.ACOUSTIC_GUITAR.name
+        )
+        assertEquals(Instrument.ACOUSTIC_GUITAR, onlineParticipant.instrumentEnum)
 
         val profile = StudioProfileConfig(
             acousticGuitarConfig = InstrumentCustomConfig(
