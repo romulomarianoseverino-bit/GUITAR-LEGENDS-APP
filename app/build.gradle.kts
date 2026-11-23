@@ -72,7 +72,9 @@ android {
 }
 
 tasks.withType<Test> {
-  failFast = true
+  // Execute the complete suite after a failure so later tests are not silently skipped.
+  // Failures remain failures and still block the candidate APK until triaged.
+  failFast = false
   timeout.set(Duration.ofMinutes(2))
   testLogging {
     events("passed", "failed", "skipped")
