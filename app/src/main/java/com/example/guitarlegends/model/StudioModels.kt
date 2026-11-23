@@ -130,6 +130,15 @@ data class StudioProfileConfig(
         stampId = "inst_stamp_flames",
         stickerId = "sticker_lightning"
     ),
+    val acousticGuitarConfig: InstrumentCustomConfig = InstrumentCustomConfig(
+        modelStyleId = "acoustic_dreadnought",
+        primaryColorHex = 0xFFB8793EL,
+        secondaryColorHex = 0xFF3A2418L,
+        hardwareColorHex = 0xFFE0C58AL,
+        finish = InstrumentFinish.SUNBURST,
+        stampId = "inst_stamp_none",
+        stickerId = "sticker_none"
+    ),
     val bassConfig: InstrumentCustomConfig = InstrumentCustomConfig(
         modelStyleId = "precision_bass",
         primaryColorHex = 0xFF512DA8L,
@@ -281,6 +290,11 @@ object StudioCatalog {
             "flying_v" to "Flying V Agressiva",
             "explorer_metal" to "Explorer Heavy",
             "cyber_laser" to "Cyber Laser Futurista"
+        ),
+        Instrument.ACOUSTIC_GUITAR to listOf(
+            "acoustic_dreadnought" to "Violão Dreadnought de Aço",
+            "acoustic_classical" to "Violão Clássico",
+            "acoustic_jumbo" to "Violão Jumbo"
         ),
         Instrument.BASS to listOf(
             "precision_bass" to "Precision Bass 4-Cordas",
