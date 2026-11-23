@@ -764,7 +764,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         // Toda partida entra primeiro na fila local, inclusive para contas autenticadas.
         // Assim, uma falha de rede não apaga o resultado antes da confirmação da nuvem.
         val updatedMatches = if (newMatchRecord != null) {
-            (listOf(newMatchRecord) + current.localMatches.filterNot { it.id == newMatchRecord.id }).take(25)
+            listOf(newMatchRecord) + current.localMatches.filterNot { it.id == newMatchRecord.id }
         } else {
             current.localMatches
         }
