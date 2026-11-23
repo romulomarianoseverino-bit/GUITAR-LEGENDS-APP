@@ -5,6 +5,7 @@ on:
     branches:
       - fix/nickname-not-found
       - fix/multiplayer-host-transfer
+      - integration/next-apk-validation
     paths:
       - "app/**"
       - "firestore.rules"
