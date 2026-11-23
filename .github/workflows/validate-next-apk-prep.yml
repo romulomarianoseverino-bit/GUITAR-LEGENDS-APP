@@ -48,20 +48,36 @@ jobs:
         run: npm install --global firebase-tools@13.35.1
 
       - name: Executar testes unitários com Auth e Firestore Emulator
+        id: tests
         run: |
           firebase emulators:exec --project demo-no-project --only auth,firestore \
             'gradle --no-daemon testDebugUnitTest'
 
-      - name: Compilar APK candidato (somente após todos os testes passarem)
-        if: success()
-        run: gradle --no-daemon assembleDebug
+      # A compilação é independente do resultado dos testes automatizados.
+      # Assim, uma falha isolada não impede a geração de um APK para validação humana.
+      # O job continuará marcado como falho se os testes falharem; nenhum erro será ocultado.
+      - name: Compilar APK candidato para teste humano
+        id: build_apk
+        if: always() && !cancelled()
+        run: |
+          gradle --no-daemon clean assembleDebug
+          mkdir -p app/build/outputs/apk/debug
+          {
+            echo "Tipo: APK candidato para teste humano (NAO VALIDADO PARA RELEASE)"
+            echo "Branch: $GITHUB_REF_NAME"
+            echo "Commit: $(git rev-parse HEAD)"
+            echo "Workflow run: $GITHUB_RUN_ID"
+            echo "Resultado dos testes automatizados: ${{ steps.tests.outcome }}"
+          } > app/build/outputs/apk/debug/BUILD-INFO.txt
 
-      - name: Publicar APK candidato
-        if: success()
+      - name: Publicar APK candidato para teste humano
+        if: steps.build_apk.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Guitar-Legends-APK-candidato
-          path: app/build/outputs/apk/debug/*.apk
+          name: Guitar-Legends-APK-candidato-nao-validado
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/debug/BUILD-INFO.txt
           if-no-files-found: error
           retention-days: 14
 
