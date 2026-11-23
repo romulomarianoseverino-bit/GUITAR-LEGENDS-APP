@@ -136,7 +136,7 @@ target = (0.0, 0.0, (min_z + max_z) * 0.5)
 cam.location = (4.2, -8.5, target[2] + height * 0.08)
 direction = Vector(target) - cam.location
 cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
-cam.data.lens = 42
+cam.data.lens = 125
 bpy.context.scene.render.filepath = str(out / "preview-front-3q.png")
 bpy.ops.render.render(write_still=True)
 
