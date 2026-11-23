@@ -1441,6 +1441,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _selectedTrackFlow.value = track
     }
 
+    fun playNextTrack(): Boolean {
+        val availableTracks = _tracks.value
+        if (availableTracks.size < 2) return false
+        val currentIndex = availableTracks.indexOfFirst { it.id == selectedTrack.id }
+        val nextIndex = if (currentIndex < 0) 0 else (currentIndex + 1) % availableTracks.size
+        selectTrack(availableTracks[nextIndex])
+        restartMatch()
+        return true
+    }
+
     fun selectInstrument(instrument: Instrument) {
         selectedInstrument = instrument
     }
