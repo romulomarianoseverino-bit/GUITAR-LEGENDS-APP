@@ -107,6 +107,7 @@ val DEFAULT_UNLOCKED_COSMETICS = listOf(
     "axel_rocker",
     "roxie_riot",
     "flame_caster",
+    "acoustic_dreadnought",
     "void_v",
     "thunder_bass",
     "skull_bass",
