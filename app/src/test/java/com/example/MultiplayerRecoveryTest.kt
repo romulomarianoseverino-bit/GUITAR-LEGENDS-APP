@@ -40,7 +40,7 @@ import org.robolectric.annotation.LooperMode
 import java.io.File
 import java.util.UUID
 
-@LooperMode(LooperMode.Mode.PAUSED)
+@LooperMode(LooperMode.Mode.INSTRUMENTATION_TEST)
 class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
 
     @get:Rule
