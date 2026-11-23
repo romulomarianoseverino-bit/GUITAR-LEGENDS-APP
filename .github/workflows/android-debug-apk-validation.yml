@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/next-apk-validation
+      - prep/next-apk-readiness-2026-11-24
     paths:
       - "app/**"
       - "gradle/**"
@@ -43,6 +44,9 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
+      - name: Instalar Firebase CLI
+        run: npm install --global firebase-tools@13.35.1
+
       - name: Compilar APK de depuração
         id: build
         run: gradle --no-daemon assembleDebug
@@ -50,10 +54,12 @@ jobs:
       - name: Executar testes unitários
         id: tests
         if: always() && steps.build.outcome == "success"
-        run: gradle --no-daemon testDebugUnitTest
+        run: |
+          firebase emulators:exec --project demo-no-project --only auth,firestore \\
+            'gradle --no-daemon testDebugUnitTest'
 
       - name: Publicar APK de validação
-        if: always() && steps.build.outcome == "success"
+        if: always() && steps.build.outcome == "success" && steps.tests.outcome == "success"
         uses: actions/upload-artifact@v4
         with:
           name: Guitar-Legends-APK-validacao
