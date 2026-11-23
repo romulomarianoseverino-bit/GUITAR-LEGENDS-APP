@@ -39,6 +39,7 @@ import org.junit.Test
 import java.io.File
 import java.util.UUID
 
+@LooperMode(LooperMode.Mode.PAUSED)
 class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
 
     @get:Rule
