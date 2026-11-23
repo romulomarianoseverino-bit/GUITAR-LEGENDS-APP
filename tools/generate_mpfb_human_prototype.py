@@ -54,15 +54,18 @@ def find(filename, subdir):
 # These macro values are broad art-direction controls, not an exact likeness claim.
 macro = TargetService.get_default_macro_info_dict()
 macro.update({
-    "gender": 1.0,  # MPFB/MakeHuman: 1.0 = masculino; evita a base corporal feminina do protótipo anterior.
+    "gender": 0.0,  # MPFB2: 0.0 = masculino; 1.0 = feminino. Não inverter este valor.
+    "cupsize": 0.0,  # reduzir o volume mamário para a anatomia masculina natural.
     "age": 0.32,
-    "muscle": 0.44,
+    "muscle": 0.52,
     "weight": 0.43,
     "proportions": 0.52,
     "height": 0.52,
-    "firmness": 0.50,
+    "firmness": 0.32,
 })
 macro["race"] = {"caucasian": 0.72, "african": 0.12, "asian": 0.16}
+if float(macro.get("gender", 1.0)) != 0.0 or float(macro.get("cupsize", 1.0)) != 0.0:
+    raise RuntimeError(f"Perfil corporal masculino não aplicado: gender={macro.get('gender')}, cupsize={macro.get('cupsize')}")
 human = HumanService.create_human(macro_detail_dict=macro)
 report["art_direction"] = {
     "inspiration": "modern Brazilian pop/sertanejo stage aesthetic",
@@ -70,6 +73,7 @@ report["art_direction"] = {
     "wardrobe": "contemporary tailored stage suit; no cowboy styling, no boot/buckle/leg accessory",
     "identity": "original game avatar, not a photorealistic replica",
     "macro_phenotype": macro,
+    "body_validation": "MPFB2 gender=0.0 (male), cupsize=0.0; generated preview must be inspected before approval",
 }
 skin = find("young_caucasian_male.mhmat", "skins")
 HumanService.set_character_skin(skin, human, skin_type="GAMEENGINE")
@@ -84,6 +88,7 @@ wardrobe = [
     ("eyebrows", "eyebrow001.mhclo", "Eyebrows"),
     ("hair", "short04.mhclo", "Hair"),
     ("clothes", "male_casualsuit01.mhclo", "Clothes"),
+    ("clothes", "shoes01.mhclo", "Clothes"),
 ]
 for subdir, filename, kind in wardrobe:
     asset = find(filename, subdir)
@@ -99,7 +104,12 @@ for obj in bpy.data.objects:
                 if material.use_nodes:
                     for node in material.node_tree.nodes:
                         if node.type == "BSDF_PRINCIPLED":
-                            node.inputs["Base Color"].default_value = (0.055, 0.025, 0.014, 1.0)
+                            base = node.inputs.get("Base Color")
+                            if base:
+                                for link in list(material.node_tree.links):
+                                    if link.to_socket == base:
+                                        material.node_tree.links.remove(link)
+                                base.default_value = (0.055, 0.025, 0.014, 1.0)
 
 # Duplicate the full character hierarchy for export, leaving the generated
 # working character untouched.
@@ -182,6 +192,9 @@ report["glb_bytes"] = glb_path.stat().st_size
 report["mesh_count"] = sum(1 for o in bpy.data.objects if o.type == "MESH")
 report["armature_count"] = sum(1 for o in bpy.data.objects if o.type == "ARMATURE")
 report["material_count"] = len(bpy.data.materials)
+report["body_validation"] = {"gender": macro["gender"], "cupsize": macro["cupsize"], "expected_gender": "male"}
+if macro["gender"] != 0.0 or macro["cupsize"] != 0.0:
+    raise RuntimeError("A geração não está configurada para anatomia masculina.")
 report["mesh_names"] = [o.name for o in bpy.data.objects if o.type == "MESH"]
 report["armature_names"] = [o.name for o in bpy.data.objects if o.type == "ARMATURE"]
 (out / "prototype-report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
