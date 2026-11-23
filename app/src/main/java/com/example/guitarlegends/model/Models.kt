@@ -14,6 +14,13 @@ enum class Instrument(
         description = "Solos rápidos, riffs marcantes e acordes vibrantes.",
         primaryLaneFocus = "Agudos e Médios (Notas rápidas e solos)"
     ),
+    ACOUSTIC_GUITAR(
+        displayName = "Violão Acústico",
+        subtitle = "Violão de Aço",
+        iconName = "guitar",
+        description = "Acordes abertos, dedilhados e batidas de violão acústico tradicional.",
+        primaryLaneFocus = "Cordas de aço, acordes e padrões acústicos"
+    ),
     BASS(
         displayName = "Baixo Groove",
         subtitle = "Fundação de Graves",
