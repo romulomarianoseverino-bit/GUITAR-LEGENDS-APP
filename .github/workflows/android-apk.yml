@@ -20,6 +20,13 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
+      - name: Diagnosticar acionamento do fluxo
+        run: |
+          echo "Evento: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Início do fluxo de compilação do Guitar Legends"
+
       - name: Baixar código
         uses: actions/checkout@v4
 
