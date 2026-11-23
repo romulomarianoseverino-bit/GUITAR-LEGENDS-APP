@@ -7,10 +7,10 @@ Criar um avatar masculino 3D original para o Guitar Legends, inspirado em refer�
 ## Pesquisa visual e direção artística
 
 A pesquisa pública consultada mostra uma identidade que mudou ao longo da carreira:
-- Cabelo castanho-escuro, geralmente com volume no topo e penteado para trás/lateral; o topete é um elemento recorrente, mas não deve ser tratado como corte obrigatório.
+- Cabelo castanho-escuro, com textura e volume no topo, penteado para trás ou levemente para o lado; evitar tons claros/avermelhados e o cabelo baixo/chapado do protótipo anterior.
 - Rosto oval com mandíbula mais definida, sobrancelhas escuras, olhos escuros e nariz de linhas suaves. O modelo deve ter anatomia facial completa e expressão natural, sem exagerar traços.
 - A aparência pública alterna entre barba curta/bigode discretos e rosto mais limpo; isso deve ser uma opção cosmética separada.
-- O vestuário combina peças modernas e ajustadas, camisas, jaquetas, couro, alfaiataria, calças escuras e acessórios discretos.
+- O vestuário de palco atual deve seguir uma linha contemporânea e elegante, com alfaiataria, camisas e jaquetas modernas, calças escuras e detalhes discretos. Os registros de 2025 mostram trocas de figurino e diferentes fases visuais; não reduzir a referência a um uniforme único.
 - Nos figurinos de palco aparecem aplicações metálicas, bordados, brilho, ombros destacados e peças de impacto visual.
 - A fase Luan City usa referências pop/futuristas e cenografia urbana; não deve ser reduzida ao estereótipo sertanejo de chapéu, bota e fivela.
 
@@ -22,6 +22,10 @@ A pesquisa pública consultada mostra uma identidade que mudou ao longo da carre
 - Entrevista sobre Luan City 2.0, 16/10/2023: influências pop, K-pop e cyberpunk.
 - Gshow, 13/03/2021: alfaiataria, jaquetas de couro e peças de linho.
 - Registro Histórico oficial, gravado em outubro de 2025 e publicado em 2026: referência de fase de palco mais recente.
+
+## Correção exigida após a primeira prévia
+
+A primeira prévia não correspondeu à referência solicitada: cabelo/cor inadequados e elementos visuais com leitura de vaqueiro. A próxima geração deve remover integralmente acessórios pendurados na perna, retirar botas de vaqueiro e não usar chapéu ou fivela grande. Deve usar cabelo castanho-escuro texturizado e uma base de alfaiataria de palco contemporânea. O resultado precisa ser inspecionado visualmente antes de ser aprovado; trocar o nome do asset ou concluir o GLB não prova semelhança.
 
 ## Construção 3D obrigatória
 
@@ -38,10 +42,10 @@ A pesquisa pública consultada mostra uma identidade que mudou ao longo da carre
    - Cabelo preso ao rig da cabeça e testado em rotação/animação.
 
 3. **Figurino**
-   - Look-base de palco: camisa escura ou azul-petróleo, jaqueta/peça de alfaiataria moderna, calça escura e calçado de palco.
+   - Look-base de palco: conjunto de alfaiataria contemporânea em tons escuros, com camisa/parte superior ajustada e calçado urbano discreto.
    - Variante de impacto: jaqueta preta com detalhes metálicos/dourados ou prateados, sem reproduzir figurino exclusivo.
    - Materiais independentes por peça: tecido fosco, couro sintético, metal e detalhes brilhantes.
-   - Acessórios opcionais discretos: brinco, corrente e anéis.
+   - Acessórios opcionais discretos: brinco, corrente e anéis. Proibidos elementos de vaqueiro como chapéu, fivela grande, bota de montaria e acessórios pendurados na perna.
    - Todas as peças devem ajustar ao mesmo rig e não atravessar o corpo.
 
 4. **Estilos do jogo**
