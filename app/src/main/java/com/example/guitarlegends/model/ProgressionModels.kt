@@ -135,6 +135,7 @@ data class PlayerStats(
     val unlockedStars: Int = 6,
     val selectedCharacterId: String = "axel_rocker",
     val selectedGuitarId: String = "flame_caster",
+    val selectedAcousticGuitarId: String = "acoustic_dreadnought",
     val selectedBassId: String = "thunder_bass",
     val selectedDrumsId: String = "arena_beast_kit",
     val selectedVocalMicId: String = "vintage_shure_55s",
