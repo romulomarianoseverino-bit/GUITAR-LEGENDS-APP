@@ -32,6 +32,6 @@ class SustainScoreAccumulator(
 
     fun reset() {
         lastPositionMs = null
-        fractionalPoints = 0f
+        fractionalPoints = 0.0
     }
 }
