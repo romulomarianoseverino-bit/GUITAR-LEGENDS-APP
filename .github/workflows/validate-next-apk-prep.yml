@@ -59,30 +59,30 @@ jobs:
         id: prepare_signing
         if: always() && !cancelled()
         env:
-          KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
+          GH_SIGNING_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          GH_SIGNING_STORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          GH_SIGNING_KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo DEBUG_KEYSTORE_BASE64 está vazio."; exit 1; }
-          test -n "$STORE_PASSWORD" || { echo "::error::O segredo DEBUG_KEYSTORE_PASSWORD está vazio."; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo "::error::O segredo DEBUG_KEY_PASSWORD está vazio."; exit 1; }
+          test -n "$GH_SIGNING_KEYSTORE_B64" || { echo "::error::O segredo DEBUG_KEYSTORE_BASE64 está vazio ou indisponível nesta execução."; exit 1; }
+          test -n "$GH_SIGNING_STORE_PASSWORD" || { echo "::error::O segredo DEBUG_KEYSTORE_PASSWORD está vazio ou indisponível nesta execução."; exit 1; }
+          test -n "$GH_SIGNING_KEY_PASSWORD" || { echo "::error::O segredo DEBUG_KEY_PASSWORD está vazio ou indisponível nesta execução."; exit 1; }
 
           KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
-          if ! printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"; then
+          if ! printf '%s' "$GH_SIGNING_KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"; then
             echo "::error::Não foi possível decodificar a chave permanente."
             exit 1
           fi
           chmod 600 "$KEYSTORE_PATH"
           KEYTOOL_LOG="$RUNNER_TEMP/keytool-check.log"
-          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >"$KEYTOOL_LOG" 2>&1; then
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$GH_SIGNING_STORE_PASSWORD" -alias upload >"$KEYTOOL_LOG" 2>&1; then
             echo "::error::A chave permanente, a senha ou o alias upload não foram validados."
             exit 1
           fi
           echo "Keystore permanente e alias upload validados."
           echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "STORE_PASSWORD=$GH_SIGNING_STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$GH_SIGNING_KEY_PASSWORD" >> "$GITHUB_ENV"
 
       # A compilação é independente do resultado dos testes automatizados.
       # Assim, uma falha isolada não impede a geração de um APK para validação humana.
