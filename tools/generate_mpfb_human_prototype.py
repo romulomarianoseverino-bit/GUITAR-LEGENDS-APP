@@ -78,14 +78,21 @@ base = ObjectService.find_object_of_type_amongst_nearest_relatives(root, "Baseme
 ExportService.bake_modifiers_remove_helpers(base, bake_masks=True,
     bake_subdiv=True, remove_helpers=True, also_proxy=True)
 
+# Keep only the duplicated export hierarchy visible. Rendering both the
+# editable source and its export copy causes overlapping meshes/z-fighting.
+export_objects = {root, *list(root.children_recursive)}
+for obj in bpy.context.scene.objects:
+    if obj.type in {"MESH", "ARMATURE"} and obj not in export_objects:
+        obj.hide_render = True
+
 # MPFB2 may leave Blender's startup cube in the scene. It is not part of
 # the human and must never be included in the preview or exported GLB.
 for obj in list(bpy.data.objects):
     if obj.name == "Cube" and obj.type == "MESH":
         bpy.data.objects.remove(obj, do_unlink=True)
 
-# Render evidence from the dressed prototype. MPFB/MakeHuman uses Y as its
-# vertical axis, so frame and aim the camera using Y (not Blender's default Z).
+# Render evidence from the export hierarchy only. Use an orthographic
+# front three-quarter camera to avoid perspective distortion and clipping.
 bpy.context.scene.render.engine = "BLENDER_EEVEE_NEXT"
 bpy.context.scene.render.resolution_x = 1200
 bpy.context.scene.render.resolution_y = 1200
@@ -95,11 +102,11 @@ bpy.context.scene.render.film_transparent = False
 world = bpy.context.scene.world
 if world:
     world.color = (0.055, 0.055, 0.055)
-# Studio lights.
+
 for name, loc, power, size in [
-    ("Key", (4.0, -5.0, 6.0), 900, 5.0),
-    ("Fill", (-4.0, -3.0, 3.5), 500, 4.0),
-    ("Rim", (0.0, 3.0, 5.0), 1100, 3.0),
+    ("Key", (3.5, 3.5, -4.0), 900, 4.0),
+    ("Fill", (-3.5, 2.5, -3.0), 500, 4.5),
+    ("Rim", (0.0, 3.0, 3.5), 1000, 3.0),
 ]:
     data = bpy.data.lights.new(name, "AREA")
     data.energy = power
@@ -108,52 +115,45 @@ for name, loc, power, size in [
     obj = bpy.data.objects.new(name, data)
     bpy.context.collection.objects.link(obj)
     obj.location = loc
-    obj.rotation_euler = (0.0, 0.0, 0.0)
-    direction = -obj.location
-    obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+    obj.rotation_euler = (-obj.location).to_track_quat("-Z", "Y").to_euler()
 
 cam_data = bpy.data.cameras.new("PrototypeCamera")
 cam = bpy.data.objects.new("PrototypeCamera", cam_data)
 bpy.context.collection.objects.link(cam)
-cam.location = (4.2, -8.5, 3.3)
-target = (0.0, 0.0, 0.95)
-direction = (Vector(target) - cam.location)
-cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
-cam.data.lens = 55
 bpy.context.scene.camera = cam
 
-# Frame the complete character based on world-space bounds.
+# Calculate bounds from visible export meshes only; MPFB humans are Y-up.
 depsgraph = bpy.context.evaluated_depsgraph_get()
 points = []
-for obj in bpy.context.scene.objects:
-    if obj.type == "MESH":
+for obj in export_objects:
+    if obj.type == "MESH" and not obj.hide_render:
         evaluated = obj.evaluated_get(depsgraph)
         points.extend([evaluated.matrix_world @ Vector(corner)
                        for corner in evaluated.bound_box])
 if not points:
-    raise RuntimeError("No character meshes found for preview framing")
-min_y = min(p.y for p in points)
-max_y = max(p.y for p in points)
-height = max_y - min_y
+    raise RuntimeError("No visible export meshes found for preview framing")
+mins = [min(p[i] for p in points) for i in range(3)]
+maxs = [max(p[i] for p in points) for i in range(3)]
+center = Vector(tuple((mins[i] + maxs[i]) * 0.5 for i in range(3)))
+height = maxs[1] - mins[1]
 if height <= 0.1:
     raise RuntimeError(f"Invalid character bounds: height={height}")
-center_x = (min(p.x for p in points) + max(p.x for p in points)) * 0.5
-center_y = (min_y + max_y) * 0.5
-center_z = (min(p.z for p in points) + max(p.z for p in points)) * 0.5
-# Human meshes are Y-up. Place the camera in front of the character along Z
-# and use Y as camera up so the complete body is visible.
-target = (center_x, center_y, center_z)
-cam.location = (center_x + height * 0.35, center_y + height * 0.10, center_z - height * 3.2)
-direction = Vector(target) - cam.location
-cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
-cam.data.lens = 50
+cam.location = center + Vector((height * 0.28, height * 0.08, -height * 4.0))
+cam.rotation_euler = (center - cam.location).to_track_quat("-Z", "Y").to_euler()
+cam.data.type = "ORTHO"
+cam.data.ortho_scale = height * 1.42
 bpy.context.scene.render.filepath = str(out / "preview-front-3q.png")
 bpy.ops.render.render(write_still=True)
 
-# GLB export of the scene with the skinned armature and wardrobe.
+# Export only the dressed, rigged copy; do not duplicate the editable source.
+bpy.ops.object.select_all(action="DESELECT")
+for obj in export_objects:
+    if obj.type in {"MESH", "ARMATURE"}:
+        obj.select_set(True)
+bpy.context.view_layer.objects.active = base
 glb_path = out / "guitar-legends-human-prototype.glb"
 bpy.ops.export_scene.gltf(filepath=str(glb_path), export_format="GLB",
-                          use_selection=False, export_apply=True)
+                          use_selection=True, export_apply=True)
 if not glb_path.exists() or glb_path.stat().st_size < 100_000:
     raise RuntimeError("GLB export missing or unexpectedly small")
 
