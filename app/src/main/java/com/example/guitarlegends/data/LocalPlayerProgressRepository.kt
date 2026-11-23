@@ -233,6 +233,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
                 achievementsUnlocked = mergedAchievements,
                 selectedCharacterId = if (guestSnapshot.hasLocalCustomizationChanges) guest.selectedCharacterId else cloudStats.selectedCharacterId,
                 selectedGuitarId = if (guestSnapshot.hasLocalCustomizationChanges) guest.selectedGuitarId else cloudStats.selectedGuitarId,
+                selectedAcousticGuitarId = if (guestSnapshot.hasLocalCustomizationChanges) guest.selectedAcousticGuitarId else cloudStats.selectedAcousticGuitarId,
                 selectedBassId = if (guestSnapshot.hasLocalCustomizationChanges) guest.selectedBassId else cloudStats.selectedBassId,
                 selectedDrumsId = if (guestSnapshot.hasLocalCustomizationChanges) guest.selectedDrumsId else cloudStats.selectedDrumsId,
                 selectedVocalMicId = if (guestSnapshot.hasLocalCustomizationChanges) guest.selectedVocalMicId else cloudStats.selectedVocalMicId,
@@ -263,6 +264,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
         put("unlockedStars", s.unlockedStars)
         put("selectedCharacterId", s.selectedCharacterId)
         put("selectedGuitarId", s.selectedGuitarId)
+        put("selectedAcousticGuitarId", s.selectedAcousticGuitarId)
         put("selectedBassId", s.selectedBassId)
         put("selectedDrumsId", s.selectedDrumsId)
         put("selectedVocalMicId", s.selectedVocalMicId)
@@ -328,6 +330,7 @@ class LocalPlayerProgressRepository(private val context: Context) {
             unlockedStars = o.optInt("unlockedStars", defaults.unlockedStars),
             selectedCharacterId = o.optString("selectedCharacterId", defaults.selectedCharacterId),
             selectedGuitarId = o.optString("selectedGuitarId", defaults.selectedGuitarId),
+            selectedAcousticGuitarId = o.optString("selectedAcousticGuitarId", defaults.selectedAcousticGuitarId),
             selectedBassId = o.optString("selectedBassId", defaults.selectedBassId),
             selectedDrumsId = o.optString("selectedDrumsId", defaults.selectedDrumsId),
             selectedVocalMicId = o.optString("selectedVocalMicId", defaults.selectedVocalMicId),

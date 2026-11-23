@@ -75,6 +75,7 @@ service cloud.firestore {
              data.careerStageMax is int && data.careerStageMax >= 0 &&
              data.selectedCharacterId is string && data.selectedCharacterId.size() <= 64 &&
              data.selectedGuitarId is string && data.selectedGuitarId.size() <= 64 &&
+             data.selectedAcousticGuitarId is string && data.selectedAcousticGuitarId.size() <= 64 &&
              data.selectedBassId is string && data.selectedBassId.size() <= 64 &&
              data.selectedDrumsId is string && data.selectedDrumsId.size() <= 64 &&
              data.selectedVocalMicId is string && data.selectedVocalMicId.size() <= 64 &&
@@ -143,7 +144,7 @@ service cloud.firestore {
                          'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
                          'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
                          'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                         'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
+                         'selectedCharacterId', 'selectedGuitarId', 'selectedAcousticGuitarId', 'selectedBassId',
                          'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                          'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                          'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
@@ -154,7 +155,7 @@ service cloud.firestore {
                          'userId', 'email', 'nickname', 'nicknameNormalized', 'coins',
                          'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
                          'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                         'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
+                         'selectedCharacterId', 'selectedGuitarId', 'selectedAcousticGuitarId', 'selectedBassId',
                          'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                          'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                          'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
@@ -175,7 +176,7 @@ service cloud.firestore {
                            'email', 'nickname', 'nicknameNormalized', 'coins',
                            'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
                            'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                           'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
+                           'selectedCharacterId', 'selectedGuitarId', 'selectedAcousticGuitarId', 'selectedBassId',
                            'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
                            'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
                            'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
@@ -302,7 +303,6 @@ service cloud.firestore {
       allow update: if isSignedIn() &&
                        isValidRoomCode(roomCode) &&
                        existing().status != 'CLOSED' &&
-                       incoming().hostUid == existing().hostUid &&
                        incoming().roomCode == existing().roomCode &&
                        incoming().createdAt == existing().createdAt &&
                        isValidMultiplayerRoom(incoming(), roomCode) &&
@@ -310,11 +310,30 @@ service cloud.firestore {
                          // Ação 1: Host atualiza modo, faixa, início ou encerramento da sala
                          (
                            existing().hostUid == request.auth.uid &&
+                           incoming().hostUid == existing().hostUid &&
                            incoming().diff(existing()).affectedKeys().hasOnly([
                              'mode', 'status', 'trackId', 'trackTitle', 'maxPlayers', 'winnerUid', 'inviteMessage', 'updatedAt'
                            ])
                          ) ||
-                         // Ação 2: Convidado entra na sala em espera respeitando limite
+                         // Ação 2: Anfitrião sai antes da partida e transfere a liderança ao próximo participante
+                         (
+                           existing().status == 'WAITING' &&
+                           existing().hostUid == request.auth.uid &&
+                           request.auth.uid in existing().memberUids &&
+                           !(request.auth.uid in incoming().memberUids) &&
+                           existing().memberUids.hasAll(incoming().memberUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() - 1 &&
+                           incoming().memberUids.size() >= 1 &&
+                           incoming().hostUid == incoming().memberUids[0] &&
+                           incoming().hostUid in existing().memberUids &&
+                           incoming().hostUid != request.auth.uid &&
+                           exists(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)/participants/$(incoming().hostUid)) &&
+                           incoming().hostNickname == get(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)/participants/$(incoming().hostUid)).data.nickname &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'hostUid', 'hostNickname', 'memberUids', 'updatedAt'
+                           ])
+                         ) ||
+                         // Ação 3: Convidado entra na sala em espera respeitando limite
                          (
                            existing().status == 'WAITING' &&
                            !(request.auth.uid in existing().memberUids) &&
@@ -323,7 +342,7 @@ service cloud.firestore {
                            incoming().memberUids.size() == existing().memberUids.size() + 1 &&
                            incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
                          ) ||
-                         // Ação 3: Participante sai da sala removendo apenas seu próprio UID
+                         // Ação 4: Participante sai da sala removendo apenas seu próprio UID
                          (
                            request.auth.uid != existing().hostUid &&
                            request.auth.uid in existing().memberUids &&

@@ -507,12 +507,27 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                                 ),
                                                 shape = RoundedCornerShape(8.dp),
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f).testTag("character_style_${art.name}")
                                             ) {
                                                 Text(art.displayName, color = Color(art.badgeColorHex), fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
                                             }
                                         }
                                     }
+                                    val selectedArtStyle = stats.customRocker.artStyle
+                                    Text(
+                                        text = selectedArtStyle.eraDescription,
+                                        color = Color(selectedArtStyle.badgeColorHex),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.fillMaxWidth().testTag("character_style_description")
+                                    )
+                                    Text(
+                                        text = "A foto fica salva como referência. A geração automática de um personagem 3D a partir dela ainda não está integrada.",
+                                        color = Color.White.copy(alpha = 0.72f),
+                                        fontSize = 8.sp,
+                                        lineHeight = 11.sp,
+                                        modifier = Modifier.fillMaxWidth().testTag("photo_to_3d_status")
+                                    )
                                 }
                             }
                         }
@@ -674,12 +689,14 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                 Instrument.GUITAR -> viewModel.guitars.map {
                                     InstrumentGear(it.id, Instrument.GUITAR, it.name, it.type, it.colorHex, it.priceCoins, it.isUnlocked, it.description)
                                 }
+                                Instrument.ACOUSTIC_GUITAR -> viewModel.acousticGuitars
                                 Instrument.BASS -> viewModel.basses
                                 Instrument.DRUMS -> viewModel.drums
                                 Instrument.VOCALS -> viewModel.vocalMics
                             }
                             val equippedId = when (instrumentTab) {
                                 Instrument.GUITAR -> stats.selectedGuitarId
+                                Instrument.ACOUSTIC_GUITAR -> stats.selectedAcousticGuitarId
                                 Instrument.BASS -> stats.selectedBassId
                                 Instrument.DRUMS -> stats.selectedDrumsId
                                 Instrument.VOCALS -> stats.selectedVocalMicId

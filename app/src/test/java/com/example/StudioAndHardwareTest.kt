@@ -47,6 +47,10 @@ class StudioAndHardwareTest {
 
     @Test
     fun `01 - studio customizations, 3D instrument config and presets save apply delete across restart`() {
+        assertEquals("3D Estilizado", CharacterArtStyle.STYLIZED_REALISTIC.displayName)
+        assertEquals("3D Cartoon", CharacterArtStyle.CARTOON.displayName)
+        assertEquals("3D Anime", CharacterArtStyle.ANIME.displayName)
+
         val vm = GameViewModel(app)
 
         vm.updateRockerBodyAndSkin("Neo Cyberpunk", 0xFFC98E66L)
@@ -319,4 +323,34 @@ class StudioAndHardwareTest {
         composeTestRule.onNodeWithText("MODO VISITANTE ATIVO").assertIsDisplayed()
         composeTestRule.onNodeWithTag("google_sign_in_button").assertIsDisplayed()
     }
+    @Test
+    fun acousticGuitarIsSeparateAndItsStudioConfigAndChartWork() {
+        assertNotEquals(Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR)
+        assertEquals("Violão Acústico", Instrument.ACOUSTIC_GUITAR.displayName)
+        val onlineParticipant = MultiplayerParticipantCloud(
+            userId = "acoustic-player",
+            instrument = Instrument.ACOUSTIC_GUITAR.name
+        )
+        assertEquals(Instrument.ACOUSTIC_GUITAR, onlineParticipant.instrumentEnum)
+
+        val profile = StudioProfileConfig(
+            acousticGuitarConfig = InstrumentCustomConfig(
+                modelStyleId = "acoustic_classical",
+                primaryColorHex = 0xFF8D5A35L
+            )
+        )
+        val restored = StudioProfileJsonCodec.fromJsonString(
+            StudioProfileJsonCodec.toJsonString(profile)
+        )
+        assertEquals("acoustic_classical", restored.acousticGuitarConfig.modelStyleId)
+        assertEquals(0xFF8D5A35L, restored.acousticGuitarConfig.primaryColorHex)
+
+        val chart = AudioAnalyzer.generateChart(
+            AudioAnalyzer.BUILT_IN_TRACKS.first(),
+            Instrument.ACOUSTIC_GUITAR,
+            Difficulty.MEDIUM
+        )
+        assertTrue("O chart do violão acústico não pode ficar vazio", chart.isNotEmpty())
+    }
+
 }

@@ -221,6 +221,36 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertTrue(entries[0].isCompetitive)
     }
 
+    @Test
+    fun changingNickname_releasesOnlyPreviousOwnedReservation() = runBlocking {
+        val tag = uniqueSuffix()
+        val uid = signInTestUser("rename_$tag@test.com")
+        val repo = AccountCloudRepository(firestore, auth)
+        val oldNickname = "Old_$tag"
+        val newNickname = "New_$tag"
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(oldNickname, PlayerStats()).getOrThrow()
+        }
+        val oldKey = oldNickname.lowercase()
+        val newKey = newNickname.lowercase()
+
+        val renamed = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(newNickname, PlayerStats()).getOrThrow()
+        }
+        assertEquals(newNickname, renamed.nickname)
+
+        val oldReservation = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("nicknames").document(oldKey).get().await()
+        }
+        val newReservation = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("nicknames").document(newKey).get().await()
+        }
+        assertFalse("Previous nickname reservation should be released", oldReservation.exists())
+        assertTrue("New nickname reservation should exist", newReservation.exists())
+        assertEquals(uid, newReservation.getString("userId"))
+    }
+
     private companion object {
         const val DEFAULT_TIMEOUT_MS = 5000L
         const val FLOW_TIMEOUT_MS = 3000L

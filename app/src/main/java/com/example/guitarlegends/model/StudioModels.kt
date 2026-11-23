@@ -130,6 +130,15 @@ data class StudioProfileConfig(
         stampId = "inst_stamp_flames",
         stickerId = "sticker_lightning"
     ),
+    val acousticGuitarConfig: InstrumentCustomConfig = InstrumentCustomConfig(
+        modelStyleId = "acoustic_dreadnought",
+        primaryColorHex = 0xFFB8793EL,
+        secondaryColorHex = 0xFF3A2418L,
+        hardwareColorHex = 0xFFE0C58AL,
+        finish = InstrumentFinish.SUNBURST,
+        stampId = "inst_stamp_none",
+        stickerId = "sticker_none"
+    ),
     val bassConfig: InstrumentCustomConfig = InstrumentCustomConfig(
         modelStyleId = "precision_bass",
         primaryColorHex = 0xFF512DA8L,
@@ -282,6 +291,11 @@ object StudioCatalog {
             "explorer_metal" to "Explorer Heavy",
             "cyber_laser" to "Cyber Laser Futurista"
         ),
+        Instrument.ACOUSTIC_GUITAR to listOf(
+            "acoustic_dreadnought" to "Violão Dreadnought de Aço",
+            "acoustic_classical" to "Violão Clássico",
+            "acoustic_jumbo" to "Violão Jumbo"
+        ),
         Instrument.BASS to listOf(
             "precision_bass" to "Precision Bass 4-Cordas",
             "skull_5string" to "Groove Skull 5-Cordas",
@@ -413,6 +427,7 @@ object StudioCatalog {
             )
             "axel_rocker", "roxie_riot", "kai_cyber" -> base.copy(selectedCharacterId = cosmeticId)
             "flame_caster", "void_v", "neon_thunder" -> base.copy(selectedGuitarId = cosmeticId)
+            "acoustic_dreadnought", "acoustic_classical", "acoustic_jumbo" -> base.copy(selectedAcousticGuitarId = cosmeticId)
             "thunder_bass", "skull_bass", "cyber_bass" -> base.copy(selectedBassId = cosmeticId)
             "arena_beast_kit", "punk_garage_kit", "electronic_neon_kit" -> base.copy(selectedDrumsId = cosmeticId)
             "vintage_shure_55s", "golden_supreme_mic", "punk_distress_mic" -> base.copy(selectedVocalMicId = cosmeticId)
@@ -422,6 +437,7 @@ object StudioCatalog {
                 base.copy(
                     studioProfile = studio.copy(
                         guitarConfig = studio.guitarConfig.copy(fullSkinId = cosmeticId),
+                        acousticGuitarConfig = studio.acousticGuitarConfig.copy(fullSkinId = cosmeticId),
                         bassConfig = studio.bassConfig.copy(fullSkinId = cosmeticId),
                         drumsConfig = studio.drumsConfig.copy(fullSkinId = cosmeticId),
                         vocalConfig = studio.vocalConfig.copy(fullSkinId = cosmeticId)

@@ -1,5 +1,10 @@
 package com.example.guitarlegends.engine
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -28,8 +33,8 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Renderizador 3D articulado do integrante da banda no estilo PlayStation 2 modernizado.
- * Suporta rotação completa 360° (frente, perfil e costas), proporções anatômicas por modelo,
+ * Renderizador procedural 2.5D de transição, inspirado no visual PlayStation 2.
+ * Ainda não substitui um modelo 3D real com malha e esqueleto. Suporta rotação simulada,
  * penteados volumétricos, jaquetas, calças, calçados, tatuagens, acessórios, expressões faciais,
  * skins completas e instrumento customizado sincronizado com animações de palco.
  */
@@ -72,12 +77,19 @@ fun drawRockerCharacter3D(
     }
 
     val skinColor = Color(studio.skinToneHex)
-    val shoulderFactor = when {
+    val bodyShoulderFactor = when {
         studio.rockerBodyModel.contains("Heavy") -> 1.14f
         studio.rockerBodyModel.contains("Punk") -> 0.94f
         studio.rockerBodyModel.contains("Cyber") -> 1.04f
         else -> 1.0f
     }
+    // A escolha de estilo agora altera proporções visíveis, não apenas o rótulo salvo.
+    val styleShoulderFactor = when (rocker.artStyle) {
+        CharacterArtStyle.STYLIZED_REALISTIC -> 1.0f
+        CharacterArtStyle.CARTOON -> 1.10f
+        CharacterArtStyle.ANIME -> 0.96f
+    }
+    val shoulderFactor = bodyShoulderFactor * styleShoulderFactor
 
     // Movimento de palco sincronizado (Headbang + batida rítmica + energia do combo)
     val energyMult = if (isStarPowerActive) 1.55f else if (combo >= 15) 1.25f else 1.0f
@@ -303,14 +315,35 @@ fun drawRockerCharacter3D(
 
     if (facingFront) drawHair()
 
-    val headR = scale * 0.17f
+    val headR = scale * 0.17f * when (rocker.artStyle) {
+        CharacterArtStyle.STYLIZED_REALISTIC -> 1.0f
+        CharacterArtStyle.CARTOON -> 1.24f
+        CharacterArtStyle.ANIME -> 1.12f
+    }
+    val faceWidth = headR * 2f * when (rocker.artStyle) {
+        CharacterArtStyle.STYLIZED_REALISTIC -> 1.0f
+        CharacterArtStyle.CARTOON -> 1.08f
+        CharacterArtStyle.ANIME -> 0.88f
+    }
+    val faceHeight = headR * 2f * when (rocker.artStyle) {
+        CharacterArtStyle.STYLIZED_REALISTIC -> 1.0f
+        CharacterArtStyle.CARTOON -> 1.02f
+        CharacterArtStyle.ANIME -> 1.16f
+    }
+    val faceTopLeft = Offset(headCenter.x - faceWidth * 0.5f, headCenter.y - faceHeight * 0.5f)
+    val faceSize = Size(faceWidth, faceHeight)
     val isGothicFace = rocker.bodyTattoos.contains("Gótica")
-    drawScope.drawCircle(color = if (isGothicFace) Color(0xFFECEAE6) else skinColor, radius = headR, center = headCenter)
-    drawScope.drawCircle(color = Color.Black.copy(alpha = 0.28f), radius = headR, center = headCenter, style = Stroke(width = 1.5f))
+    drawScope.drawOval(color = if (isGothicFace) Color(0xFFECEAE6) else skinColor, topLeft = faceTopLeft, size = faceSize)
+    drawScope.drawOval(color = Color.Black.copy(alpha = 0.28f), topLeft = faceTopLeft, size = faceSize, style = Stroke(width = 1.5f))
 
     if (facingFront) {
-        val eyeL = pt(-0.055f, headY - 0.02f, -0.15f)
-        val eyeR = pt(0.055f, headY - 0.02f, -0.15f)
+        val eyeSpread = when (rocker.artStyle) {
+            CharacterArtStyle.STYLIZED_REALISTIC -> 0.055f
+            CharacterArtStyle.CARTOON -> 0.060f
+            CharacterArtStyle.ANIME -> 0.068f
+        }
+        val eyeL = pt(-eyeSpread, headY - 0.02f, -0.15f)
+        val eyeR = pt(eyeSpread, headY - 0.02f, -0.15f)
         val hasSunglasses = rocker.accessories.contains("Óculos")
 
         if (isGothicFace) {
@@ -343,8 +376,13 @@ fun drawRockerCharacter3D(
             )
             drawScope.drawLine(color = accColor, start = eyeL, end = eyeR, strokeWidth = 2.5f)
         } else {
-            drawScope.drawCircle(color = if (isGothicFace) Color.White else Color(0xFF18141E), radius = headR * 0.12f, center = eyeL)
-            drawScope.drawCircle(color = if (isGothicFace) Color.White else Color(0xFF18141E), radius = headR * 0.12f, center = eyeR)
+            val eyeRadiusFactor = when (rocker.artStyle) {
+                CharacterArtStyle.STYLIZED_REALISTIC -> 0.12f
+                CharacterArtStyle.CARTOON -> 0.14f
+                CharacterArtStyle.ANIME -> 0.17f
+            }
+            drawScope.drawCircle(color = if (isGothicFace) Color.White else Color(0xFF18141E), radius = headR * eyeRadiusFactor, center = eyeL)
+            drawScope.drawCircle(color = if (isGothicFace) Color.White else Color(0xFF18141E), radius = headR * eyeRadiusFactor, center = eyeR)
         }
 
         // Expressão facial viva
@@ -382,13 +420,14 @@ fun drawRockerCharacter3D(
     // 4. BRAÇOS E INSTRUMENTO CUSTOMIZADO EMPUNHADO EM 3D
     val activeInstConfig = when (instrument) {
         Instrument.GUITAR -> studio.guitarConfig
+        Instrument.ACOUSTIC_GUITAR -> studio.acousticGuitarConfig
         Instrument.BASS -> studio.bassConfig
         Instrument.DRUMS -> studio.drumsConfig
         Instrument.VOCALS -> studio.vocalConfig
     }
 
     when (instrument) {
-        Instrument.GUITAR, Instrument.BASS -> {
+        Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR, Instrument.BASS -> {
             val frettingHand = Vec3(-0.34f, shoulderY + 0.18f, -0.26f)
             val strummingHand = Vec3(0.14f, hipY - 0.12f + strumSwing, -0.26f)
             drawArm(-1f, frettingHand)
@@ -571,6 +610,15 @@ fun InteractiveCharacter3DViewer(
     var yawDeg by remember { mutableFloatStateOf(18f) }
     var pitchDeg by remember { mutableFloatStateOf(5f) }
     var zoom by remember { mutableFloatStateOf(1.0f) }
+    val previewTransition = rememberInfiniteTransition(label = "character-preview")
+    val previewTime by previewTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 12.56637f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 12_566, easing = LinearEasing)
+        ),
+        label = "character-preview-time"
+    )
 
     Column(modifier = modifier) {
         Box(
@@ -592,7 +640,7 @@ fun InteractiveCharacter3DViewer(
                 }
                 .testTag("character_3d_viewer")
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
+            Canvas(modifier = Modifier.fillMaxSize().testTag("character_3d_preview_animation")) {
                 drawBackstageMirrorStudioBackdrop(
                     drawScope = this,
                     width = size.width,
@@ -609,7 +657,7 @@ fun InteractiveCharacter3DViewer(
                     scale = charScale,
                     yawDeg = yawDeg,
                     pitchDeg = pitchDeg,
-                    animTimeSec = 0f
+                    animTimeSec = previewTime
                 )
             }
 

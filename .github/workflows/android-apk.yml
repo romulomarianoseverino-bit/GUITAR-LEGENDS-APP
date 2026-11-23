@@ -1,24 +1,18 @@
-name: Compilar APK Android
+name: Validar APK da versão recuperada
 
 on:
   push:
     branches:
-      - main
-    paths-ignore:
-      - 'Imagens/**'
+      - repair/restore-current-working-gameplay
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  build-apk:
-    name: Compilar, testar e publicar APK
+  build:
+    name: Compilar e testar APK Android
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
-      - name: Baixar código do repositório
+      - name: Baixar código
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
@@ -28,96 +22,47 @@ jobs:
           java-version: '17'
 
       - name: Configurar Android SDK
+        shell: bash
         run: |
-          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
-          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
-          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
-
-      - name: Criar chave de assinatura de depuração temporária
-        run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
-
-      - name: Preparar chave privada de publicação
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo KEYSTORE_BASE64 está vazio."; exit 1; }
-          test -n "$STORE_PASSWORD" || { echo "::error::O segredo KEYSTORE_PASSWORD está vazio."; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo "::error::O segredo KEY_PASSWORD está vazio."; exit 1; }
-
-          KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
-          echo "Verificando a decodificação Base64..."
-          if ! printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"; then
-            echo "::error::Não foi possível decodificar KEYSTORE_BASE64. Verifique se o segredo foi copiado por completo."
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK_ROOT" ]; then
+            echo "Android SDK não encontrado em: $SDK_ROOT"
             exit 1
           fi
-          chmod 600 "$KEYSTORE_PATH"
-          echo "Arquivo decodificado. Tamanho: $(wc -c < "$KEYSTORE_PATH") bytes."
-          echo "Verificando a senha do keystore separadamente..."
-          KEYTOOL_LOG="$RUNNER_TEMP/keytool-check.log"
-          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" >"$KEYTOOL_LOG" 2>&1; then
-            if grep -Eqi "password was incorrect|keystore was tampered" "$KEYTOOL_LOG"; then
-              echo "::error::O keytool recusou a senha KEYSTORE_PASSWORD (ou o arquivo do keystore está danificado)."
-            else
-              echo "::error::O keytool não conseguiu abrir o keystore. A mensagem técnica foi omitida para proteger dados."
-            fi
+          SDKMANAGER="$(find "$SDK_ROOT" -type f -name sdkmanager -print -quit)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager não encontrado dentro de $SDK_ROOT"
+            find "$SDK_ROOT" -maxdepth 4 -type d -print | head -80
             exit 1
           fi
-          echo "Senha do keystore aceita. Agora verificando o alias upload..."
-          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >"$KEYTOOL_LOG" 2>&1; then
-            echo "::error::A senha do keystore foi aceita, mas o alias upload não foi encontrado ou não pôde ser lido."
-            exit 1
-          fi
-          echo "Keystore e alias upload validados com sucesso."
-          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          SDK_BIN="$(dirname "$SDKMANAGER")"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_BIN" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses
 
-      - name: Configurar Gradle 9.3.1
+      - name: Instalar ferramentas Android necessárias
+        run: sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
       - name: Compilar APK de depuração
-        id: debug_build
+        id: build
         run: gradle --no-daemon assembleDebug
 
-      - name: Publicar APK de depuração
-        if: always() && steps.debug_build.outcome == 'success'
+      - name: Executar testes unitários
+        if: success()
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Publicar APK de validação
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Guitar-Legends-APK-debug
+          name: Guitar-Legends-APK-recuperacao
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
-
-      - name: Compilar APK assinado de publicação
-        id: release_build
-        run: gradle --no-daemon assembleRelease
-
-      - name: Publicar APK assinado
-        if: always() && steps.release_build.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Guitar-Legends-APK-release
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Executar testes unitários
-        id: tests
-        if: always() && steps.debug_build.outcome == 'success'
-        run: gradle --no-daemon testDebugUnitTest

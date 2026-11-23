@@ -35,9 +35,15 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import kotlin.math.roundToInt
 import com.example.R
 import com.example.guitarlegends.engine.LaneColors
 import com.example.guitarlegends.engine.drawHighway
+import com.example.guitarlegends.model.AudioSettings
 import com.example.guitarlegends.model.ControlMode
 import com.example.guitarlegends.model.Instrument
 import com.example.guitarlegends.ui.components.*
@@ -64,6 +70,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
     val lastHitRating by viewModel.lastHitRating.collectAsState()
     val activeFretLanes by viewModel.activeFretLanes.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
+    var showVolumeControls by remember { mutableStateOf(false) }
     val stats by viewModel.playerStats.collectAsState()
     val controllerInfo by viewModel.controllerInfo.collectAsState()
     val mpRoom by viewModel.multiplayerRoom.collectAsState()
@@ -85,11 +92,20 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
         )
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        // A largura e a posição dos controles usam a mesma proporção da esteira
+        // desenhada em HighwayRenderer (46% da tela, strike line em 82% da altura).
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val highwayControlWidth = with(density) {
+            (constraints.maxWidth.toFloat() * 0.46f)
+                .coerceIn(310f, 540f)
+                .toDp()
+        }
+        val strikeCenterY = maxHeight * 0.82f
         // Concert Stage Visual Background
         Image(
             painter = painterResource(id = R.drawable.stage_background_1794455515273),
@@ -376,25 +392,27 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             )
         }
 
-        // Bottom Controls: Fret Strike Touch Buttons (Multi-touch enabled)
+        // Controles de traste integrados à própria esteira.
+        // Cada área de toque ocupa exatamente a largura de uma faixa e fica
+        // centralizada na mesma linha de impacto desenhada pelo HighwayRenderer.
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(0.84f)
-                .padding(bottom = 12.dp)
-                .height(68.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .align(Alignment.TopCenter)
+                .offset(y = strikeCenterY - 30.dp)
+                .width(highwayControlWidth)
+                .height(60.dp)
+                .testTag("gameplay_highway_fret_controls"),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             for (lane in 0 until numLanes) {
                 val color = LaneColors[lane]
                 val isPressed = activeFretLanes.contains(lane)
 
-                Surface(
+                Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(18.dp))
                         .testTag("fret_touch_button_$lane")
                         .pointerInteropFilter { motionEvent ->
                             when (motionEvent.actionMasked) {
@@ -409,57 +427,52 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                                 else -> false
                             }
                         },
-                    color = if (isPressed) color else color.copy(alpha = 0.25f),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = Brush.verticalGradient(
-                            listOf(if (isPressed) Color.White else color, color.copy(alpha = 0.5f))
-                        ),
-                        width = if (isPressed) 4.dp else 2.dp
-                    ),
-                    shape = RoundedCornerShape(18.dp)
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Botão visual limpo de traste (sem textos 'PISTA 1', 'PISTA 2', etc.)
-                    Box(contentAlignment = Alignment.Center) {
+                    // Círculo sobre o alvo 3D; a área de toque invisível ao redor
+                    // continua oferecendo uma zona confortável para o jogador.
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                color = if (isPressed) Color.White else color.copy(alpha = 0.30f),
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = if (isPressed) 3.dp else 2.dp,
+                                color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(14.dp)
                                 .background(
-                                    color = if (isPressed) Color.White else color.copy(alpha = 0.55f),
+                                    color = if (isPressed) color else Color.White.copy(alpha = 0.90f),
                                     shape = CircleShape
                                 )
-                                .border(
-                                    width = if (isPressed) 3.dp else 2.dp,
-                                    color = if (isPressed) color else Color.White.copy(alpha = 0.7f),
-                                    shape = CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .background(
-                                        color = if (isPressed) color else Color.White.copy(alpha = 0.85f),
-                                        shape = CircleShape
-                                    )
-                            )
-                        }
+                        )
                     }
                 }
             }
+        }
 
-            // Optional Strum bar for Fret+Strum mode
-            if (stats.controlMode == ControlMode.FRET_AND_STRUM) {
-                Button(
-                    onClick = { viewModel.onStrumBar() },
-                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .fillMaxHeight()
-                        .testTag("strum_bar_button")
-                ) {
-                    Text("PALHETA ⚡", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 12.sp)
-                }
+        // A palheta permanece no modo que exige palhetada, sem deslocar as cinco faixas.
+        if (stats.controlMode == ControlMode.FRET_AND_STRUM) {
+            Button(
+                onClick = { viewModel.onStrumBar() },
+                colors = ButtonDefaults.buttonColors(containerColor = RockAccentGold),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = strikeCenterY + 32.dp)
+                    .width(highwayControlWidth * 0.58f)
+                    .height(34.dp)
+                    .testTag("strum_bar_button")
+            ) {
+                Text("PALHETA ⚡", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 11.sp)
             }
         }
 
@@ -474,7 +487,9 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             ) {
                 Card(
                     modifier = Modifier
-                        .width(360.dp)
+                        .fillMaxWidth(0.92f)
+                        .heightIn(max = 700.dp)
+                        .verticalScroll(rememberScrollState())
                         .testTag("pause_dialog"),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = RockDarkCard),
@@ -483,12 +498,12 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier.padding(18.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "SHOW EM PAUSA",
+                            text = if (showVolumeControls) "CONTROLE DE VOLUME" else "SHOW EM PAUSA",
                             color = RockAccentGold,
                             fontWeight = FontWeight.Black,
                             fontSize = 18.sp,
@@ -500,41 +515,121 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                             fontSize = 12.sp
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        RockButton(
-                            text = "CONTINUAR SHOW",
-                            onClick = { viewModel.togglePause() },
-                            modifier = Modifier.fillMaxWidth(),
-                            testTag = "pause_resume_button",
-                            containerColor = RockAccentGreen,
-                            contentColor = Color.Black
-                        )
-
-                        RockButton(
-                            text = "REINICIAR MÚSICA",
-                            onClick = { viewModel.restartMatch() },
-                            modifier = Modifier.fillMaxWidth(),
-                            testTag = "pause_restart_button",
-                            containerColor = RockAccentCyan,
-                            contentColor = Color.Black
-                        )
-
-                        RockButton(
-                            text = "SAIR PARA O MENU",
-                            onClick = {
-                                viewModel.stop()
-                                viewModel.navigateTo(GameScreen.MainMenu)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            testTag = "pause_exit_button",
-                            containerColor = RockAccentRed,
-                            contentColor = Color.White
-                        )
+                        if (showVolumeControls) {
+                            val audio = stats.studioProfile.audioSettings
+                            VolumeChannelRow("Volume geral", audio.masterVolume) {
+                                viewModel.updateAudioSettings(audio.copy(masterVolume = it))
+                            }
+                            VolumeChannelRow("Música", audio.musicVolume) {
+                                viewModel.updateAudioSettings(audio.copy(musicVolume = it))
+                            }
+                            VolumeChannelRow("Efeitos do jogo", audio.gameplaySfxVolume) {
+                                viewModel.updateAudioSettings(audio.copy(gameplaySfxVolume = it))
+                            }
+                            VolumeChannelRow("Interface e menus", audio.uiSfxVolume) {
+                                viewModel.updateAudioSettings(audio.copy(uiSfxVolume = it))
+                            }
+                            VolumeChannelRow("Ambiente e plateia", audio.stageFxVolume) {
+                                viewModel.updateAudioSettings(audio.copy(stageFxVolume = it))
+                            }
+                            RockButton(
+                                text = "VOLTAR AO MENU DE PAUSA",
+                                onClick = { showVolumeControls = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_volume_back_button",
+                                containerColor = RockAccentCyan,
+                                contentColor = Color.Black
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            RockButton(
+                                text = "CONTINUAR",
+                                onClick = { viewModel.togglePause() },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_resume_button",
+                                containerColor = RockAccentGreen,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "REINICIAR MÚSICA",
+                                onClick = { viewModel.restartMatch() },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_restart_button",
+                                containerColor = RockAccentCyan,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "CONTROLE DE VOLUME",
+                                onClick = { showVolumeControls = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_volume_button",
+                                containerColor = RockAccentCyan,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "PRÓXIMA MÚSICA",
+                                onClick = { viewModel.playNextTrack() },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_next_track_button",
+                                containerColor = RockAccentGold,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "SAIR",
+                                onClick = {
+                                    viewModel.stop()
+                                    viewModel.navigateTo(GameScreen.MainMenu)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_exit_button",
+                                containerColor = RockAccentRed,
+                                contentColor = Color.White
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun VolumeChannelRow(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit
+) {
+    var numericValue by remember(value) { mutableStateOf((value * 100f).roundToInt().toString()) }
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            OutlinedTextField(
+                value = numericValue,
+                onValueChange = { text ->
+                    numericValue = text.filter(Char::isDigit).take(3)
+                    numericValue.toIntOrNull()?.takeIf { it in 0..100 }?.let {
+                        onValueChange(it / 100f)
+                    }
+                },
+                modifier = Modifier.width(76.dp).height(54.dp),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                suffix = { Text("%") }
+            )
+        }
+        Slider(
+            value = value.coerceIn(0f, 1f),
+            onValueChange = {
+                numericValue = (it * 100f).roundToInt().toString()
+                onValueChange(it)
+            },
+            valueRange = 0f..1f
+        )
     }
 }
 

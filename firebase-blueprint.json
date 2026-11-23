@@ -63,6 +63,9 @@
         "selectedGuitarId": {
           "type": "string"
         },
+        "selectedAcousticGuitarId": {
+          "type": "string"
+        },
         "selectedBassId": {
           "type": "string"
         },
@@ -142,6 +145,7 @@
         "careerStageMax",
         "selectedCharacterId",
         "selectedGuitarId",
+        "selectedAcousticGuitarId",
         "selectedBassId",
         "selectedDrumsId",
         "selectedVocalMicId",

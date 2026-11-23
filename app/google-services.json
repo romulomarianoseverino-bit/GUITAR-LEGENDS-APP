@@ -1,41 +1,41 @@
 {
   "project_info": {
-    "project_number": "224520857082",
-    "project_id": "gen-lang-client-0580641932",
-    "storage_bucket": "gen-lang-client-0580641932.firebasestorage.app"
+    "project_number": "616711820187",
+    "project_id": "guitar-legends-d7708",
+    "storage_bucket": "guitar-legends-d7708.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:224520857082:android:f06750d036461be5203043",
+        "mobilesdk_app_id": "1:616711820187:android:2192e6d7e3a6d71522073e",
         "android_client_info": {
           "package_name": "com.aistudio.applet.kpfcic"
         }
       },
       "oauth_client": [
         {
-          "client_id": "224520857082-tu09r9p7lf5dda731alhq0bgr1atfb9o.apps.googleusercontent.com",
+          "client_id": "616711820187-41lk7dnbmd8f1l8okfjucvq4uk47651i.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.aistudio.applet.kpfcic",
-            "certificate_hash": "42155537d2fa25bd95ddab38ea5f005f0ff3b79d"
+            "certificate_hash": "b660d89d7d89781a89efeaf146c1dbc679ed8063"
           }
         },
         {
-          "client_id": "224520857082-qf4efpcl0fggch4qa0t07q8dsa7l40r0.apps.googleusercontent.com",
+          "client_id": "616711820187-194aercrvg5b27r5olui4qbqftj56k2p.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDmPYttuiu9OkahtljJyMGwW9SQpp3KLCU"
+          "current_key": "AIzaSyAW4TcMVpBnr0Nj9nPXygQN2kF8g5f8kUc"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "224520857082-qf4efpcl0fggch4qa0t07q8dsa7l40r0.apps.googleusercontent.com",
+              "client_id": "616711820187-194aercrvg5b27r5olui4qbqftj56k2p.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

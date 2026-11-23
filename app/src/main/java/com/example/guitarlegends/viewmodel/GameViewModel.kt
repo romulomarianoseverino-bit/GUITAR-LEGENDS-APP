@@ -361,6 +361,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         )
     )
 
+    val acousticGuitars = listOf(
+        InstrumentGear(
+            id = "acoustic_dreadnought",
+            instrumentType = Instrument.ACOUSTIC_GUITAR,
+            name = "Violão Dreadnought de Aço",
+            modelStyle = "Dreadnought Acústico",
+            colorHex = 0xFFB8793E,
+            priceCoins = 0,
+            isUnlocked = true,
+            description = "Violão tradicional de aço, corpo dreadnought e timbre encorpado."
+        ),
+        InstrumentGear(
+            id = "acoustic_classical",
+            instrumentType = Instrument.ACOUSTIC_GUITAR,
+            name = "Violão Clássico",
+            modelStyle = "Clássico de Cordas de Nylon",
+            colorHex = 0xFF8D5A35,
+            priceCoins = 250,
+            isUnlocked = false,
+            description = "Corpo clássico e cordas de nylon para dedilhados e acordes suaves."
+        ),
+        InstrumentGear(
+            id = "acoustic_jumbo",
+            instrumentType = Instrument.ACOUSTIC_GUITAR,
+            name = "Violão Jumbo",
+            modelStyle = "Jumbo Acústico",
+            colorHex = 0xFF6D432B,
+            priceCoins = 400,
+            isUnlocked = false,
+            description = "Corpo jumbo com projeção acústica ampla."
+        )
+    )
+
     val basses = listOf(
         InstrumentGear(
             id = "thunder_bass",
@@ -1059,6 +1092,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun getInstrumentConfig(stats: PlayerStats, instrument: Instrument): InstrumentCustomConfig {
         return when (instrument) {
             Instrument.GUITAR -> stats.studioProfile.guitarConfig
+            Instrument.ACOUSTIC_GUITAR -> stats.studioProfile.acousticGuitarConfig
             Instrument.BASS -> stats.studioProfile.bassConfig
             Instrument.DRUMS -> stats.studioProfile.drumsConfig
             Instrument.VOCALS -> stats.studioProfile.vocalConfig
@@ -1069,6 +1103,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val studio = _playerStats.value.studioProfile
         val updatedStudio = when (instrument) {
             Instrument.GUITAR -> studio.copy(guitarConfig = config)
+            Instrument.ACOUSTIC_GUITAR -> studio.copy(acousticGuitarConfig = config)
             Instrument.BASS -> studio.copy(bassConfig = config)
             Instrument.DRUMS -> studio.copy(drumsConfig = config)
             Instrument.VOCALS -> studio.copy(vocalConfig = config)
@@ -1439,6 +1474,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun selectTrack(track: Track) {
         selectedTrack = track
         _selectedTrackFlow.value = track
+    }
+
+    fun playNextTrack(): Boolean {
+        val availableTracks = _tracks.value
+        if (availableTracks.size < 2) return false
+        val currentIndex = availableTracks.indexOfFirst { it.id == selectedTrack.id }
+        val nextIndex = if (currentIndex < 0) 0 else (currentIndex + 1) % availableTracks.size
+        selectTrack(availableTracks[nextIndex])
+        restartMatch()
+        return true
     }
 
     fun selectInstrument(instrument: Instrument) {
@@ -2062,6 +2107,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val unlocked = (_playerStats.value.unlockedCosmetics + id).distinct()
             _playerStats.value = when (instrumentType) {
                 Instrument.GUITAR -> _playerStats.value.copy(coins = updatedCoins, selectedGuitarId = id, unlockedCosmetics = unlocked)
+                Instrument.ACOUSTIC_GUITAR -> _playerStats.value.copy(coins = updatedCoins, selectedAcousticGuitarId = id, unlockedCosmetics = unlocked)
                 Instrument.BASS -> _playerStats.value.copy(coins = updatedCoins, selectedBassId = id, unlockedCosmetics = unlocked)
                 Instrument.DRUMS -> _playerStats.value.copy(coins = updatedCoins, selectedDrumsId = id, unlockedCosmetics = unlocked)
                 Instrument.VOCALS -> _playerStats.value.copy(coins = updatedCoins, selectedVocalMicId = id, unlockedCosmetics = unlocked)
@@ -2073,6 +2119,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun selectGear(instrumentType: Instrument, id: String) {
         _playerStats.value = when (instrumentType) {
             Instrument.GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
+            Instrument.ACOUSTIC_GUITAR -> _playerStats.value.copy(selectedAcousticGuitarId = id)
             Instrument.BASS -> _playerStats.value.copy(selectedBassId = id)
             Instrument.DRUMS -> _playerStats.value.copy(selectedDrumsId = id)
             Instrument.VOCALS -> _playerStats.value.copy(selectedVocalMicId = id)
