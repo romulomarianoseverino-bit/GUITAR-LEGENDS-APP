@@ -346,7 +346,9 @@ fun drawInstrument3D(
                     drawScope.drawCircle(color = hardware, radius = (scale * 0.028f).coerceAtLeast(2.5f), center = kPos, style = Stroke(width = 1.4f))
                 }
 
-                // Cordas esticadas
+                }
+
+                // Cordas esticadas: o violão acústico também mantém as seis cordas visíveis.
                 val numStrings = if (isBass) 4 else 6
                 val stringColor = if (config.finish == InstrumentFinish.NEON_GLOW || config.fullSkinId == "skin_plasma_neon") {
                     Color(0xFF00E5FF)
@@ -368,8 +370,7 @@ fun drawInstrument3D(
                     drawScope.drawCircle(color = hardware, radius = (scale * 0.022f).coerceAtLeast(2f), center = pegPt)
                 }
 
-                }
-
+                
                 // Brilho Gloss Especular
                 if (config.finish.specularity > 0.6f) {
                     val g1 = projectVec3(Vec3(-0.24f, 0.14f, -thickness - 0.02f), yawDeg, pitchDeg, centerX, centerY, scale).first
