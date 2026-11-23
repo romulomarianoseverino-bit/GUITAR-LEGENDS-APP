@@ -1,5 +1,4 @@
 name: Validar APK da versão recuperada
-run-name: Validar APK recuperado — ${{ github.event_name }} — ${{ github.sha }}
 
 on:
   push:
@@ -7,27 +6,12 @@ on:
       - repair/restore-current-working-gameplay
   workflow_dispatch:
 
-permissions:
-  actions: read
-  contents: read
-
-concurrency:
-  group: guitar-legends-apk-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  build-test-apk:
-    name: Compilar, testar e publicar APK de validação
-    runs-on: ubuntu-22.04
+  build:
+    name: Compilar e testar APK Android
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Diagnosticar acionamento do fluxo
-        run: |
-          echo "Evento: ${{ github.event_name }}"
-          echo "Branch: ${{ github.ref }}"
-          echo "Commit: ${{ github.sha }}"
-          echo "Início do fluxo de compilação do Guitar Legends"
-
       - name: Baixar código
         uses: actions/checkout@v4
 
@@ -35,36 +19,29 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Preparar Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Instalar plataforma e ferramentas Android
-        run: |
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
-          sdkmanager --list_installed
+      - name: Instalar ferramentas Android
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
-      - name: Configurar Gradle compatível com o projeto
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "9.3.1"
-          cache-read-only: false
-
-      - name: Verificar configuração Gradle
-        run: gradle --no-daemon tasks --all
+          gradle-version: '9.3.1'
 
       - name: Compilar APK de depuração
         id: build
         run: gradle --no-daemon assembleDebug
 
       - name: Executar testes unitários
-        id: tests
         if: success()
         run: gradle --no-daemon testDebugUnitTest
 
       - name: Publicar APK de validação
-        if: steps.build.outcome == "success"
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: Guitar-Legends-APK-recuperacao
