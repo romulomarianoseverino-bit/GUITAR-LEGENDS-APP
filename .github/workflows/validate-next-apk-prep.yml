@@ -99,7 +99,7 @@ jobs:
             echo "Commit: $(git rev-parse HEAD)"
             echo "Workflow run: $GITHUB_RUN_ID"
             echo "Resultado dos testes automatizados: ${{ steps.tests.outcome }}"
-          } > app/build/outputs/apk/debug/BUILD-INFO.txt
+          } > app/build/outputs/apk/release/BUILD-INFO.txt
 
       - name: Publicar APK candidato para teste humano
         if: steps.build_apk.outcome == 'success'
