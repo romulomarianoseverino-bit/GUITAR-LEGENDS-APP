@@ -131,21 +131,47 @@ jobs:
             sha256sum "$file"
           done
 
-      - name: Instalar recursos no diretório de dados MPFB2
+      - name: Instalar pacotes no diretório de dados efetivo do MPFB2
         run: |
-          USER_DATA="$HOME/.config/blender/4.2/extensions/user_default/mpfb/data"
-          mkdir -p "$USER_DATA"
-          python3 - "$RUNNER_TEMP/mpfb-packs" "$USER_DATA" <<'PY'
-          import sys, zipfile, pathlib
-          source, target = map(pathlib.Path, sys.argv[1:])
-          for archive in source.glob("*.zip"):
-              with zipfile.ZipFile(archive) as z:
-                  z.extractall(target)
-          packs = target / "packs"
-          if not packs.exists() or not list(packs.glob("*.json")):
-              raise SystemExit("Os pacotes não produziram metadados em packs/*.json")
-          print("Pacotes instalados:", sorted(p.name for p in packs.glob("*.json")))
+          cat > "$RUNNER_TEMP/install_mpfb_packs.py" <<'PY'
+          import importlib
+          import os
+          import sys
+          from pathlib import Path
+
+          def dynamic_import(package_suffix, symbol):
+              for module_name in list(sys.modules):
+                  if module_name.endswith(package_suffix):
+                      module = importlib.import_module(module_name)
+                      if hasattr(module, symbol):
+                          return getattr(module, symbol)
+              raise RuntimeError(f"MPFB2 service not found: {package_suffix}.{symbol}")
+
+          AssetService = dynamic_import("mpfb.services.assetservice", "AssetService")
+          LocationService = dynamic_import("mpfb.services.locationservice", "LocationService")
+          source = Path(os.environ["MPFB_PACK_DIR"])
+          target = Path(LocationService.get_user_data())
+          target.mkdir(parents=True, exist_ok=True)
+          archives = sorted(source.glob("*.zip"))
+          if not archives:
+              raise RuntimeError("Nenhum pacote ZIP MPFB2 foi baixado.")
+          print("MPFB_USER_DATA_DIR=" + str(target))
+          for archive in archives:
+              problem = AssetService.check_asset_pack_zip(str(archive))
+              if problem not in (None, "MACOS", "STRUCTURE"):
+                  raise RuntimeError(f"Pacote inválido {archive.name}: {problem}")
+              result = AssetService.fix_and_extract_asset_pack_zip(str(archive), str(target))
+              if result is not None:
+                  raise RuntimeError(f"Falha ao instalar {archive.name}: {result}")
+          AssetService.rescan_pack_metadata()
+          packs = AssetService.get_pack_names()
+          print("MPFB_INSTALLED_PACKS=" + repr(packs))
+          if not packs:
+              raise RuntimeError("A instalação terminou, mas nenhum metadata de pacote foi encontrado.")
           PY
+          MPFB_PACK_DIR="$RUNNER_TEMP/mpfb-packs" "$RUNNER_TEMP/blender/blender" --background \
+            --python-expr "import bpy; bpy.ops.preferences.addon_enable(module='bl_ext.user_default.mpfb')" \
+            --python "$RUNNER_TEMP/install_mpfb_packs.py"
 
       - name: Gerar personagem humano vestido e exportar GLB
         run: |

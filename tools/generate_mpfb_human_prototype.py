@@ -43,6 +43,14 @@ report = {"stage": "first_clothed_human_glb", "production_integrated": False,
 # Asset packs are extracted by the workflow into MPFB's user-data directory.
 AssetService.rescan_pack_metadata()
 report["installed_packs"] = AssetService.get_pack_names()
+if not report["installed_packs"]:
+    raise RuntimeError("Nenhum pacote MPFB2 foi instalado no diretório de dados efetivo da extensão.")
+def catalog_asset_names(subdir):
+    catalog = AssetService.get_asset_list(subdir, "mhclo")
+    return sorted({Path(item.get("full_path", "")).name for item in catalog.values()
+                   if item.get("full_path")})
+report["available_hair_assets"] = catalog_asset_names("hair")
+report["available_clothing_assets"] = catalog_asset_names("clothes")
 
 def find(filename, subdir):
     path = AssetService.find_asset_absolute_path(filename, asset_subdir=subdir)
@@ -54,7 +62,7 @@ def find(filename, subdir):
 # These macro values are broad art-direction controls, not an exact likeness claim.
 macro = TargetService.get_default_macro_info_dict()
 macro.update({
-    "gender": 1.0,  # MPFB2: 1.0 = masculino; 0.0 = feminino.
+    "gender": 0.0,  # MPFB2 oficial: 0.0 = masculino; 1.0 = feminino.
     "cupsize": 0.0,  # reduzir o volume mamário para a anatomia masculina natural.
     "age": 0.32,
     "muscle": 0.52,
@@ -64,7 +72,7 @@ macro.update({
     "firmness": 0.32,
 })
 macro["race"] = {"caucasian": 0.72, "african": 0.12, "asian": 0.16}
-if float(macro.get("gender", 0.0)) != 1.0 or float(macro.get("cupsize", 1.0)) != 0.0:
+if float(macro.get("gender", 1.0)) != 0.0 or float(macro.get("cupsize", 1.0)) != 0.0:
     raise RuntimeError(f"Perfil corporal masculino não aplicado: gender={macro.get('gender')}, cupsize={macro.get('cupsize')}")
 human = HumanService.create_human(macro_detail_dict=macro)
 report["art_direction"] = {
@@ -73,7 +81,7 @@ report["art_direction"] = {
     "wardrobe": "contemporary tailored stage suit; no cowboy styling, no boot/buckle/leg accessory",
     "identity": "original game avatar, not a photorealistic replica",
     "macro_phenotype": macro,
-    "body_validation": "MPFB2 gender=1.0 (male), cupsize=0.0; generated preview must be inspected before approval",
+    "body_validation": "MPFB2 gender=0.0 (male), cupsize=0.0; generated preview must be inspected before approval",
 }
 skin = find("young_caucasian_male.mhmat", "skins")
 HumanService.set_character_skin(skin, human, skin_type="GAMEENGINE")
@@ -100,7 +108,7 @@ for obj in bpy.data.objects:
     if obj.type == "MESH" and ("hair" in obj.name.lower() or "short04" in obj.name.lower()):
         for material in obj.data.materials:
             if material:
-                material.diffuse_color = (0.055, 0.025, 0.014, 1.0)
+                material.diffuse_color = (0.012, 0.004, 0.002, 1.0)
                 if material.use_nodes:
                     for node in material.node_tree.nodes:
                         if node.type == "BSDF_PRINCIPLED":
@@ -109,7 +117,7 @@ for obj in bpy.data.objects:
                                 for link in list(material.node_tree.links):
                                     if link.to_socket == base:
                                         material.node_tree.links.remove(link)
-                                base.default_value = (0.055, 0.025, 0.014, 1.0)
+                                base.default_value = (0.012, 0.004, 0.002, 1.0)
 
 # Duplicate the full character hierarchy for export, leaving the generated
 # working character untouched.
@@ -193,7 +201,7 @@ report["mesh_count"] = sum(1 for o in bpy.data.objects if o.type == "MESH")
 report["armature_count"] = sum(1 for o in bpy.data.objects if o.type == "ARMATURE")
 report["material_count"] = len(bpy.data.materials)
 report["body_validation"] = {"gender": macro["gender"], "cupsize": macro["cupsize"], "expected_gender": "male"}
-if macro["gender"] != 1.0 or macro["cupsize"] != 0.0:
+if macro["gender"] != 0.0 or macro["cupsize"] != 0.0:
     raise RuntimeError("A geração não está configurada para anatomia masculina.")
 report["mesh_names"] = [o.name for o in bpy.data.objects if o.type == "MESH"]
 report["armature_names"] = [o.name for o in bpy.data.objects if o.type == "ARMATURE"]
