@@ -1,6 +1,8 @@
 package com.example
 
+import android.app.Application
 import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.example.base.FirestoreEmulatorTestBase
 import com.example.guitarlegends.analysis.AudioAnalyzer
 import com.example.guitarlegends.data.MultiplayerCloudRepository
@@ -24,12 +26,20 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.robolectric.annotation.LooperMode
 import java.util.UUID
 
 @LooperMode(LooperMode.Mode.INSTRUMENTATION_TEST)
 class MultiplayerOnlineIntegrationTest : FirestoreEmulatorTestBase() {
+
+    private lateinit var app: Application
+
+    @Before
+    fun prepareApplication() {
+        app = ApplicationProvider.getApplicationContext()
+    }
 
     private fun getOrInitSecondaryBobRepo(context: Context): Pair<FirebaseAuth, MultiplayerCloudRepository> {
         val bobAppName = "bob-mp-test-app"
@@ -76,14 +86,12 @@ class MultiplayerOnlineIntegrationTest : FirestoreEmulatorTestBase() {
         vm.updateGuestNickname("AliceLead")
         vm.enterGame()
 
-        // Este teste valida o fluxo online pelo ViewModel/repositórios. A interface
-        // é coberta pelos testes Compose 01 e 02, evitando misturar Espresso com
-        // chamadas de rede do Firebase no mesmo teste de integração.
-        // 1. Abre Multiplayer e cria sala real
-        composeTestRule.onNodeWithTag("menu_multiplayer").performClick()
-        composeTestRule.waitForIdle()
+        // Este teste exercita apenas o fluxo online pelo ViewModel/repositórios.
+        // A interface e a navegação são cobertas separadamente pelos testes Compose.
+        vm.navigateTo(GameScreen.CompetitiveMultiplayer, pushStack = false)
         assertTrue(vm.currentScreen.value is GameScreen.CompetitiveMultiplayer)
 
+        // 1. Cria sala online
         vm.createMultiplayerRoom(MultiplayerMode.BATTLE_1V1, customRoomCode = roomCode)
         withTimeout(6000L) {
             while (vm.multiplayerRoom.value == null) delay(60L)
