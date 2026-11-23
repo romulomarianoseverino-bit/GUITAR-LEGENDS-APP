@@ -101,10 +101,12 @@ class AccountCloudRepository(
                 } else null
 
                 val oldNormalized = existingUser?.nicknameNormalized.orEmpty()
-                if (oldNormalized.isNotBlank() && oldNormalized != normalized) {
-                    val oldNickRef = firestore.collection("nicknames").document(oldNormalized)
-                    tx.delete(oldNickRef)
-                }
+                val oldNickRef = if (oldNormalized.isNotBlank() && oldNormalized != normalized) {
+                    firestore.collection("nicknames").document(oldNormalized)
+                } else null
+                // Todas as leituras da transação acontecem antes das gravações.
+                // Uma reserva antiga ausente ou pertencente a outra conta nunca é apagada.
+                val oldNickSnap = oldNickRef?.let { tx.get(it) }
 
                 val nextRevision = maxOf(existingUser?.syncRevision ?: 0L, localStats.syncRevision) + 1L
                 val mergedStats = if (existingUser != null) {
@@ -121,14 +123,21 @@ class AccountCloudRepository(
                     syncRevision = nextRevision
                 )
 
-                tx.set(
-                    nickRef,
-                    mapOf(
-                        "userId" to uid,
-                        "nickname" to trimmed,
-                        "createdAt" to FieldValue.serverTimestamp()
+                // As regras do Firestore tornam a reserva imutável após a criação.
+                // Se o mesmo usuário mantiver o nickname, não tente transformar CREATE em UPDATE.
+                if (!nickSnap.exists()) {
+                    tx.set(
+                        nickRef,
+                        mapOf(
+                            "userId" to uid,
+                            "nickname" to trimmed,
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
                     )
-                )
+                }
+                if (oldNickSnap?.exists() == true && oldNickSnap.getString("userId") == uid) {
+                    tx.delete(oldNickRef!!)
+                }
 
                 if (existingUser == null) {
                     tx.set(userRef, cloudObj.toCreateMap())

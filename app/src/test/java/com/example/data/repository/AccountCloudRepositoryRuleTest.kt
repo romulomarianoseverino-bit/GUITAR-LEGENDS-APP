@@ -69,6 +69,35 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertEquals(ControlMode.FRET_AND_STRUM.name, restored.controlMode)
     }
 
+
+    @Test
+    fun claimingTheSameNicknameAgain_doesNotAttemptToUpdateImmutableReservation() = runBlocking {
+        val tag = uniqueSuffix()
+        val nickname = "Repeat_$tag"
+        val email = "repeat_$tag@test.com"
+        signInTestUser(email)
+        val repo = AccountCloudRepository(firestore, auth)
+
+        val first = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(nickname, PlayerStats())
+        }
+        assertTrue("Initial nickname claim must succeed: ${first.exceptionOrNull()?.message}", first.isSuccess)
+
+        val second = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(nickname, first.getOrThrow().toPlayerStats())
+        }
+        assertTrue(
+            "Re-saving the same nickname must not attempt a forbidden reservation update: ${second.exceptionOrNull()?.message}",
+            second.isSuccess
+        )
+        assertEquals(nickname, second.getOrThrow().nickname)
+
+        val reservation = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("nicknames").document(nickname.lowercase()).get().await()
+        }
+        assertEquals(auth.currentUser?.uid, reservation.getString("userId"))
+    }
+
     @Test
     fun duplicateNickname_rejectedAcrossDifferentUsers() = runBlocking {
         val tag = uniqueSuffix()
