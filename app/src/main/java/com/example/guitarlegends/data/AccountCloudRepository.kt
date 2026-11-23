@@ -103,7 +103,17 @@ class AccountCloudRepository(
                 val oldNormalized = existingUser?.nicknameNormalized.orEmpty()
                 if (oldNormalized.isNotBlank() && oldNormalized != normalized) {
                     val oldNickRef = firestore.collection("nicknames").document(oldNormalized)
-                    tx.delete(oldNickRef)
+                    // Firestore transactions must read every document before the first write.
+                    // Confirm ownership before deleting the previous reservation.
+                    val oldNickSnap = tx.get(oldNickRef)
+                    if (oldNickSnap.exists() && oldNickSnap.getString("userId") != uid) {
+                        throw IllegalStateException(
+                            "A reserva anterior do nickname não pertence a esta conta. Nenhuma alteração foi aplicada."
+                        )
+                    }
+                    if (oldNickSnap.exists()) {
+                        tx.delete(oldNickRef)
+                    }
                 }
 
                 val nextRevision = maxOf(existingUser?.syncRevision ?: 0L, localStats.syncRevision) + 1L
