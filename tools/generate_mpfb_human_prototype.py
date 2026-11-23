@@ -82,12 +82,12 @@ report["assets"]["skin"] = Path(skin).name
 
 # Use a contemporary tailored stage look, not the cowboy/vaqueiro
 # stereotype: no cowboy boots, hat, oversized buckle or leg-hung accessory.
-# The system casual suit assets are CC0 and fit the shared MPFB human rig.
+# The system elegant male suit and neutral shoes are CC0 and fit the shared MPFB human rig.
 wardrobe = [
     ("eyes", "low-poly.mhclo", "Eyes"),
     ("eyebrows", "eyebrow001.mhclo", "Eyebrows"),
     ("hair", "short04.mhclo", "Hair"),
-    ("clothes", "male_casualsuit01.mhclo", "Clothes"),
+    ("clothes", "male_elegantsuit01.mhclo", "Clothes"),
     ("clothes", "shoes01.mhclo", "Clothes"),
 ]
 for subdir, filename, kind in wardrobe:
