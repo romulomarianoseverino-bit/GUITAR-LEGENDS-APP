@@ -538,12 +538,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val finalStats = if (mergeGuestProgress && guestSnapshot.hasUnlinkedGuestProgress) {
                     val merged = LocalPlayerProgressRepository.mergeGuestIntoCloud(remoteStats, guestSnapshot)
                     val synced = repo.syncPlayerStats(merged).getOrNull()?.toPlayerStats() ?: merged
-                    uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
                     _cloudSyncStatus.value = "Conta vinculada e progresso local preservado"
                     synced
                 } else {
                     _cloudSyncStatus.value = "Sincronizado na nuvem"
                     remoteStats
+                }
+                // Partidas locais pendentes são enviadas com IDs estáveis; falhas permanecem na fila.
+                val shouldUploadPendingMatches = mergeGuestProgress || !guestSnapshot.hasUnlinkedGuestProgress
+                val pendingMatches = if (shouldUploadPendingMatches) {
+                    uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
+                } else {
+                    guestSnapshot.localMatches
                 }
 
                 _playerStats.value = finalStats
@@ -553,7 +559,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     LocalProgressSnapshot(
                         stats = finalStats,
                         hasUnlinkedGuestProgress = false,
-                        hasLocalCustomizationChanges = false
+                        hasLocalCustomizationChanges = false,
+                        localMatches = pendingMatches,
+                        localRewards = guestSnapshot.localRewards
                     )
                 )
                 _authUiState.value = AuthUiState.Authenticated(
@@ -574,17 +582,29 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun uploadLocalMatchesToCloud(
         repo: AccountCloudRepository,
         localMatches: List<LocalMatchRecord>
-    ) {
-        if (localMatches.isEmpty()) return
+    ): List<LocalMatchRecord> {
+        if (localMatches.isEmpty()) return emptyList()
         val availableTracks = _tracks.value
-        for (record in localMatches.take(25)) {
+        val pending = mutableListOf<LocalMatchRecord>()
+        for (record in localMatches) {
             val track = availableTracks.find { it.id == record.trackId }
                 ?: AudioAnalyzer.BUILT_IN_TRACKS.first().copy(
                     id = record.trackId.ifBlank { "local_track" },
                     title = record.trackTitle.ifBlank { "Música Local" }
                 )
-            repo.recordProgressionMatch(record.toMatchResult(track), entryIdOverride = record.id)
+            val uploaded = repo.recordProgressionMatch(
+                record.toMatchResult(track),
+                entryIdOverride = record.id
+            )
+            if (uploaded.isFailure) pending += record
         }
+        return pending
+    }
+
+    private fun removeUploadedLocalMatches(uploadedId: String) {
+        val snapshot = localProgressRepository.loadSnapshot()
+        val remaining = snapshot.localMatches.filterNot { it.id == uploadedId }
+        localProgressRepository.saveSnapshot(snapshot.copy(localMatches = remaining))
     }
 
     fun signInWithGoogleIdToken(idToken: String, mergeGuestProgress: Boolean = true) {
@@ -660,7 +680,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val guestSnapshot = localProgressRepository.loadSnapshot()
             val res = repo.claimNicknameAndSaveAccount(nickname, _playerStats.value)
             res.onSuccess { cloud ->
-                uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
+                val pendingMatches = uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
                 val cloudStats = cloud.toPlayerStats()
                 _playerStats.value = cloudStats
                 _hasUnlinkedGuestProgress.value = false
@@ -668,7 +688,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     LocalProgressSnapshot(
                         stats = cloudStats,
                         hasUnlinkedGuestProgress = false,
-                        hasLocalCustomizationChanges = false
+                        hasLocalCustomizationChanges = false,
+                        localMatches = pendingMatches,
+                        localRewards = guestSnapshot.localRewards
                     )
                 )
                 _authUiState.value = AuthUiState.Authenticated(cloud.userId, cloud.email, cloud.nickname)
@@ -711,14 +733,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val synced = cloud.toPlayerStats()
                 _playerStats.value = synced
                 _hasUnlinkedGuestProgress.value = false
+                val snapshot = localProgressRepository.loadSnapshot()
+                val pendingMatches = uploadLocalMatchesToCloud(repo, snapshot.localMatches)
                 localProgressRepository.saveSnapshot(
-                    localProgressRepository.loadSnapshot().copy(
+                    snapshot.copy(
                         stats = synced,
                         hasUnlinkedGuestProgress = false,
-                        hasLocalCustomizationChanges = false
+                        hasLocalCustomizationChanges = false,
+                        localMatches = pendingMatches
                     )
                 )
-                _cloudSyncStatus.value = "Sincronizado (rev. ${cloud.syncRevision})"
+                _cloudSyncStatus.value = if (pendingMatches.isEmpty()) {
+                    "Sincronizado (rev. ${cloud.syncRevision})"
+                } else {
+                    "Progresso sincronizado; ${pendingMatches.size} partida(s) aguardam conexão"
+                }
             }.onFailure { err ->
                 _cloudSyncStatus.value = "Falha na sincronização: ${err.message}"
             }
@@ -732,8 +761,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val isSignedIn = accountRepo?.currentUidOrNull() != null &&
             _authUiState.value is AuthUiState.Authenticated
         val current = localProgressRepository.loadSnapshot()
-        val updatedMatches = if (newMatchRecord != null && !isSignedIn) {
-            (listOf(newMatchRecord) + current.localMatches).take(25)
+        // Toda partida entra primeiro na fila local, inclusive para contas autenticadas.
+        // Assim, uma falha de rede não apaga o resultado antes da confirmação da nuvem.
+        val updatedMatches = if (newMatchRecord != null) {
+            (listOf(newMatchRecord) + current.localMatches.filterNot { it.id == newMatchRecord.id }).take(25)
         } else {
             current.localMatches
         }
@@ -2025,7 +2056,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val repo = accountRepo
         if (repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
             viewModelScope.launch {
-                repo.recordProgressionMatch(result, entryIdOverride = localRecord.id)
+                val matchUpload = repo.recordProgressionMatch(result, entryIdOverride = localRecord.id)
+                if (matchUpload.isSuccess) removeUploadedLocalMatches(localRecord.id)
                 repo.syncPlayerStats(_playerStats.value).onSuccess { cloud ->
                     val synced = cloud.toPlayerStats()
                     _playerStats.value = synced
