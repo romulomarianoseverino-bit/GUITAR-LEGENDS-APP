@@ -45,3 +45,18 @@
 - Apelido: pendente de diagnóstico/implementação/testes.
 - Playlists: requisitos registrados; implementação e testes ainda pendentes.
 - Este documento é especificação de trabalho, não evidência de que as funcionalidades já estejam prontas.
+
+
+## Frente C — Multiplayer obrigatório (não esquecer no escopo geral)
+O multiplayer é uma frente prioritária separada das correções de apelido e playlists. Seus requisitos completos e testes estão em [CORRECAO_MULTIPLAYER_MUSICA_DUAS_PISTAS_STRIKE.md](./CORRECAO_MULTIPLAYER_MUSICA_DUAS_PISTAS_STRIKE.md). Para evitar omissões, ficam destacados aqui os pontos que precisam ser implementados e validados:
+
+1. **Sincronização da música:** anfitrião e convidados precisam tocar exatamente a mesma gravação, com início agendado em tempo comum, compensação de latência e correção de diferença de reprodução. Sincronizar pausa, retomada, reinício, encerramento e reconexão.
+2. **Áudio importado:** quando o anfitrião usar uma música importada, disponibilizá-la temporariamente e com acesso restrito à sala para os convidados, sem adicioná-la permanentemente à biblioteca deles. Se a entrega/validação falhar, não iniciar a partida com músicas diferentes. Manter solução sem custo pago.
+3. **Escolha da modalidade:** mostrar duas opções explícitas na sala: **Com Strike** e **Sem Strike**. Com Strike só pode ser confirmado se todos concordarem; se qualquer jogador recusar, não responder ou retirar a confirmação, prevalece Sem Strike. Exibir a decisão final para todos antes do início. Strike não é Star Power.
+4. **Duas pistas simultâneas:** exibir uma pista independente para cada participante, lado a lado, no multiplayer. Cada pista usa o instrumento, dificuldade e chart daquele jogador, com notas, combo, pontuação e conexão separados. Não misturar charts nem placares. O modo solo continua com sua pista atual.
+5. **Prontidão e início:** não iniciar até todos confirmarem a mesma música/versão e a configuração acordada, e até os aparelhos estarem preparados. O início deve ocorrer no mesmo instante sincronizado para todos.
+6. **Instrumentos livres:** guitarra, violão acústico tradicional, baixo, bateria e vocal; permitir que participantes escolham o mesmo instrumento.
+7. **Continuidade da sala:** se o anfitrião sair antes do início, transferir a liderança automaticamente e preservar a sala e as escolhas confirmadas.
+8. **Validação real:** testar com pelo menos dois aparelhos, incluindo música interna e importada, as duas pistas, instrumentos iguais/diferentes, Com Strike/Sem Strike, pausa/retomada, reconexão e saída do anfitrião.
+
+**Estado:** requisitos registrados; não declarar essas funções prontas até implementação, testes automatizados e validação real em dois dispositivos.
