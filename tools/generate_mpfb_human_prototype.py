@@ -54,7 +54,7 @@ def find(filename, subdir):
 # These macro values are broad art-direction controls, not an exact likeness claim.
 macro = TargetService.get_default_macro_info_dict()
 macro.update({
-    "gender": 0.0,  # MPFB2: 0.0 = masculino; 1.0 = feminino. Não inverter este valor.
+    "gender": 1.0,  # MPFB2: 1.0 = masculino; 0.0 = feminino.
     "cupsize": 0.0,  # reduzir o volume mamário para a anatomia masculina natural.
     "age": 0.32,
     "muscle": 0.52,
@@ -64,7 +64,7 @@ macro.update({
     "firmness": 0.32,
 })
 macro["race"] = {"caucasian": 0.72, "african": 0.12, "asian": 0.16}
-if float(macro.get("gender", 1.0)) != 0.0 or float(macro.get("cupsize", 1.0)) != 0.0:
+if float(macro.get("gender", 0.0)) != 1.0 or float(macro.get("cupsize", 1.0)) != 0.0:
     raise RuntimeError(f"Perfil corporal masculino não aplicado: gender={macro.get('gender')}, cupsize={macro.get('cupsize')}")
 human = HumanService.create_human(macro_detail_dict=macro)
 report["art_direction"] = {
@@ -193,7 +193,7 @@ report["mesh_count"] = sum(1 for o in bpy.data.objects if o.type == "MESH")
 report["armature_count"] = sum(1 for o in bpy.data.objects if o.type == "ARMATURE")
 report["material_count"] = len(bpy.data.materials)
 report["body_validation"] = {"gender": macro["gender"], "cupsize": macro["cupsize"], "expected_gender": "male"}
-if macro["gender"] != 0.0 or macro["cupsize"] != 0.0:
+if macro["gender"] != 1.0 or macro["cupsize"] != 0.0:
     raise RuntimeError("A geração não está configurada para anatomia masculina.")
 report["mesh_names"] = [o.name for o in bpy.data.objects if o.type == "MESH"]
 report["armature_names"] = [o.name for o in bpy.data.objects if o.type == "ARMATURE"]
