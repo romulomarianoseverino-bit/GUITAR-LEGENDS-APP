@@ -35,9 +35,15 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import kotlin.math.roundToInt
 import com.example.R
 import com.example.guitarlegends.engine.LaneColors
 import com.example.guitarlegends.engine.drawHighway
+import com.example.guitarlegends.model.AudioSettings
 import com.example.guitarlegends.model.ControlMode
 import com.example.guitarlegends.model.Instrument
 import com.example.guitarlegends.ui.components.*
@@ -64,6 +70,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
     val lastHitRating by viewModel.lastHitRating.collectAsState()
     val activeFretLanes by viewModel.activeFretLanes.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
+    var showVolumeControls by remember { mutableStateOf(false) }
     val stats by viewModel.playerStats.collectAsState()
     val controllerInfo by viewModel.controllerInfo.collectAsState()
     val mpRoom by viewModel.multiplayerRoom.collectAsState()
@@ -480,7 +487,9 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
             ) {
                 Card(
                     modifier = Modifier
-                        .width(360.dp)
+                        .fillMaxWidth(0.92f)
+                        .heightIn(max = 700.dp)
+                        .verticalScroll(rememberScrollState())
                         .testTag("pause_dialog"),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = RockDarkCard),
@@ -489,12 +498,12 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier.padding(18.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "SHOW EM PAUSA",
+                            text = if (showVolumeControls) "CONTROLE DE VOLUME" else "SHOW EM PAUSA",
                             color = RockAccentGold,
                             fontWeight = FontWeight.Black,
                             fontSize = 18.sp,
@@ -506,41 +515,121 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                             fontSize = 12.sp
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        RockButton(
-                            text = "CONTINUAR SHOW",
-                            onClick = { viewModel.togglePause() },
-                            modifier = Modifier.fillMaxWidth(),
-                            testTag = "pause_resume_button",
-                            containerColor = RockAccentGreen,
-                            contentColor = Color.Black
-                        )
-
-                        RockButton(
-                            text = "REINICIAR MÚSICA",
-                            onClick = { viewModel.restartMatch() },
-                            modifier = Modifier.fillMaxWidth(),
-                            testTag = "pause_restart_button",
-                            containerColor = RockAccentCyan,
-                            contentColor = Color.Black
-                        )
-
-                        RockButton(
-                            text = "SAIR PARA O MENU",
-                            onClick = {
-                                viewModel.stop()
-                                viewModel.navigateTo(GameScreen.MainMenu)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            testTag = "pause_exit_button",
-                            containerColor = RockAccentRed,
-                            contentColor = Color.White
-                        )
+                        if (showVolumeControls) {
+                            val audio = stats.studioProfile.audioSettings
+                            VolumeChannelRow("Volume geral", audio.masterVolume) {
+                                viewModel.updateAudioSettings(audio.copy(masterVolume = it))
+                            }
+                            VolumeChannelRow("Música", audio.musicVolume) {
+                                viewModel.updateAudioSettings(audio.copy(musicVolume = it))
+                            }
+                            VolumeChannelRow("Efeitos do jogo", audio.gameplaySfxVolume) {
+                                viewModel.updateAudioSettings(audio.copy(gameplaySfxVolume = it))
+                            }
+                            VolumeChannelRow("Interface e menus", audio.uiSfxVolume) {
+                                viewModel.updateAudioSettings(audio.copy(uiSfxVolume = it))
+                            }
+                            VolumeChannelRow("Ambiente e plateia", audio.stageFxVolume) {
+                                viewModel.updateAudioSettings(audio.copy(stageFxVolume = it))
+                            }
+                            RockButton(
+                                text = "VOLTAR AO MENU DE PAUSA",
+                                onClick = { showVolumeControls = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_volume_back_button",
+                                containerColor = RockAccentCyan,
+                                contentColor = Color.Black
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            RockButton(
+                                text = "CONTINUAR",
+                                onClick = { viewModel.togglePause() },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_resume_button",
+                                containerColor = RockAccentGreen,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "REINICIAR MÚSICA",
+                                onClick = { viewModel.restartMatch() },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_restart_button",
+                                containerColor = RockAccentCyan,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "CONTROLE DE VOLUME",
+                                onClick = { showVolumeControls = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_volume_button",
+                                containerColor = RockAccentCyan,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "PRÓXIMA MÚSICA",
+                                onClick = { viewModel.playNextTrack() },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_next_track_button",
+                                containerColor = RockAccentGold,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "SAIR",
+                                onClick = {
+                                    viewModel.stop()
+                                    viewModel.navigateTo(GameScreen.MainMenu)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "pause_exit_button",
+                                containerColor = RockAccentRed,
+                                contentColor = Color.White
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun VolumeChannelRow(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit
+) {
+    var numericValue by remember(value) { mutableStateOf((value * 100f).roundToInt().toString()) }
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            OutlinedTextField(
+                value = numericValue,
+                onValueChange = { text ->
+                    numericValue = text.filter(Char::isDigit).take(3)
+                    numericValue.toIntOrNull()?.takeIf { it in 0..100 }?.let {
+                        onValueChange(it / 100f)
+                    }
+                },
+                modifier = Modifier.width(76.dp).height(54.dp),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                suffix = { Text("%") }
+            )
+        }
+        Slider(
+            value = value.coerceIn(0f, 1f),
+            onValueChange = {
+                numericValue = (it * 100f).roundToInt().toString()
+                onValueChange(it)
+            },
+            valueRange = 0f..1f
+        )
     }
 }
 
