@@ -13,6 +13,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.guitarlegends.analysis.AdaptiveEngine
 import com.example.guitarlegends.analysis.AudioAnalyzer
+import com.example.guitarlegends.analysis.SustainScoreAccumulator
 import com.example.guitarlegends.audio.AudioPlayerEngine
 import com.example.guitarlegends.audio.SoundFxSynthesizer
 import com.example.guitarlegends.data.*
@@ -248,8 +249,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _sustainedLanes = MutableStateFlow<Set<Int>>(emptySet())
     val sustainedLanes: StateFlow<Set<Int>> = _sustainedLanes.asStateFlow()
-    private var lastSustainScorePositionMs: Long? = null
-    private var sustainScoreRemainder = 0f
+    private val sustainScoreAccumulator = SustainScoreAccumulator()
 
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
@@ -1680,8 +1680,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _lastHitRating.value = null
         _activeFretLanes.value = emptySet()
         _sustainedLanes.value = emptySet()
-        lastSustainScorePositionMs = null
-        sustainScoreRemainder = 0f
+        sustainScoreAccumulator.reset()
         _isPaused.value = false
         totalHitCount = 0
         totalMissCount = 0
@@ -1775,9 +1774,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      * Delta is clamped to avoid granting a large score after a pause or a delayed frame.
      */
     private fun updateSustainScoring(currentPosMs: Long) {
-        val previousPosition = lastSustainScorePositionMs
-        lastSustainScorePositionMs = currentPosMs
-        val deltaMs = previousPosition?.let { (currentPosMs - it).coerceIn(0L, 40L) } ?: 0L
         val heldLanes = _activeFretLanes.value
         val activeSustains = _activeNotes.value.filter { note ->
             note.isHit &&
@@ -1788,19 +1784,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
         _sustainedLanes.value = activeSustains.mapTo(mutableSetOf()) { it.lane }
 
-        if (activeSustains.isEmpty()) {
-            sustainScoreRemainder = 0f
-            return
-        }
-        if (deltaMs <= 0L) return
-
-        // 10 base points per second, scaled by the current combo/Star Power multiplier.
-        sustainScoreRemainder += deltaMs * 0.01f * _multiplier.value.coerceAtLeast(1)
-        val earnedPoints = sustainScoreRemainder.toInt()
-        if (earnedPoints > 0) {
-            _score.value += earnedPoints
-            sustainScoreRemainder -= earnedPoints
-        }
+        // A pontuação só acumula enquanto a nota correta continua pressionada.
+        val earnedPoints = sustainScoreAccumulator.update(
+            currentPositionMs = currentPosMs,
+            isHeld = activeSustains.isNotEmpty(),
+            multiplier = _multiplier.value
+        )
+        if (earnedPoints > 0) _score.value += earnedPoints
     }
 
     private fun checkMissedNotes(currentPosMs: Long) {
