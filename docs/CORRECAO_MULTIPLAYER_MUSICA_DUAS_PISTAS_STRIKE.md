@@ -52,3 +52,18 @@ Cada jogador escolhe livremente guitarra, violão acústico tradicional, baixo, 
 - Teste real em dois aparelhos antes de declarar funcional.
 
 Nenhuma das três frentes é considerada implementada apenas por este documento. O aceite exige testes reais em dois dispositivos.
+
+
+## Complemento de aceite — opções da sala e início da partida
+- Na configuração da sala, apresentar duas escolhas explícitas e mutuamente exclusivas: **Com Strike** e **Sem Strike**.
+- A escolha Com Strike só fica ativa quando todos os participantes confirmarem explicitamente. Se alguém escolher Sem Strike, não responder ou retirar a confirmação, a modalidade final será Sem Strike.
+- Exibir a modalidade acordada para todos os jogadores antes de iniciar a partida e manter a mesma configuração durante toda a sessão; não permitir que cada aparelho entre em uma modalidade diferente.
+- A partida só pode começar quando todos confirmarem a mesma música/versão, instrumento, dificuldade e modalidade da sala, e quando os dois lados estiverem preparados. O início deve ser agendado em um instante comum sincronizado, não disparado localmente em momentos diferentes.
+- Durante a partida, manter as duas pistas simultâneas e independentes, lado a lado, com o chart e o placar corretos de cada participante; mudanças de estado, pausa, retomada, reinício e fim devem permanecer sincronizadas.
+- Preservar a transferência automática de anfitrião se o anfitrião sair antes do início, sem encerrar a sala nem perder as escolhas confirmadas.
+
+## Item para esclarecer antes de implementar
+- O usuário também mencionou “amplificador” no contexto do multiplayer. Confirmar se se refere ao amplificador/efeito visual e sonoro do palco, a uma configuração de áudio, ou a outro recurso específico. Não inventar comportamento nem alterar esse recurso até identificar exatamente o que deve sincronizar ou aparecer para os participantes.
+
+## Estado de implementação
+- Este arquivo descreve requisitos e testes; não comprova que sincronização, Strike, duas pistas, transferência de anfitrião ou transferência de áudio já estejam implementados.
