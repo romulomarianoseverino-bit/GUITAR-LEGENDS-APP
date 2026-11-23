@@ -95,3 +95,27 @@ A imagem `Imagens/file_00000000afa8820e8132233143f51295.png` na `main` foi abert
 - Ajustar rosto e cabelo com referência visual pública de forma respeitosa, mantendo um avatar original do jogo em vez de uma cópia fotográfica.
 - Gerar vistas frontal, 3/4, lateral e traseira, além de close do rosto; validar o GLB e a deformação do rig.
 - A primeira execução desta revisão é uma tentativa técnica de paleta e cabelo. Não declarar semelhança facial, figurino final ou aprovação antes de inspecionar as novas imagens e o GLB.
+
+
+## Pesquisa complementar de cabelo — 23/11/2026
+
+A revisão das referências públicas confirma que não existe um único corte fixo; o cabelo de Luan Santana mudou bastante entre fases. Não se deve tratar um asset curto genérico penteado para trás como correspondência suficiente.
+
+### Referências editoriais consultadas
+- R7, 06/06/2026 — notícia sobre o corte e a barba mais curtos, com retorno visual à fase do início da carreira: https://entretenimento.r7.com/prisma/fabiola-reipert/video/luan-santana-muda-visual-e-surpreende-fas-o-inicio-da-carreira-06062026/
+- Gshow, 07/01/2019 — galeria com transformações, incluindo cabelo curto no início da carreira, fases mais longas e topete: https://gshow.globo.com/cultura-pop/famosos/noticia/luan-santana-exibe-novo-corte-de-cabelo.ghtml
+- Gshow, 16/02/2021 — corte mais curto com topete e detalhe de cor no topo: https://gshow.globo.com/cultura-pop/famosos/noticia/luan-santana-muda-visual-para-marcar-nova-fase-na-carreira.ghtml
+- UOL, 13/08/2014 — referência técnica do penteado pompadour: escovado para cima e para trás, sem espetar os fios: https://www.uol.com.br/universa/album/2014/08/13/sertanejos-revelam-o-que-fazem-para-manter-o-topete-nas-alturas.htm
+- Capricho, 01/10/2017 — retrospectiva visual com topetes, franja, cabelo longo e penteados presos: https://capricho.abril.com.br/famosos/os-cortes-de-cabelo-mais-iconicos-do-luan-santana/
+
+### Requisitos técnicos para corrigir o cabelo 3D
+- Não aceitar apenas trocar o arquivo .mhclo: conferir a silhueta real no render frontal, 3/4, perfil e traseiro.
+- Construir/ajustar volume superior com mechas agrupadas e direção coerente; criar transição gradual para laterais e nuca, linha frontal e costeletas naturais.
+- Evitar aparência de capacete, bloco liso, cabelo excessivamente baixo/chapado, topete espetado genérico ou fios apontando aleatoriamente.
+- Definir cor castanho-escura natural com variação sutil de tons; evitar reflexo ruivo/loiro exagerado, salvo se a fase escolhida justificar.
+- O cabelo deve acompanhar a cabeça no rig, manter a silhueta em rotação e não atravessar testa, orelhas ou pescoço.
+- Registrar no relatório o asset/malha escolhida, materiais, contagem de malhas e vistas renderizadas para comparação.
+- Preservar o rosto e a malha-base já aprovados parcialmente; concentrar esta revisão no cabelo, sem regredir o rosto.
+
+### Decisão de referência pendente
+Como as fontes mostram cortes distintos, a escolha final da fase precisa ser confirmada pelo usuário antes de fixar a silhueta. A geração mais recente noticiada em junho de 2026 remete ao visual curto do começo da carreira; o pompadour de 2014 é outra opção histórica, com topo mais alto e penteado para trás. Não misturar essas duas referências em um penteado híbrido sem aprovação.
