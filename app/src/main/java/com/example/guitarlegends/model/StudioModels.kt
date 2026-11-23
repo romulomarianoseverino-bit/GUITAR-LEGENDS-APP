@@ -437,6 +437,7 @@ object StudioCatalog {
                 base.copy(
                     studioProfile = studio.copy(
                         guitarConfig = studio.guitarConfig.copy(fullSkinId = cosmeticId),
+                        acousticGuitarConfig = studio.acousticGuitarConfig.copy(fullSkinId = cosmeticId),
                         bassConfig = studio.bassConfig.copy(fullSkinId = cosmeticId),
                         drumsConfig = studio.drumsConfig.copy(fullSkinId = cosmeticId),
                         vocalConfig = studio.vocalConfig.copy(fullSkinId = cosmeticId)
