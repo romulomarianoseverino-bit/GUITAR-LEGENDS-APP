@@ -9,7 +9,7 @@ class SustainScoreAccumulator(
     private val maxFrameDeltaMs: Long = 40L
 ) {
     private var lastPositionMs: Long? = null
-    private var fractionalPoints = 0f
+    private var fractionalPoints = 0.0
 
     fun update(currentPositionMs: Long, isHeld: Boolean, multiplier: Int): Int {
         val previous = lastPositionMs
@@ -19,12 +19,12 @@ class SustainScoreAccumulator(
         } ?: 0L
 
         if (!isHeld) {
-            fractionalPoints = 0f
+            fractionalPoints = 0.0
             return 0
         }
         if (deltaMs <= 0L) return 0
 
-        fractionalPoints += deltaMs * (pointsPerSecond / 1000f) * multiplier.coerceAtLeast(1)
+        fractionalPoints += deltaMs.toDouble() * (pointsPerSecond.toDouble() / 1000.0) * multiplier.coerceAtLeast(1)
         val earned = fractionalPoints.toInt()
         fractionalPoints -= earned
         return earned
