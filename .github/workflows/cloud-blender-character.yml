@@ -162,8 +162,8 @@ jobs:
           cat > artifacts/character-prototype/ASSET-LICENSES.txt <<'EOF'
           MakeHuman system assets: CC0 1.0, MakeHuman Community.
           Shirts01: CC0 1.0, MakeHuman Community / contributing authors.
-          Shoes01: CC0 1.0, MakeHuman Community / contributing authors.
-          Pants02: CC-BY, attribution required. Asset used: punkduck_male_classic_jeans by punkduck.
+          MakeHuman system assets: CC0 1.0, including the male casual suit and hair assets.
+          Shirts01, Shoes01 and Pants02 packs may be downloaded by this workflow but are not used by this character revision.
           Catalog: https://download.makehumancommunity.org/assets/assetpacks/index.html
           Prototype only; not integrated into the Android production renderer.
           EOF
