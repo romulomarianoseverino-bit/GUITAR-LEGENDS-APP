@@ -8,6 +8,9 @@ import com.example.guitarlegends.analysis.AdaptiveEngine
 import com.example.guitarlegends.analysis.AudioAnalyzer
 import com.example.guitarlegends.analysis.PcmAudioAnalyzer
 import com.example.guitarlegends.audio.AudioPlayerEngine
+import com.example.guitarlegends.data.LocalMatchRecord
+import com.example.guitarlegends.data.LocalPlayerProgressRepository
+import com.example.guitarlegends.data.LocalProgressSnapshot
 import com.example.guitarlegends.data.MusicLibraryRepository
 import com.example.guitarlegends.data.UpdateCheckStatus
 import com.example.guitarlegends.data.UpdateManager
@@ -632,4 +635,37 @@ class ExampleRobolectricTest {
         assertEquals("kai_cyber", day7.cosmeticId)
         assertEquals("Especialista", Difficulty.EXPERT.displayName)
     }
+
+    @Test
+    fun `pending authenticated match records survive repository recreation with stable ids`() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val repository = LocalPlayerProgressRepository(app)
+        val record = LocalMatchRecord(
+            id = "match_offline_123",
+            trackId = AudioAnalyzer.BUILT_IN_TRACKS[0].id,
+            trackTitle = AudioAnalyzer.BUILT_IN_TRACKS[0].title,
+            instrument = Instrument.BASS.name,
+            difficulty = Difficulty.HARD.name,
+            score = 32100,
+            stars = 4,
+            accuracyPercent = 96.5,
+            coinsEarned = 80,
+            isCompetitive = true,
+            timestampMs = 1795440000000L
+        )
+
+        assertTrue(repository.saveSnapshot(LocalProgressSnapshot(localMatches = listOf(record))).isSuccess)
+
+        // Uma nova instância simula reabertura do app após perda de conexão/encerramento.
+        val restored = LocalPlayerProgressRepository(app).loadSnapshot().localMatches
+        assertEquals(1, restored.size)
+        assertEquals(record.id, restored.single().id)
+        assertEquals(record.trackId, restored.single().trackId)
+        assertEquals(record.score, restored.single().score)
+        assertEquals(record.instrument, restored.single().instrument)
+        assertEquals(record.difficulty, restored.single().difficulty)
+        assertEquals(record.coinsEarned, restored.single().coinsEarned)
+    }
+
+
 }
