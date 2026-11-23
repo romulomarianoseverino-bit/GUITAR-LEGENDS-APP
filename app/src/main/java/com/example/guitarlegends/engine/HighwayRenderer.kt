@@ -103,6 +103,7 @@ fun drawHighway(
     notes: List<Note>,
     difficulty: Difficulty,
     activeFretLanes: Set<Int>,
+    sustainedLanes: Set<Int> = emptySet(),
     isStarPowerActive: Boolean,
     particleSystem: ParticleSystem,
     highwayTheme: HighwayTheme = HighwayTheme.PS2_WOOD_STEEL,
@@ -334,10 +335,14 @@ fun drawHighway(
 
     // Notas 3D (Discos Chanfrados, Estrelas Star Power & Sustains Brilhantes)
     for (note in notes) {
-        if (note.isHit || note.isMissed) continue
-        if (note.lane >= numLanes) continue
+        if (note.isMissed || note.lane >= numLanes) continue
+        val sustainActive = note.isHit &&
+            note.durationMs > 50L &&
+            note.lane in sustainedLanes &&
+            currentTimeMs in note.timeMs..(note.timeMs + note.durationMs)
+        if (note.isHit && !sustainActive) continue
 
-        val timeUntilHit = note.timeMs - currentTimeMs
+        val timeUntilHit = if (sustainActive) 0L else note.timeMs - currentTimeMs
         if (timeUntilHit in -250L..lookAheadMs) {
             val depth = (1.0f - (timeUntilHit.toFloat() / lookAheadMs.toFloat())).coerceIn(0f, 1.15f)
             val curved = depth.toDouble().pow(1.65).toFloat()
@@ -347,30 +352,67 @@ fun drawHighway(
             val ry = rx * 0.64f
 
             if (note.durationMs > 50L) {
-                val tailEndDepth = (1.0f - ((timeUntilHit + note.durationMs).toFloat() / lookAheadMs.toFloat())).coerceIn(0f, 1.15f)
+                val remainingMs = if (sustainActive) {
+                    (note.timeMs + note.durationMs - currentTimeMs).coerceAtLeast(0L)
+                } else {
+                    note.durationMs
+                }
+                val tailEndDepth = (1.0f - ((if (sustainActive) remainingMs else timeUntilHit + note.durationMs).toFloat() / lookAheadMs.toFloat())).coerceIn(0f, 1.15f)
                 val tailEndPos = get3dPosition(note.lane, tailEndDepth)
                 val sustainColor = if (note.isStarPower || isStarPowerActive) Color(0xFF00E5FF) else LaneColors[note.lane]
 
                 // Aura externa + núcleo brilhante da cauda sustain
                 drawScope.drawLine(
-                    color = sustainColor.copy(alpha = 0.45f),
+                    color = sustainColor.copy(alpha = if (sustainActive) 0.62f else 0.45f),
                     start = notePos,
                     end = tailEndPos,
-                    strokeWidth = (rx * 0.72f).coerceAtLeast(6f)
+                    strokeWidth = (rx * if (sustainActive) 0.88f else 0.72f).coerceAtLeast(6f)
                 )
                 drawScope.drawLine(
-                    color = sustainColor.copy(alpha = 0.92f),
+                    color = sustainColor.copy(alpha = 0.96f),
                     start = notePos,
                     end = tailEndPos,
                     strokeWidth = (rx * 0.38f).coerceAtLeast(3f)
                 )
                 drawScope.drawLine(
-                    color = Color.White.copy(alpha = 0.75f),
+                    color = Color.White.copy(alpha = 0.82f),
                     start = notePos,
                     end = tailEndPos,
                     strokeWidth = (rx * 0.14f).coerceAtLeast(1.5f)
                 )
+
+                if (sustainActive) {
+                    // Animated shimmer follows the held sustain; longer notes get a slightly stronger wave.
+                    val wavePath = Path()
+                    val waveAmplitude = (rx * 0.10f) * (1f + (note.durationMs / 5000f).coerceIn(0f, 0.8f))
+                    for (step in 0..20) {
+                        val t = step / 20f
+                        val x = notePos.x + (tailEndPos.x - notePos.x) * t
+                        val y = notePos.y + (tailEndPos.y - notePos.y) * t +
+                            sin(timeSec * 10f + t * 18f) * waveAmplitude
+                        if (step == 0) wavePath.moveTo(x, y) else wavePath.lineTo(x, y)
+                    }
+                    drawScope.drawPath(
+                        path = wavePath,
+                        color = Color.White.copy(alpha = 0.88f),
+                        style = Stroke(width = (rx * 0.075f).coerceAtLeast(1.6f))
+                    )
+
+                    // Small rhythmic star glints along the sustain, kept away from the note head.
+                    for (spark in 1..4) {
+                        val t = spark / 5f
+                        val pulse = (0.45f + 0.55f * sin(timeSec * 7f + spark * 1.7f)).coerceIn(0.15f, 1f)
+                        val sx = notePos.x + (tailEndPos.x - notePos.x) * t
+                        val sy = notePos.y + (tailEndPos.y - notePos.y) * t
+                        val radius = (rx * 0.10f * pulse).coerceAtLeast(1.5f)
+                        drawScope.drawCircle(Color.White.copy(alpha = 0.92f * pulse), radius, Offset(sx, sy))
+                        drawScope.drawLine(Color.White.copy(alpha = 0.75f * pulse), Offset(sx - radius * 1.8f, sy), Offset(sx + radius * 1.8f, sy), radius * 0.35f)
+                        drawScope.drawLine(Color.White.copy(alpha = 0.75f * pulse), Offset(sx, sy - radius * 1.8f), Offset(sx, sy + radius * 1.8f), radius * 0.35f)
+                    }
+                }
             }
+
+            if (sustainActive) continue
 
             if (note.isStarPower) {
                 drawStarPowerNote3D(drawScope, notePos, rx, ry, isStarPowerActive)
