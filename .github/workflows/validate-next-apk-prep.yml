@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - prep/next-apk-readiness-2026-11-24
+      - feat/sustain-hold-scoring-fx
     paths:
       - "app/**"
       - "gradle/**"
