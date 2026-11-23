@@ -3,13 +3,13 @@ name: Validar APK de depuração da integração
 on:
   push:
     branches:
-      - integration/next-apk-validation
+      - repair/restore-current-working-gameplay
     paths:
       - "app/**"
       - "gradle/**"
       - "*.gradle*"
       - "settings.gradle.kts"
-      - ".github/workflows/android-debug-apk-validation.yml"
+      - ".github/workflows/validar-recuperacao-versao-atual.yml"
   workflow_dispatch:
 
 permissions:
