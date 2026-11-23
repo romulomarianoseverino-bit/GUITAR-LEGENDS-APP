@@ -89,7 +89,7 @@ jobs:
       # O job continuará marcado como falho se os testes falharem; nenhum erro será ocultado.
       - name: Compilar APK candidato para teste humano
         id: build_apk
-        if: always() && !cancelled()
+        if: always() && steps.prepare_signing.outcome == 'success' && !cancelled()
         run: |
           gradle --no-daemon clean assembleRelease
           mkdir -p app/build/outputs/apk/release
@@ -108,7 +108,7 @@ jobs:
           name: Guitar-Legends-APK-candidato-assinado-chave-permanente-nao-validado
           path: |
             app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/BUILD-INFO.txt
+            app/build/outputs/apk/release/BUILD-INFO.txt
           if-no-files-found: error
           retention-days: 14
 
