@@ -1,31 +1,28 @@
-name: Compilar APK Android
+name: Validar APK da versão recuperada
 
 on:
   push:
     branches:
-      - main
-    paths-ignore:
-      - 'Imagens/**'
+      - repair/restore-current-working-gameplay
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build-apk:
-    name: Compilar, testar e publicar APK
-    runs-on: ubuntu-latest
+  build-test-apk:
+    name: Compilar, testar e publicar APK de validação
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
-
     steps:
-      - name: Baixar código do repositório
+      - name: Baixar código
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Configurar Android SDK
         run: |
@@ -35,89 +32,25 @@ jobs:
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
           /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
-      - name: Criar chave de assinatura de depuração temporária
-        run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
-
-      - name: Preparar chave privada de publicação
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo KEYSTORE_BASE64 está vazio."; exit 1; }
-          test -n "$STORE_PASSWORD" || { echo "::error::O segredo KEYSTORE_PASSWORD está vazio."; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo "::error::O segredo KEY_PASSWORD está vazio."; exit 1; }
-
-          KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
-          echo "Verificando a decodificação Base64..."
-          if ! printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"; then
-            echo "::error::Não foi possível decodificar KEYSTORE_BASE64. Verifique se o segredo foi copiado por completo."
-            exit 1
-          fi
-          chmod 600 "$KEYSTORE_PATH"
-          echo "Arquivo decodificado. Tamanho: $(wc -c < "$KEYSTORE_PATH") bytes."
-          echo "Verificando a senha do keystore separadamente..."
-          KEYTOOL_LOG="$RUNNER_TEMP/keytool-check.log"
-          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" >"$KEYTOOL_LOG" 2>&1; then
-            if grep -Eqi "password was incorrect|keystore was tampered" "$KEYTOOL_LOG"; then
-              echo "::error::O keytool recusou a senha KEYSTORE_PASSWORD (ou o arquivo do keystore está danificado)."
-            else
-              echo "::error::O keytool não conseguiu abrir o keystore. A mensagem técnica foi omitida para proteger dados."
-            fi
-            exit 1
-          fi
-          echo "Senha do keystore aceita. Agora verificando o alias upload..."
-          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias upload >"$KEYTOOL_LOG" 2>&1; then
-            echo "::error::A senha do keystore foi aceita, mas o alias upload não foi encontrado ou não pôde ser lido."
-            exit 1
-          fi
-          echo "Keystore e alias upload validados com sucesso."
-          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-
-      - name: Configurar Gradle 9.3.1
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.3.1'
+          gradle-version: "9.3.1"
 
       - name: Compilar APK de depuração
-        id: debug_build
+        id: build
         run: gradle --no-daemon assembleDebug
-
-      - name: Publicar APK de depuração
-        if: always() && steps.debug_build.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Guitar-Legends-APK-debug
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Compilar APK assinado de publicação
-        id: release_build
-        run: gradle --no-daemon assembleRelease
-
-      - name: Publicar APK assinado
-        if: always() && steps.release_build.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Guitar-Legends-APK-release
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-          retention-days: 14
 
       - name: Executar testes unitários
         id: tests
-        if: always() && steps.debug_build.outcome == 'success'
+        if: always() && steps.build.outcome == "success"
         run: gradle --no-daemon testDebugUnitTest
+
+      - name: Publicar APK de validação
+        if: always() && steps.build.outcome == "success"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guitar-Legends-APK-recuperacao
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
