@@ -14,6 +14,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 import java.util.UUID
 
 /**
@@ -133,6 +134,29 @@ class MusicLibraryRepository(private val context: Context) {
                 )
             }
 
+            // Bloqueia somente uma cópia binariamente idêntica de áudio já importado.
+            // Títulos iguais não são suficientes: versões original/fã, ao vivo ou acústicas
+            // continuam permitidas quando o conteúdo de áudio é diferente.
+            val importedTracks = loadImportedTracksFromManifest()
+            val incomingFingerprint = sha256(targetFile)
+            val duplicate = importedTracks.firstOrNull { existing ->
+                val existingPath = existing.uriString
+                if (existingPath.isNullOrBlank()) {
+                    false
+                } else {
+                    val existingFile = File(existingPath)
+                    existingFile.exists() && existingFile.isFile && sha256(existingFile) == incomingFingerprint
+                }
+            }
+            if (duplicate != null) {
+                targetFile.delete()
+                return@withContext Result.failure(
+                    IllegalArgumentException(
+                        "Essa mesma gravação já está na sua biblioteca: ${duplicate.title} — ${duplicate.artist}."
+                    )
+                )
+            }
+
             val meta = extractTags(targetFile)
             val finalTitle = meta.first?.takeIf { it.isNotBlank() }?.trim() ?: rawBaseTitle
             val finalArtist = meta.second?.takeIf { it.isNotBlank() }?.trim() ?: "Artista Local"
@@ -227,6 +251,19 @@ class MusicLibraryRepository(private val context: Context) {
         } catch (e: Exception) {
             Result.failure(Exception("Erro ao remover música da biblioteca: ${e.message}"))
         }
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
     }
 
     private fun isAllowedMimeType(mime: String): Boolean {
