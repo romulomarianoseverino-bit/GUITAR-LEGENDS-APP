@@ -23,7 +23,10 @@ import org.robolectric.annotation.LooperMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
-@LooperMode(LooperMode.Mode.INSTRUMENTATION_TEST)
+// Compose's Robolectric idling strategy calls Espresso.onIdle(); INSTRUMENTATION_TEST
+// rejects that call on the main application thread. PAUSED keeps the test looper
+// deterministic without triggering that incompatible main-thread restriction.
+@LooperMode(LooperMode.Mode.PAUSED)
 abstract class FirestoreEmulatorTestBase {
 
     protected lateinit var firestore: FirebaseFirestore
