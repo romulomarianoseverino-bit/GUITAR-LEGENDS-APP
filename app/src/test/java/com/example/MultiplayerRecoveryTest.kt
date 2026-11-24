@@ -28,6 +28,7 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.MemoryCacheSettings
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
@@ -148,7 +149,7 @@ class MultiplayerRecoveryTest : FirestoreEmulatorTestBase() {
     }
 
     @Test
-    fun `03 - full online room creation, second player join, live sync, disconnect detection, reconnect and exit`() = runBlocking {
+    fun `03 - full online room creation, second player join, live sync, disconnect detection, reconnect and exit`() = runBlocking(Dispatchers.Default) {
         val tag = UUID.randomUUID().toString().replace("-", "").take(6).uppercase()
         val roomCode = "ROCK-$tag"
         val aliceUid = signInTestUser("mp_alice_$tag@test.com")
