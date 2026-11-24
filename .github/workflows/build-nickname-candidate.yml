@@ -1,0 +1,159 @@
+name: Gerar APK candidato — Nickname 1.2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-candidate:
+    name: Testar, compilar e conferir assinatura
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Garantir branch isolada
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "fix/nickname-v1.2-isolated-2026-11-24" ]]; then
+            echo "::error::Este fluxo só pode ser executado na branch isolada do nickname."
+            exit 1
+          fi
+
+      - name: Baixar código da branch isolada
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Configurar Android SDK
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Configurar chave de assinatura compatível com a versão instalada
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          DEBUG_KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          DEBUG_KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEBUG_KEYSTORE_BASE64" || { echo "::error::DEBUG_KEYSTORE_BASE64 não está disponível."; exit 1; }
+          test -n "$DEBUG_KEYSTORE_PASSWORD" || { echo "::error::DEBUG_KEYSTORE_PASSWORD não está disponível."; exit 1; }
+          test -n "$DEBUG_KEY_PASSWORD" || { echo "::error::DEBUG_KEY_PASSWORD não está disponível."; exit 1; }
+
+          SOURCE_KEYSTORE="$RUNNER_TEMP/reference-key.jks"
+          INFO="$RUNNER_TEMP/reference-key-info.txt"
+          EXPECTED="3D:02:6D:2A:62:E1:B4:E8:DD:31:9B:05:6C:1C:03:CD:77:DC:D3:4F:E7:FC:1B:CF:2D:A6:9E:67:01:55:8F:E9"
+          printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 --decode > "$SOURCE_KEYSTORE"
+          chmod 600 "$SOURCE_KEYSTORE"
+
+          keytool -list -v -keystore "$SOURCE_KEYSTORE" -storepass "$DEBUG_KEYSTORE_PASSWORD" > "$INFO" 2>/dev/null
+
+          MATCHING_ALIAS="$(python3 - "$INFO" "$EXPECTED" <<'PY'
+          import re, sys
+          raw = open(sys.argv[1], encoding="utf-8").read()
+          expected = re.sub(r"[^0-9A-F]", "", sys.argv[2].upper())
+          blocks = re.split(r"(?=^Alias name: )", raw, flags=re.MULTILINE)
+          found = []
+          for block in blocks:
+              a = re.search(r"^Alias name: (.+)$", block, re.MULTILINE)
+              e = re.search(r"^Entry type: (.+)$", block, re.MULTILINE)
+              f = re.search(r"^\s*SHA256: ([0-9A-F:]+)\s*$", block, re.MULTILINE | re.IGNORECASE)
+              if a and e and f:
+                  fp = re.sub(r"[^0-9A-F]", "", f.group(1).upper())
+                  if fp == expected and e.group(1).strip() == "PrivateKeyEntry":
+                      found.append(a.group(1).strip())
+          if len(found) != 1:
+              sys.exit("Não foi localizada uma única chave privada com o certificado esperado.")
+          print(found[0])
+          PY
+          )"
+
+          # O Gradle já configura o build debug para estes nomes/senhas.
+          # A chave privada e o certificado permanecem os mesmos; só o contêiner/alias é adaptado.
+          keytool -importkeystore -noprompt \
+            -srckeystore "$SOURCE_KEYSTORE" \
+            -srcstorepass "$DEBUG_KEYSTORE_PASSWORD" \
+            -srcalias "$MATCHING_ALIAS" \
+            -srckeypass "$DEBUG_KEY_PASSWORD" \
+            -destkeystore "$GITHUB_WORKSPACE/debug.keystore" \
+            -deststoretype JKS \
+            -deststorepass android \
+            -destalias androiddebugkey \
+            -destkeypass android > "$RUNNER_TEMP/import-key.log" 2>&1
+
+          chmod 600 "$GITHUB_WORKSPACE/debug.keystore"
+          keytool -list -v -keystore "$GITHUB_WORKSPACE/debug.keystore" \
+            -storepass android -alias androiddebugkey > "$RUNNER_TEMP/imported-key-info.txt" 2>/dev/null
+          echo "Chave de assinatura temporária preparada; certificado de origem preservado."
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Instalar Firebase CLI para os testes
+        run: npm install --global firebase-tools@13.35.1
+
+      - name: Executar testes unitários antes da compilação
+        run: |
+          firebase emulators:exec --project demo-no-project --only auth,firestore \
+            'gradle --no-daemon testDebugUnitTest'
+
+      - name: Definir número da versão candidata sem alterar os arquivos do repositório
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          if s.count("versionCode = 2") != 1 or s.count('versionName = "1.2"') != 1:
+              raise SystemExit("A configuração de versão mudou; interrompendo para evitar alteração incorreta.")
+          s = s.replace("versionCode = 2", "versionCode = 3", 1)
+          s = s.replace('versionName = "1.2"', 'versionName = "1.2.1"', 1)
+          p.write_text(s)
+          PY
+          echo "Versão candidata: 1.2.1 (versionCode 3). Alteração somente no ambiente temporário do runner."
+
+      - name: Compilar APK candidato assinado
+        id: build
+        run: gradle --no-daemon assembleDebug
+
+      - name: Conferir assinatura, pacote e versão do APK
+        if: steps.build.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+          APKSIGNER="/usr/local/lib/android/sdk/build-tools/36.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" > "$RUNNER_TEMP/apk-signature.txt"
+          EXPECTED="3D:02:6D:2A:62:E1:B4:E8:DD:31:9B:05:6C:1C:03:CD:77:DC:D3:4F:E7:FC:1B:CF:2D:A6:9E:67:01:55:8F:E9"
+          ACTUAL="$(grep -i "Signer #1 certificate SHA-256 digest" "$RUNNER_TEMP/apk-signature.txt" | head -n1 | sed 's/.*: //; s/../&:/g; s/:$//' | tr '[:lower:]' '[:upper:]')"
+          if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+            echo "::error::A assinatura do APK gerado não corresponde ao APK funcional."
+            exit 1
+          fi
+          BADGING="$(/usr/local/lib/android/sdk/build-tools/36.0.0/aapt dump badging "$APK")"
+          echo "$BADGING" | grep -q "package: name='com.aistudio.applet.kpfcic' versionCode='3' versionName='1.2.1'"
+          echo "APK conferido: pacote e versão candidatos corretos; certificado SHA-256 idêntico ao APK de referência."
+
+      - name: Publicar APK candidato para teste
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guitar-Legends-Nickname-1.2.1-CANDIDATO
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
