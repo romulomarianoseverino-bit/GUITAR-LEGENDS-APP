@@ -116,7 +116,16 @@ jobs:
       - name: Executar testes unitários antes da compilação
         run: |
           firebase emulators:exec --project demo-no-project --only auth,firestore \
-            'gradle --no-daemon testDebugUnitTest'
+            'gradle --no-daemon testDebugUnitTest --stacktrace'
+
+      - name: Guardar relatórios dos testes para diagnóstico
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-testes-nickname-candidato
+          path: app/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Definir número da versão candidata sem alterar os arquivos do repositório
         shell: bash
