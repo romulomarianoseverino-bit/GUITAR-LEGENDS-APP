@@ -13,6 +13,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.guitarlegends.analysis.AdaptiveEngine
 import com.example.guitarlegends.analysis.AudioAnalyzer
+import com.example.guitarlegends.analysis.SustainScoreAccumulator
 import com.example.guitarlegends.audio.AudioPlayerEngine
 import com.example.guitarlegends.audio.SoundFxSynthesizer
 import com.example.guitarlegends.data.*
@@ -245,6 +246,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _activeFretLanes = MutableStateFlow<Set<Int>>(emptySet())
     val activeFretLanes: StateFlow<Set<Int>> = _activeFretLanes.asStateFlow()
+    private val sustainScoreAccumulator = SustainScoreAccumulator()
 
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
@@ -1643,6 +1645,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _isStarPowerActive.value = false
         _lastHitRating.value = null
         _activeFretLanes.value = emptySet()
+        sustainScoreAccumulator.reset()
         _isPaused.value = false
         totalHitCount = 0
         totalMissCount = 0
@@ -1676,6 +1679,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     _currentSongTimeMs.value = pos
 
                     checkMissedNotes(pos)
+                    updateSustainScoring(pos)
 
                     // Adaptação dinâmica real de sequências futuras (> 2.2s à frente) quando GLAS está ativo
                     if (_playerStats.value.glassAdaptiveEnabled) {
@@ -1728,6 +1732,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 delay(14L)
             }
         }
+    }
+
+    /** Adds score only while a successfully hit sustain note is still held on its matching lane. */
+    private fun updateSustainScoring(currentPosMs: Long) {
+        val heldLanes = _activeFretLanes.value
+        val activeSustains = _activeNotes.value.any { note ->
+            note.isHit &&
+                !note.isMissed &&
+                note.durationMs > 50L &&
+                note.lane in heldLanes &&
+                currentPosMs in note.timeMs..(note.timeMs + note.durationMs)
+        }
+        val earnedPoints = sustainScoreAccumulator.update(
+            currentPositionMs = currentPosMs,
+            isHeld = activeSustains,
+            multiplier = _multiplier.value
+        )
+        if (earnedPoints > 0) _score.value += earnedPoints
     }
 
     private fun checkMissedNotes(currentPosMs: Long) {
