@@ -49,9 +49,9 @@ jobs:
 
       - name: Preparar chave privada de publicação
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo KEYSTORE_BASE64 está vazio."; exit 1; }
