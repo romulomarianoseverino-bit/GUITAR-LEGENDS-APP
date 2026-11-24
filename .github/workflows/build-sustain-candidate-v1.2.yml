@@ -1,0 +1,107 @@
+name: Gerar APK candidato 1.2 com sustain isolado
+
+on:
+  push:
+    branches:
+      - feature/sustain-score-v1.2-isolated-2026-11-24
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "*.gradle*"
+      - "settings.gradle.kts"
+      - ".github/workflows/build-sustain-candidate-v1.2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-candidate:
+    name: Testar, assinar e publicar APK candidato 1.2
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Configurar Android SDK
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - name: Configurar Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+      - name: Instalar Firebase CLI
+        run: npm install --global firebase-tools@13.35.1
+      - name: Executar testes unitários com Auth e Firestore Emulator
+        id: tests
+        run: |
+          firebase emulators:exec --project demo-no-project --only auth,firestore \
+            'gradle --no-daemon testDebugUnitTest'
+      - name: Preparar chave permanente de assinatura
+        id: prepare_signing
+        if: always() && !cancelled()
+        env:
+          GH_SIGNING_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          GH_SIGNING_STORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          GH_SIGNING_KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_SIGNING_KEYSTORE_B64" || { echo "::error::Segredo DEBUG_KEYSTORE_BASE64 vazio ou indisponível."; exit 1; }
+          test -n "$GH_SIGNING_STORE_PASSWORD" || { echo "::error::Segredo DEBUG_KEYSTORE_PASSWORD vazio ou indisponível."; exit 1; }
+          test -n "$GH_SIGNING_KEY_PASSWORD" || { echo "::error::Segredo DEBUG_KEY_PASSWORD vazio ou indisponível."; exit 1; }
+          KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
+          printf '%s' "$GH_SIGNING_KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          KEYTOOL_LOG="$RUNNER_TEMP/keytool-check.log"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$GH_SIGNING_STORE_PASSWORD" >"$KEYTOOL_LOG" 2>&1 || { echo "::error::Não foi possível abrir o keystore permanente."; exit 1; }
+          keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$GH_SIGNING_STORE_PASSWORD" >"$KEYTOOL_LOG" 2>&1 || { echo "::error::Não foi possível listar as entradas do keystore."; exit 1; }
+          mapfile -t PRIVATE_KEY_ALIASES < <(awk '/^Alias name: / { alias = substr($0, index($0, ": ") + 2) } /^Entry type: / { entry_type = substr($0, index($0, ": ") + 2); if (entry_type == "PrivateKeyEntry" && alias != "") print alias; alias = "" }' "$KEYTOOL_LOG")
+          if [ "${#PRIVATE_KEY_ALIASES[@]}" -ne 1 ]; then echo "::error::Esperada exatamente uma chave privada; encontradas ${#PRIVATE_KEY_ALIASES[@]}."; exit 1; fi
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=${PRIVATE_KEY_ALIASES[0]}" >> "$GITHUB_ENV"
+          echo "STORE_PASSWORD=$GH_SIGNING_STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$GH_SIGNING_KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "Chave permanente identificada sem expor dados secretos."
+      - name: Compilar APK candidato para teste humano
+        id: build_apk
+        if: always() && steps.prepare_signing.outcome == 'success' && !cancelled()
+        run: |
+          gradle --no-daemon clean assembleRelease
+          mkdir -p app/build/outputs/apk/release
+          {
+            echo "Tipo: APK candidato baseado na referencia 1.2 (NAO VALIDADO PARA RELEASE)"
+            echo "Base funcional: a3077637f7870a0c2c9c655ff9414e3cd57842ad"
+            echo "Branch: $GITHUB_REF_NAME"
+            echo "Commit: $(git rev-parse HEAD)"
+            echo "Workflow run: $GITHUB_RUN_ID"
+            echo "Resultado dos testes automatizados: ${{ steps.tests.outcome }}"
+          } > app/build/outputs/apk/release/BUILD-INFO.txt
+      - name: Publicar APK candidato para teste humano
+        if: always() && steps.build_apk.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guitar-Legends-APK-candidato-v1.2-sustain-isolado-nao-validado
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publicar relatórios de testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-testes-candidato-v1.2-sustain
+          path: |
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/test-results/testDebugUnitTest/**
+          if-no-files-found: warn
+          retention-days: 14
