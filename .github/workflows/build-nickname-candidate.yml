@@ -94,6 +94,7 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           pattern = r'(?ms)^[ \t]*create\("debugConfig"\) \{\n[ \t]*storeFile = file\("\$\{rootDir\}/debug\.keystore"\)\n[ \t]*storePassword = "android"\n[ \t]*keyAlias = "androiddebugkey"\n[ \t]*keyPassword = "android"\n[ \t]*\}'
