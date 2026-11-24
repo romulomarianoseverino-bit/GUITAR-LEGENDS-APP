@@ -1,0 +1,37 @@
+package com.example.guitarlegends.analysis
+
+/**
+ * Calcula pontos incrementais de notas sustentadas sem premiar tempo não segurado.
+ * Limita o intervalo por quadro para evitar saltos após travamentos ou retomadas.
+ */
+class SustainScoreAccumulator(
+    private val pointsPerSecond: Double = 10.0,
+    private val maxFrameDeltaMs: Long = 40L
+) {
+    private var lastPositionMs: Long? = null
+    private var fractionalPoints = 0.0
+
+    fun update(currentPositionMs: Long, isHeld: Boolean, multiplier: Int): Int {
+        val previous = lastPositionMs
+        lastPositionMs = currentPositionMs
+        val deltaMs = previous?.let {
+            (currentPositionMs - it).coerceIn(0L, maxFrameDeltaMs)
+        } ?: 0L
+
+        if (!isHeld) {
+            fractionalPoints = 0.0
+            return 0
+        }
+        if (deltaMs <= 0L) return 0
+
+        fractionalPoints += deltaMs.toDouble() * (pointsPerSecond / 1000.0) * multiplier.coerceAtLeast(1)
+        val earned = fractionalPoints.toInt()
+        fractionalPoints -= earned
+        return earned
+    }
+
+    fun reset() {
+        lastPositionMs = null
+        fractionalPoints = 0.0
+    }
+}
