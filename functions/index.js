@@ -14,6 +14,7 @@ const {
   COSMETIC_PRICES,
   getCosmeticPrice
 } = require("./rewardLogic");
+const { canReleaseNicknameReservation } = require("./nicknameLogic");
 
 initializeApp();
 
@@ -339,18 +340,22 @@ exports.claimNicknameAndCreateAccount = onCall(async (request) => {
       const existing = userSnap.exists ? userSnap.data() : null;
       const oldNormalized = existing ? String(existing.nicknameNormalized || "") : "";
       let oldNicknameRef = null;
+      let oldNicknameSnap = null;
       if (oldNormalized && oldNormalized !== normalized) {
         oldNicknameRef = db.collection("nicknames").doc(oldNormalized);
-        await tx.get(oldNicknameRef);
+        oldNicknameSnap = await tx.get(oldNicknameRef);
       }
 
       const now = FieldValue.serverTimestamp();
       if (existing) {
-        tx.set(nicknameRef, {
-          userId: uid, nickname, createdAt: nicknameSnap.exists
-            ? (nicknameSnap.get("createdAt") || now) : now
-        });
-        if (oldNicknameRef) tx.delete(oldNicknameRef);
+        // Preserve a reservation's original creation time when the same nickname is saved again.
+        if (!nicknameSnap.exists) {
+          tx.create(nicknameRef, { userId: uid, nickname, createdAt: now });
+        }
+        // Remove the previous reservation only when it still belongs to this authenticated user.
+        if (canReleaseNicknameReservation(oldNicknameSnap, uid)) {
+          tx.delete(oldNicknameRef);
+        }
         tx.update(userRef, {
           email: email || String(existing.email || "").slice(0, 200), nickname, nicknameNormalized: normalized,
           syncRevision: Number(existing.syncRevision || 0) + 1,
