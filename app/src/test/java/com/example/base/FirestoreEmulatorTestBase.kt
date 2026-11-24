@@ -39,8 +39,12 @@ abstract class FirestoreEmulatorTestBase {
         val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
         databaseId = if (resId != 0) context.getString(resId) else "demo-database"
 
-        val app = if (FirebaseApp.getApps(context).isEmpty()) {
-            val newApp = FirebaseApp.initializeApp(
+        // FirebaseInitProvider may have initialized the default FirebaseApp before
+        // the test starts. Reuse that app, but configure BOTH emulators before
+        // obtaining/using their SDK clients; previously the existing-app branch
+        // skipped useEmulator() entirely and sent test authentication to production.
+        val app = FirebaseApp.getApps(context).firstOrNull { it.name == FirebaseApp.DEFAULT_APP_NAME }
+            ?: FirebaseApp.initializeApp(
                 context,
                 FirebaseOptions.Builder()
                     .setApplicationId("com.aistudio.applet.kpfcic")
@@ -48,21 +52,15 @@ abstract class FirestoreEmulatorTestBase {
                     .setApiKey("fake-api-key-for-emulator")
                     .build()
             )
-            val newFirestore = FirebaseFirestore.getInstance(newApp, databaseId)
-            newFirestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-            newFirestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                .build()
-
-            val newAuth = FirebaseAuth.getInstance(newApp)
-            newAuth.useEmulator(EMULATOR_HOST, AUTH_PORT)
-            newApp
-        } else {
-            FirebaseApp.getInstance()
-        }
 
         firestore = FirebaseFirestore.getInstance(app, databaseId)
+        firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+        firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+            .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
+            .build()
+
         auth = FirebaseAuth.getInstance(app)
+        auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
     }
 
     @After
@@ -97,7 +95,6 @@ abstract class FirestoreEmulatorTestBase {
         const val AUTH_PORT = 9099
         const val PROJECT_ID = "demo-no-project"
         const val DEFAULT_PASSWORD = "password123"
-        // Firebase Auth Emulator can need several seconds on a cold CI runner.
         const val AUTH_TIMEOUT_MS = 20000L
     }
 }
