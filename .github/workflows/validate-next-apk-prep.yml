@@ -75,8 +75,14 @@ jobs:
           fi
           chmod 600 "$KEYSTORE_PATH"
           KEYTOOL_LOG="$RUNNER_TEMP/keytool-check.log"
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$GH_SIGNING_STORE_PASSWORD" >"$KEYTOOL_LOG" 2>&1; then
+            echo "::error::Não foi possível abrir o keystore. Diagnóstico seguro do keytool:"
+            sed -E 's/(password|senha)[^:]*:.*/\\1: [REDACTED]/Ig' "$KEYTOOL_LOG" | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
           if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$GH_SIGNING_STORE_PASSWORD" -alias upload >"$KEYTOOL_LOG" 2>&1; then
-            echo "::error::A chave permanente, a senha ou o alias upload não foram validados."
+            echo "::error::O keystore abriu, mas o alias upload não foi validado. Diagnóstico seguro do keytool:"
+            sed -E 's/(password|senha)[^:]*:.*/\\1: [REDACTED]/Ig' "$KEYTOOL_LOG" | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           fi
           echo "Keystore permanente e alias upload validados."
