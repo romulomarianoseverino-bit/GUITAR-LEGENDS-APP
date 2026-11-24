@@ -80,13 +80,40 @@ jobs:
             sed -E 's/(password|senha)[^:]*:.*/\\1: [REDACTED]/Ig' "$KEYTOOL_LOG" | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           fi
-          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$GH_SIGNING_STORE_PASSWORD" -alias upload >"$KEYTOOL_LOG" 2>&1; then
-            echo "::error::O keystore abriu, mas o alias upload não foi validado. Diagnóstico seguro do keytool:"
-            sed -E 's/(password|senha)[^:]*:.*/\\1: [REDACTED]/Ig' "$KEYTOOL_LOG" | while IFS= read -r line; do echo "::error::$line"; done
+          if ! keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$GH_SIGNING_STORE_PASSWORD" >"$KEYTOOL_LOG" 2>&1; then
+            echo "::error::O keystore abriu na verificação simples, mas não foi possível listar suas entradas."
             exit 1
           fi
-          echo "Keystore permanente e alias upload validados."
+
+          # Seleciona automaticamente apenas quando existe exatamente uma entrada
+          # PrivateKeyEntry. Nunca imprime certificados, fingerprints ou dados secretos.
+          mapfile -t PRIVATE_KEY_ALIASES < <(awk '
+            /^Alias name: / { alias = substr($0, index($0, ": ") + 2) }
+            /^Entry type: / {
+              entry_type = substr($0, index($0, ": ") + 2)
+              if (entry_type == "PrivateKeyEntry" && alias != "") print alias
+              alias = ""
+            }
+          ' "$KEYTOOL_LOG")
+
+          if [ "${#PRIVATE_KEY_ALIASES[@]}" -ne 1 ]; then
+            echo "::error::Esperada exatamente uma chave privada no keystore; encontradas ${#PRIVATE_KEY_ALIASES[@]}."
+            echo "Aliases e tipos encontrados (sem dados secretos):"
+            awk '
+              /^Alias name: / { alias = substr($0, index($0, ": ") + 2) }
+              /^Entry type: / {
+                entry_type = substr($0, index($0, ": ") + 2)
+                if (alias != "") printf "Alias: %s | Tipo: %s\\n", alias, entry_type
+                alias = ""
+              }
+            ' "$KEYTOOL_LOG"
+            exit 1
+          fi
+
+          KEY_ALIAS="${PRIVATE_KEY_ALIASES[0]}"
+          echo "Chave privada única identificada no keystore permanente."
           echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "STORE_PASSWORD=$GH_SIGNING_STORE_PASSWORD" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$GH_SIGNING_KEY_PASSWORD" >> "$GITHUB_ENV"
 
