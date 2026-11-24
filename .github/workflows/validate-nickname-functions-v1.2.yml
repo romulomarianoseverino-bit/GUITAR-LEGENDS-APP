@@ -7,12 +7,16 @@ on:
     paths:
       - "functions/**"
       - ".github/workflows/validate-nickname-functions-v1.2.yml"
+      - "firebase.json"
+      - "firestore.rules"
   pull_request:
     branches:
       - fix/multiplayer-create-room-stage-diagnostics
     paths:
       - "functions/**"
       - ".github/workflows/validate-nickname-functions-v1.2.yml"
+      - "firebase.json"
+      - "firestore.rules"
   workflow_dispatch:
 
 permissions:
@@ -20,7 +24,7 @@ permissions:
 
 jobs:
   functions-tests:
-    name: Testes das funções e da reserva de nickname
+    name: Testes unitários das funções
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
@@ -32,5 +36,23 @@ jobs:
           node-version: "22"
       - name: Verificar sintaxe das funções
         run: node --check functions/index.js
-      - name: Executar todos os testes das funções
+      - name: Executar todos os testes unitários das funções
         run: node --test functions/*.test.js
+
+  nickname-emulator:
+    name: Integração de nickname nos emuladores Firebase
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Instalar dependências das funções
+        run: npm install --prefix functions --no-audit --no-fund
+      - name: Executar Authentication, Firestore e Functions em ambiente demo isolado
+        env:
+          CI: "true"
+        run: npx --yes firebase-tools emulators:exec --project demo-guitar-legends-nickname --only auth,firestore,functions "node --test functions/nickname.emulator.test.js"
