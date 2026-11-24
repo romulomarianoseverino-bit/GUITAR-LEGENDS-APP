@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/sustain-score-v1.2-isolated-2026-11-24
+      - fix/robolectric-compose-looper-mode-v1.2
     paths:
       - "app/**"
       - "gradle/**"
