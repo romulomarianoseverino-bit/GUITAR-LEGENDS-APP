@@ -1,0 +1,36 @@
+name: Validar funções do nickname — base 1.2
+
+on:
+  push:
+    branches:
+      - fix/nickname-run37-server-transaction-2026-11-24
+    paths:
+      - "functions/**"
+      - ".github/workflows/validate-nickname-functions-v1.2.yml"
+  pull_request:
+    branches:
+      - fix/multiplayer-create-room-stage-diagnostics
+    paths:
+      - "functions/**"
+      - ".github/workflows/validate-nickname-functions-v1.2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  functions-tests:
+    name: Testes das funções e da reserva de nickname
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verificar sintaxe das funções
+        run: node --check functions/index.js
+      - name: Executar todos os testes das funções
+        run: node --test functions/*.test.js
