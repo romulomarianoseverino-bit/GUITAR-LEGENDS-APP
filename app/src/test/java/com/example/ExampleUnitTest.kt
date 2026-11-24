@@ -2,6 +2,7 @@ package com.example
 
 import com.example.guitarlegends.analysis.AdaptiveEngine
 import com.example.guitarlegends.analysis.AudioAnalyzer
+import com.example.guitarlegends.analysis.SustainScoreAccumulator
 import com.example.guitarlegends.model.Difficulty
 import com.example.guitarlegends.model.HitRating
 import com.example.guitarlegends.model.Instrument
@@ -44,4 +45,41 @@ class ExampleUnitTest {
 
         assertTrue("Player should have accumulated perfect count", engine.perfectCount > 0)
     }
+
+    @Test
+    fun sustainScoring_awardsIncrementallyOnlyWhileHeld_andHandlesLongFramesSafely() {
+        val tracker = SustainScoreAccumulator()
+        assertEquals(0, tracker.update(0L, isHeld = true, multiplier = 1))
+        assertEquals(0, tracker.update(40L, isHeld = true, multiplier = 1))
+        assertEquals(0, tracker.update(80L, isHeld = true, multiplier = 1))
+        assertEquals(1, tracker.update(120L, isHeld = true, multiplier = 1))
+        assertEquals(0, tracker.update(160L, isHeld = false, multiplier = 1))
+        assertEquals(0, tracker.update(200L, isHeld = false, multiplier = 1))
+        assertEquals(0, tracker.update(240L, isHeld = true, multiplier = 1))
+        assertEquals(0, tracker.update(5000L, isHeld = true, multiplier = 1))
+    }
+
+    @Test
+    fun sustainScoring_scalesWithMultiplier_andResetStartsCleanly() {
+        val tracker = SustainScoreAccumulator()
+        tracker.update(100L, isHeld = true, multiplier = 3)
+        assertEquals(1, tracker.update(140L, isHeld = true, multiplier = 3))
+        tracker.reset()
+        assertEquals(0, tracker.update(9000L, isHeld = true, multiplier = 5))
+        assertEquals(2, tracker.update(9040L, isHeld = true, multiplier = 5))
+    }
+
+
+    @Test
+    fun generatedGuitarChartIncludesMediumLongAndVeryLongSustains() {
+        val track = AudioAnalyzer.BUILT_IN_TRACKS[0]
+        val chart = AudioAnalyzer.generateChart(track, Instrument.GUITAR, Difficulty.EXPERT)
+        val beatMs = (60_000.0 / track.effectiveBpm).toLong()
+        val sustainDurations = chart.map { it.durationMs }.filter { it > 50L }
+
+        assertTrue("Chart must include medium sustains", sustainDurations.any { it in (beatMs..(beatMs * 2L)) })
+        assertTrue("Chart must include long sustains", sustainDurations.any { it in (beatMs * 2L..(beatMs * 4L)) })
+        assertTrue("Chart must include very long sustains", sustainDurations.any { it >= beatMs * 5L })
+    }
+
 }

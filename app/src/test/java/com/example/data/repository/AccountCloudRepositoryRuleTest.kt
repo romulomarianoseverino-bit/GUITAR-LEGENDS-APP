@@ -70,6 +70,34 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
     }
 
     @Test
+    fun claimingTheSameNicknameAgain_doesNotAttemptToUpdateImmutableReservation() = runBlocking {
+        val tag = uniqueSuffix()
+        val nickname = "Repeat_$tag"
+        val email = "repeat_$tag@test.com"
+        signInTestUser(email)
+        val repo = AccountCloudRepository(firestore, auth)
+
+        val first = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(nickname, PlayerStats())
+        }
+        assertTrue("Initial nickname claim must succeed: ${first.exceptionOrNull()?.message}", first.isSuccess)
+
+        val second = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount(nickname, first.getOrThrow().toPlayerStats())
+        }
+        assertTrue(
+            "Re-saving the same nickname must not attempt a forbidden reservation update: ${second.exceptionOrNull()?.message}",
+            second.isSuccess
+        )
+        assertEquals(nickname, second.getOrThrow().nickname)
+
+        val reservation = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("nicknames").document(nickname.lowercase()).get().await()
+        }
+        assertEquals(auth.currentUser?.uid, reservation.getString("userId"))
+    }
+
+    @Test
     fun duplicateNickname_rejectedAcrossDifferentUsers() = runBlocking {
         val tag = uniqueSuffix()
         val sharedNick = "Legend_$tag"
@@ -220,6 +248,50 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertEquals(88400, entries[0].score)
         assertTrue(entries[0].isCompetitive)
     }
+
+
+    @Test
+    fun progressionHistory_retryWithSameStableId_doesNotCreateDuplicateEntries() = runBlocking {
+        val tag = uniqueSuffix()
+        signInTestUser("retry_$tag@test.com")
+        val repo = AccountCloudRepository(firestore, auth)
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.claimNicknameAndSaveAccount("Retry_$tag", PlayerStats()).getOrThrow()
+        }
+        val stableId = "match_retry_$tag"
+        val match = MatchResult(
+            track = AudioAnalyzer.BUILT_IN_TRACKS[0],
+            instrument = Instrument.BASS,
+            difficulty = Difficulty.HARD,
+            score = 32100,
+            maxCombo = 27,
+            totalNotes = 40,
+            hitNotes = 39,
+            missedNotes = 1,
+            accuracyPercent = 97.5f,
+            stars = 4,
+            coinsEarned = 80,
+            isAdaptiveUsed = true,
+            isCompetitive = false
+        )
+
+        val first = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.recordProgressionMatch(match, entryIdOverride = stableId)
+        }
+        val retry = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.recordProgressionMatch(match, entryIdOverride = stableId)
+        }
+        assertTrue("First upload must succeed: ${first.exceptionOrNull()?.message}", first.isSuccess)
+        assertTrue("Retry with same ID must succeed: ${retry.exceptionOrNull()?.message}", retry.isSuccess)
+        assertEquals(stableId, first.getOrThrow())
+        assertEquals(stableId, retry.getOrThrow())
+
+        val history = withTimeout(DEFAULT_TIMEOUT_MS) { repo.fetchProgressionHistory() }
+        assertTrue(history.isSuccess)
+        assertEquals(1, history.getOrThrow().count { it.id == stableId })
+        assertEquals(32100, history.getOrThrow().single { it.id == stableId }.score)
+    }
+
 
     private companion object {
         const val DEFAULT_TIMEOUT_MS = 5000L

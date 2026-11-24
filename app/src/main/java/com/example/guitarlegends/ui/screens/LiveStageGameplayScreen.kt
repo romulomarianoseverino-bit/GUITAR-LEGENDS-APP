@@ -63,6 +63,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
     val isStarPowerActive by viewModel.isStarPowerActive.collectAsState()
     val lastHitRating by viewModel.lastHitRating.collectAsState()
     val activeFretLanes by viewModel.activeFretLanes.collectAsState()
+    val sustainedLanes by viewModel.sustainedLanes.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
     val stats by viewModel.playerStats.collectAsState()
     val controllerInfo by viewModel.controllerInfo.collectAsState()
@@ -126,6 +127,7 @@ fun LiveStageGameplayScreen(viewModel: GameViewModel) {
                 notes = activeNotes,
                 difficulty = difficulty,
                 activeFretLanes = activeFretLanes,
+                sustainedLanes = sustainedLanes,
                 isStarPowerActive = isStarPowerActive,
                 particleSystem = viewModel.particleSystem,
                 highwayTheme = selectedTheme,

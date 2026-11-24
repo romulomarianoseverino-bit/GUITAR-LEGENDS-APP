@@ -282,6 +282,9 @@ object StudioCatalog {
             "explorer_metal" to "Explorer Heavy",
             "cyber_laser" to "Cyber Laser Futurista"
         ),
+        Instrument.ACOUSTIC_GUITAR to listOf(
+            "acoustic_dreadnought" to "Violão Dreadnought Tradicional"
+        ),
         Instrument.BASS to listOf(
             "precision_bass" to "Precision Bass 4-Cordas",
             "skull_5string" to "Groove Skull 5-Cordas",

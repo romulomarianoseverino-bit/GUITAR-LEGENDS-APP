@@ -13,6 +13,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.guitarlegends.analysis.AdaptiveEngine
 import com.example.guitarlegends.analysis.AudioAnalyzer
+import com.example.guitarlegends.analysis.SustainScoreAccumulator
 import com.example.guitarlegends.audio.AudioPlayerEngine
 import com.example.guitarlegends.audio.SoundFxSynthesizer
 import com.example.guitarlegends.data.*
@@ -245,6 +246,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _activeFretLanes = MutableStateFlow<Set<Int>>(emptySet())
     val activeFretLanes: StateFlow<Set<Int>> = _activeFretLanes.asStateFlow()
+
+    private val _sustainedLanes = MutableStateFlow<Set<Int>>(emptySet())
+    val sustainedLanes: StateFlow<Set<Int>> = _sustainedLanes.asStateFlow()
+    private val sustainScoreAccumulator = SustainScoreAccumulator()
 
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
@@ -533,12 +538,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val finalStats = if (mergeGuestProgress && guestSnapshot.hasUnlinkedGuestProgress) {
                     val merged = LocalPlayerProgressRepository.mergeGuestIntoCloud(remoteStats, guestSnapshot)
                     val synced = repo.syncPlayerStats(merged).getOrNull()?.toPlayerStats() ?: merged
-                    uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
                     _cloudSyncStatus.value = "Conta vinculada e progresso local preservado"
                     synced
                 } else {
                     _cloudSyncStatus.value = "Sincronizado na nuvem"
                     remoteStats
+                }
+                // Partidas locais pendentes são enviadas com IDs estáveis; falhas permanecem na fila.
+                val shouldUploadPendingMatches = mergeGuestProgress || !guestSnapshot.hasUnlinkedGuestProgress
+                val pendingMatches = if (shouldUploadPendingMatches) {
+                    uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
+                } else {
+                    guestSnapshot.localMatches
                 }
 
                 _playerStats.value = finalStats
@@ -548,7 +559,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     LocalProgressSnapshot(
                         stats = finalStats,
                         hasUnlinkedGuestProgress = false,
-                        hasLocalCustomizationChanges = false
+                        hasLocalCustomizationChanges = false,
+                        localMatches = pendingMatches,
+                        localRewards = guestSnapshot.localRewards
                     )
                 )
                 _authUiState.value = AuthUiState.Authenticated(
@@ -569,17 +582,29 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun uploadLocalMatchesToCloud(
         repo: AccountCloudRepository,
         localMatches: List<LocalMatchRecord>
-    ) {
-        if (localMatches.isEmpty()) return
+    ): List<LocalMatchRecord> {
+        if (localMatches.isEmpty()) return emptyList()
         val availableTracks = _tracks.value
-        for (record in localMatches.take(25)) {
+        val pending = mutableListOf<LocalMatchRecord>()
+        for (record in localMatches) {
             val track = availableTracks.find { it.id == record.trackId }
                 ?: AudioAnalyzer.BUILT_IN_TRACKS.first().copy(
                     id = record.trackId.ifBlank { "local_track" },
                     title = record.trackTitle.ifBlank { "Música Local" }
                 )
-            repo.recordProgressionMatch(record.toMatchResult(track), entryIdOverride = record.id)
+            val uploaded = repo.recordProgressionMatch(
+                record.toMatchResult(track),
+                entryIdOverride = record.id
+            )
+            if (uploaded.isFailure) pending += record
         }
+        return pending
+    }
+
+    private fun removeUploadedLocalMatches(uploadedId: String) {
+        val snapshot = localProgressRepository.loadSnapshot()
+        val remaining = snapshot.localMatches.filterNot { it.id == uploadedId }
+        localProgressRepository.saveSnapshot(snapshot.copy(localMatches = remaining))
     }
 
     fun signInWithGoogleIdToken(idToken: String, mergeGuestProgress: Boolean = true) {
@@ -655,7 +680,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val guestSnapshot = localProgressRepository.loadSnapshot()
             val res = repo.claimNicknameAndSaveAccount(nickname, _playerStats.value)
             res.onSuccess { cloud ->
-                uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
+                val pendingMatches = uploadLocalMatchesToCloud(repo, guestSnapshot.localMatches)
                 val cloudStats = cloud.toPlayerStats()
                 _playerStats.value = cloudStats
                 _hasUnlinkedGuestProgress.value = false
@@ -663,7 +688,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     LocalProgressSnapshot(
                         stats = cloudStats,
                         hasUnlinkedGuestProgress = false,
-                        hasLocalCustomizationChanges = false
+                        hasLocalCustomizationChanges = false,
+                        localMatches = pendingMatches,
+                        localRewards = guestSnapshot.localRewards
                     )
                 )
                 _authUiState.value = AuthUiState.Authenticated(cloud.userId, cloud.email, cloud.nickname)
@@ -706,14 +733,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val synced = cloud.toPlayerStats()
                 _playerStats.value = synced
                 _hasUnlinkedGuestProgress.value = false
+                val snapshot = localProgressRepository.loadSnapshot()
+                val pendingMatches = uploadLocalMatchesToCloud(repo, snapshot.localMatches)
                 localProgressRepository.saveSnapshot(
-                    localProgressRepository.loadSnapshot().copy(
+                    snapshot.copy(
                         stats = synced,
                         hasUnlinkedGuestProgress = false,
-                        hasLocalCustomizationChanges = false
+                        hasLocalCustomizationChanges = false,
+                        localMatches = pendingMatches
                     )
                 )
-                _cloudSyncStatus.value = "Sincronizado (rev. ${cloud.syncRevision})"
+                _cloudSyncStatus.value = if (pendingMatches.isEmpty()) {
+                    "Sincronizado (rev. ${cloud.syncRevision})"
+                } else {
+                    "Progresso sincronizado; ${pendingMatches.size} partida(s) aguardam conexão"
+                }
             }.onFailure { err ->
                 _cloudSyncStatus.value = "Falha na sincronização: ${err.message}"
             }
@@ -727,8 +761,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val isSignedIn = accountRepo?.currentUidOrNull() != null &&
             _authUiState.value is AuthUiState.Authenticated
         val current = localProgressRepository.loadSnapshot()
-        val updatedMatches = if (newMatchRecord != null && !isSignedIn) {
-            (listOf(newMatchRecord) + current.localMatches).take(25)
+        // Toda partida entra primeiro na fila local, inclusive para contas autenticadas.
+        // Assim, uma falha de rede não apaga o resultado antes da confirmação da nuvem.
+        val updatedMatches = if (newMatchRecord != null) {
+            listOf(newMatchRecord) + current.localMatches.filterNot { it.id == newMatchRecord.id }
         } else {
             current.localMatches
         }
@@ -1058,7 +1094,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getInstrumentConfig(stats: PlayerStats, instrument: Instrument): InstrumentCustomConfig {
         return when (instrument) {
-            Instrument.GUITAR -> stats.studioProfile.guitarConfig
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> stats.studioProfile.guitarConfig
             Instrument.BASS -> stats.studioProfile.bassConfig
             Instrument.DRUMS -> stats.studioProfile.drumsConfig
             Instrument.VOCALS -> stats.studioProfile.vocalConfig
@@ -1068,7 +1104,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun updateInstrumentCustomConfig(instrument: Instrument, config: InstrumentCustomConfig) {
         val studio = _playerStats.value.studioProfile
         val updatedStudio = when (instrument) {
-            Instrument.GUITAR -> studio.copy(guitarConfig = config)
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> studio.copy(guitarConfig = config)
             Instrument.BASS -> studio.copy(bassConfig = config)
             Instrument.DRUMS -> studio.copy(drumsConfig = config)
             Instrument.VOCALS -> studio.copy(vocalConfig = config)
@@ -1643,6 +1679,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _isStarPowerActive.value = false
         _lastHitRating.value = null
         _activeFretLanes.value = emptySet()
+        _sustainedLanes.value = emptySet()
+        sustainScoreAccumulator.reset()
         _isPaused.value = false
         totalHitCount = 0
         totalMissCount = 0
@@ -1676,6 +1714,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     _currentSongTimeMs.value = pos
 
                     checkMissedNotes(pos)
+                    updateSustainScoring(pos)
 
                     // Adaptação dinâmica real de sequências futuras (> 2.2s à frente) quando GLAS está ativo
                     if (_playerStats.value.glassAdaptiveEnabled) {
@@ -1728,6 +1767,30 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 delay(14L)
             }
         }
+    }
+
+    /**
+     * Awards sustain points only while the matching lane remains physically held.
+     * Delta is clamped to avoid granting a large score after a pause or a delayed frame.
+     */
+    private fun updateSustainScoring(currentPosMs: Long) {
+        val heldLanes = _activeFretLanes.value
+        val activeSustains = _activeNotes.value.filter { note ->
+            note.isHit &&
+                !note.isMissed &&
+                note.durationMs > 50L &&
+                note.lane in heldLanes &&
+                currentPosMs in note.timeMs..(note.timeMs + note.durationMs)
+        }
+        _sustainedLanes.value = activeSustains.mapTo(mutableSetOf()) { it.lane }
+
+        // A pontuação só acumula enquanto a nota correta continua pressionada.
+        val earnedPoints = sustainScoreAccumulator.update(
+            currentPositionMs = currentPosMs,
+            isHeld = activeSustains.isNotEmpty(),
+            multiplier = _multiplier.value
+        )
+        if (earnedPoints > 0) _score.value += earnedPoints
     }
 
     private fun checkMissedNotes(currentPosMs: Long) {
@@ -1983,7 +2046,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val repo = accountRepo
         if (repo != null && repo.currentUidOrNull() != null && _playerStats.value.nickname.isNotBlank()) {
             viewModelScope.launch {
-                repo.recordProgressionMatch(result, entryIdOverride = localRecord.id)
+                val matchUpload = repo.recordProgressionMatch(result, entryIdOverride = localRecord.id)
+                if (matchUpload.isSuccess) removeUploadedLocalMatches(localRecord.id)
                 repo.syncPlayerStats(_playerStats.value).onSuccess { cloud ->
                     val synced = cloud.toPlayerStats()
                     _playerStats.value = synced
@@ -2061,7 +2125,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val updatedCoins = _playerStats.value.coins - price
             val unlocked = (_playerStats.value.unlockedCosmetics + id).distinct()
             _playerStats.value = when (instrumentType) {
-                Instrument.GUITAR -> _playerStats.value.copy(coins = updatedCoins, selectedGuitarId = id, unlockedCosmetics = unlocked)
+                Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> _playerStats.value.copy(coins = updatedCoins, selectedGuitarId = id, unlockedCosmetics = unlocked)
                 Instrument.BASS -> _playerStats.value.copy(coins = updatedCoins, selectedBassId = id, unlockedCosmetics = unlocked)
                 Instrument.DRUMS -> _playerStats.value.copy(coins = updatedCoins, selectedDrumsId = id, unlockedCosmetics = unlocked)
                 Instrument.VOCALS -> _playerStats.value.copy(coins = updatedCoins, selectedVocalMicId = id, unlockedCosmetics = unlocked)
@@ -2072,7 +2136,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectGear(instrumentType: Instrument, id: String) {
         _playerStats.value = when (instrumentType) {
-            Instrument.GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
+            Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
             Instrument.BASS -> _playerStats.value.copy(selectedBassId = id)
             Instrument.DRUMS -> _playerStats.value.copy(selectedDrumsId = id)
             Instrument.VOCALS -> _playerStats.value.copy(selectedVocalMicId = id)

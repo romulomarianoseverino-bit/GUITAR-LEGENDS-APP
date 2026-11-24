@@ -8,6 +8,9 @@ import com.example.guitarlegends.analysis.AdaptiveEngine
 import com.example.guitarlegends.analysis.AudioAnalyzer
 import com.example.guitarlegends.analysis.PcmAudioAnalyzer
 import com.example.guitarlegends.audio.AudioPlayerEngine
+import com.example.guitarlegends.data.LocalMatchRecord
+import com.example.guitarlegends.data.LocalPlayerProgressRepository
+import com.example.guitarlegends.data.LocalProgressSnapshot
 import com.example.guitarlegends.data.MusicLibraryRepository
 import com.example.guitarlegends.data.UpdateCheckStatus
 import com.example.guitarlegends.data.UpdateManager
@@ -28,7 +31,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [35])
 class ExampleRobolectricTest {
 
     @Test
@@ -262,18 +265,36 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `04 - test repeated file names do not collide or overwrite previous tracks`() = runBlocking {
+    fun `04 - same file name allows different recordings but rejects an exact duplicate`() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val repo = MusicLibraryRepository(context)
-        val temp1 = createValidMp3File(context, "rock_anthem.mp3", 75_000)
 
-        val track1 = repo.importAudio(Uri.fromFile(temp1)).getOrThrow()
-        val track2 = repo.importAudio(Uri.fromFile(temp1)).getOrThrow()
+        // Importa a primeira gravação.
+        val firstSource = createValidMp3File(context, "rock_anthem.mp3", 75_000)
+        val track1 = repo.importAudio(Uri.fromFile(firstSource)).getOrThrow()
+
+        // Reutiliza o mesmo nome, mas com conteúdo binário diferente:
+        // nome repetido não pode bloquear uma gravação realmente diferente.
+        val secondSource = createValidMp3File(context, "rock_anthem.mp3", 75_001)
+        val track2Result = repo.importAudio(Uri.fromFile(secondSource))
+        assertTrue(
+            "A different recording with the same file name must be accepted: ${track2Result.exceptionOrNull()?.message}",
+            track2Result.isSuccess
+        )
+        val track2 = track2Result.getOrThrow()
 
         assertNotEquals("IDs must be distinct", track1.id, track2.id)
         assertNotEquals("Physical file paths must be distinct", track1.uriString, track2.uriString)
         assertTrue(File(track1.uriString!!).exists())
         assertTrue(File(track2.uriString!!).exists())
+
+        // A mesma gravação, com bytes idênticos, não deve entrar novamente.
+        val exactDuplicate = repo.importAudio(Uri.fromFile(secondSource))
+        assertTrue("An exact duplicate recording must be rejected", exactDuplicate.isFailure)
+        assertTrue(
+            "Duplicate rejection should explain that the recording already exists",
+            exactDuplicate.exceptionOrNull()?.message.orEmpty().contains("mesma gravação")
+        )
 
         repo.deleteTrack(track1)
         repo.deleteTrack(track2)
@@ -614,4 +635,45 @@ class ExampleRobolectricTest {
         assertEquals("kai_cyber", day7.cosmeticId)
         assertEquals("Especialista", Difficulty.EXPERT.displayName)
     }
+
+    @Test
+    fun `pending authenticated match records survive repository recreation with stable ids`() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val repository = LocalPlayerProgressRepository(app)
+        val record = LocalMatchRecord(
+            id = "match_offline_123",
+            trackId = AudioAnalyzer.BUILT_IN_TRACKS[0].id,
+            trackTitle = AudioAnalyzer.BUILT_IN_TRACKS[0].title,
+            instrument = Instrument.BASS.name,
+            difficulty = Difficulty.HARD.name,
+            score = 32100,
+            stars = 4,
+            accuracyPercent = 96.5,
+            coinsEarned = 80,
+            isCompetitive = true,
+            timestampMs = 1795440000000L
+        )
+
+        val pendingQueue = (0 until 32).map { index ->
+            record.copy(id = "match_offline_$index", score = record.score + index)
+        }
+        try {
+            assertTrue(repository.saveSnapshot(LocalProgressSnapshot(localMatches = pendingQueue)).isSuccess)
+
+            // Uma nova instância simula reabertura do app após perda de conexão/encerramento.
+            val restored = LocalPlayerProgressRepository(app).loadSnapshot().localMatches
+            assertEquals("A fila não pode descartar partidas após 25 registros", 32, restored.size)
+            assertEquals("match_offline_0", restored.first().id)
+            assertEquals("match_offline_31", restored.last().id)
+            assertEquals(record.trackId, restored.first().trackId)
+            assertEquals(record.instrument, restored.first().instrument)
+            assertEquals(record.difficulty, restored.first().difficulty)
+            assertEquals(record.coinsEarned, restored.first().coinsEarned)
+        } finally {
+            File(app.filesDir, "local_player_progress.json").delete()
+            File(app.filesDir, "local_player_progress.json.tmp").delete()
+        }
+    }
+
+
 }

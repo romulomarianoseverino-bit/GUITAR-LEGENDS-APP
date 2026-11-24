@@ -22,7 +22,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [35])
 @LooperMode(LooperMode.Mode.INSTRUMENTATION_TEST)
 abstract class FirestoreEmulatorTestBase {
 
@@ -36,30 +36,29 @@ abstract class FirestoreEmulatorTestBase {
         val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
         databaseId = if (resId != 0) context.getString(resId) else "demo-database"
 
-        val app = if (FirebaseApp.getApps(context).isEmpty()) {
-            val newApp = FirebaseApp.initializeApp(
+        // Use a dedicated named FirebaseApp so another test or the application default
+        // app cannot leave Auth/Firestore pointed at production or an unconfigured endpoint.
+        val testApp = FirebaseApp.getApps(context).firstOrNull { it.name == TEST_FIREBASE_APP_NAME }
+            ?: FirebaseApp.initializeApp(
                 context,
                 FirebaseOptions.Builder()
                     .setApplicationId("com.aistudio.applet.kpfcic")
                     .setProjectId(PROJECT_ID)
                     .setApiKey("fake-api-key-for-emulator")
+                    .build(),
+                TEST_FIREBASE_APP_NAME
+            ).also { newApp ->
+                val testFirestore = FirebaseFirestore.getInstance(newApp, databaseId)
+                testFirestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+                testFirestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+                    .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
                     .build()
-            )
-            val newFirestore = FirebaseFirestore.getInstance(newApp, databaseId)
-            newFirestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-            newFirestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                .build()
 
-            val newAuth = FirebaseAuth.getInstance(newApp)
-            newAuth.useEmulator(EMULATOR_HOST, AUTH_PORT)
-            newApp
-        } else {
-            FirebaseApp.getInstance()
-        }
+                FirebaseAuth.getInstance(newApp).useEmulator(EMULATOR_HOST, AUTH_PORT)
+            }
 
-        firestore = FirebaseFirestore.getInstance(app, databaseId)
-        auth = FirebaseAuth.getInstance(app)
+        firestore = FirebaseFirestore.getInstance(testApp, databaseId)
+        auth = FirebaseAuth.getInstance(testApp)
     }
 
     @After
@@ -89,6 +88,7 @@ abstract class FirestoreEmulatorTestBase {
     }
 
     private companion object {
+        const val TEST_FIREBASE_APP_NAME = "guitar-legends-test-emulator"
         const val EMULATOR_HOST = "127.0.0.1"
         const val FIRESTORE_PORT = 8085
         const val AUTH_PORT = 9099

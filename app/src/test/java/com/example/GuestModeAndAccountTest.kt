@@ -28,7 +28,8 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+// Robolectric 4.16.1 disponibiliza runtime estável até API 35; o app continua compilando para API 36.
+@Config(sdk = [35])
 class GuestModeAndAccountTest {
 
     @get:Rule

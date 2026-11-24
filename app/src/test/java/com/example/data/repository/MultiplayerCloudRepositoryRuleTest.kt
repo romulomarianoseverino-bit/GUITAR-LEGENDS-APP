@@ -168,6 +168,107 @@ class MultiplayerCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertEquals(RoomStatus.CLOSED, closedSnap?.statusEnum)
     }
 
+    @Test
+    fun hostLeavingWaitingRoomTransfersLeadershipToNextOnlineParticipant() = runBlocking {
+        val tag = uniqueSuffix()
+        val roomCode = "HOST-$tag"
+        val hostUid = signInTestUser("transfer_host_$tag@test.com")
+        val repo = MultiplayerCloudRepository(firestore, auth)
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.createRoom(
+                mode = MultiplayerMode.BAND_COOP,
+                track = AudioAnalyzer.BUILT_IN_TRACKS[0],
+                nickname = "OriginalHost",
+                instrument = Instrument.GUITAR,
+                difficulty = Difficulty.MEDIUM,
+                customRoomCode = roomCode
+            ).getOrThrow()
+        }
+
+        val firstUid = signInTestUser("transfer_first_$tag@test.com")
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.joinRoom(roomCode, "FirstRocker", Instrument.ACOUSTIC_GUITAR, Difficulty.HARD).getOrThrow()
+        }
+
+        val secondUid = signInTestUser("transfer_second_$tag@test.com")
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.joinRoom(roomCode, "SecondRocker", Instrument.ACOUSTIC_GUITAR, Difficulty.EXPERT).getOrThrow()
+        }
+
+        signInTestUser("transfer_host_$tag@test.com")
+        withTimeout(DEFAULT_TIMEOUT_MS) { repo.leaveOrCloseRoom(roomCode).getOrThrow() }
+
+        signInTestUser("transfer_first_$tag@test.com")
+        val transferred = withTimeout(FLOW_TIMEOUT_MS) { repo.observeRoom(roomCode).first() }
+        assertNotNull(transferred)
+        assertEquals("A sala deve permanecer aguardando", RoomStatus.WAITING, transferred!!.statusEnum)
+        assertEquals("O primeiro participante válido assume a liderança", firstUid, transferred.hostUid)
+        assertEquals("FirstRocker", transferred.hostNickname)
+        assertFalse(transferred.memberUids.contains(hostUid))
+        assertTrue(transferred.memberUids.contains(firstUid))
+        assertTrue(transferred.memberUids.contains(secondUid))
+
+        val participants = withTimeout(FLOW_TIMEOUT_MS) { repo.observeParticipants(roomCode).first() }
+        assertFalse("O antigo anfitrião deve ser removido", participants.any { it.userId == hostUid })
+        assertTrue(participants.any { it.userId == firstUid })
+        assertEquals(
+            "O primeiro jogador deve manter o violão acústico escolhido",
+            Instrument.ACOUSTIC_GUITAR,
+            participants.first { it.userId == firstUid }.instrumentEnum
+        )
+        assertEquals(
+            "Dois jogadores podem escolher o mesmo violão acústico",
+            Instrument.ACOUSTIC_GUITAR,
+            participants.first { it.userId == secondUid }.instrumentEnum
+        )
+    }
+
+
+    @Test
+    fun hostLeavingWaitingRoom_skipsDisconnectedParticipantWhenChoosingNextHost() = runBlocking {
+        val tag = uniqueSuffix()
+        val roomCode = "ACTIVE-$tag"
+        signInTestUser("active_host_$tag@test.com")
+        val hostRepo = MultiplayerCloudRepository(firestore, auth)
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            hostRepo.createRoom(
+                mode = MultiplayerMode.BAND_COOP,
+                track = AudioAnalyzer.BUILT_IN_TRACKS[0],
+                nickname = "ActiveHost",
+                instrument = Instrument.GUITAR,
+                difficulty = Difficulty.MEDIUM,
+                customRoomCode = roomCode
+            ).getOrThrow()
+        }
+
+        val disconnectedUid = signInTestUser("inactive_$tag@test.com")
+        val disconnectedRepo = MultiplayerCloudRepository(firestore, auth)
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            disconnectedRepo.joinRoom(roomCode, "InactiveRocker", Instrument.BASS, Difficulty.HARD).getOrThrow()
+        }
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            disconnectedRepo.sendHeartbeat(roomCode, ParticipantConnectionState.DISCONNECTED).getOrThrow()
+        }
+
+        val activeUid = signInTestUser("next_active_$tag@test.com")
+        val activeRepo = MultiplayerCloudRepository(firestore, auth)
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            activeRepo.joinRoom(roomCode, "NextActive", Instrument.DRUMS, Difficulty.EXPERT).getOrThrow()
+        }
+
+        signInTestUser("active_host_$tag@test.com")
+        withTimeout(DEFAULT_TIMEOUT_MS) { hostRepo.leaveOrCloseRoom(roomCode).getOrThrow() }
+
+        signInTestUser("next_active_$tag@test.com")
+        val room = withTimeout(FLOW_TIMEOUT_MS) { activeRepo.observeRoom(roomCode).first() }
+        assertNotNull(room)
+        assertEquals("A sala deve continuar aguardando", RoomStatus.WAITING, room!!.statusEnum)
+        assertEquals("O participante desconectado não pode assumir a sala", activeUid, room.hostUid)
+        assertTrue(room.memberUids.contains(disconnectedUid))
+    }
+
     private companion object {
         const val DEFAULT_TIMEOUT_MS = 6000L
         const val FLOW_TIMEOUT_MS = 4000L

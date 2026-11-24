@@ -30,7 +30,7 @@ android {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
       storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
+      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
@@ -72,7 +72,9 @@ android {
 }
 
 tasks.withType<Test> {
-  failFast = true
+  // Execute the complete suite after a failure so later tests are not silently skipped.
+  // Failures remain visible in CI; candidate APK generation is a separate CI step for human testing.
+  failFast = false
   timeout.set(Duration.ofMinutes(2))
   testLogging {
     events("passed", "failed", "skipped")

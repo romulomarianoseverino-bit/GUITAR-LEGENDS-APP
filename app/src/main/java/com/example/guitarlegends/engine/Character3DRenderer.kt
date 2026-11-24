@@ -381,14 +381,14 @@ fun drawRockerCharacter3D(
 
     // 4. BRAÇOS E INSTRUMENTO CUSTOMIZADO EMPUNHADO EM 3D
     val activeInstConfig = when (instrument) {
-        Instrument.GUITAR -> studio.guitarConfig
+        Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR -> studio.guitarConfig
         Instrument.BASS -> studio.bassConfig
         Instrument.DRUMS -> studio.drumsConfig
         Instrument.VOCALS -> studio.vocalConfig
     }
 
     when (instrument) {
-        Instrument.GUITAR, Instrument.BASS -> {
+        Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR, Instrument.BASS -> {
             val frettingHand = Vec3(-0.34f, shoulderY + 0.18f, -0.26f)
             val strummingHand = Vec3(0.14f, hipY - 0.12f + strumSwing, -0.26f)
             drawArm(-1f, frettingHand)
@@ -397,7 +397,7 @@ fun drawRockerCharacter3D(
             drawInstrument3D(
                 drawScope = drawScope,
                 instrument = instrument,
-                config = activeInstConfig,
+                config = if (instrument == Instrument.ACOUSTIC_GUITAR) activeInstConfig.copy(modelStyleId = "acoustic_dreadnought") else activeInstConfig,
                 centerX = instCenter.x,
                 centerY = instCenter.y,
                 scale = scale * 0.52f,

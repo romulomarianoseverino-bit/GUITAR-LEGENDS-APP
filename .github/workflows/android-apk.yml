@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - integration/next-apk-validation
     paths-ignore:
       - 'Imagens/**'
   workflow_dispatch:
@@ -47,16 +48,19 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Preparar chave privada de publicação
+      - name: Preparar chave privada de publicação (opcional)
+        id: prepare_signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_BASE64" || { echo "::error::O segredo KEYSTORE_BASE64 está vazio."; exit 1; }
-          test -n "$STORE_PASSWORD" || { echo "::error::O segredo KEYSTORE_PASSWORD está vazio."; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo "::error::O segredo KEY_PASSWORD está vazio."; exit 1; }
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Chave de publicação não configurada; somente o APK de depuração será produzido."
+            exit 0
+          fi
 
           KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-upload.jks"
           echo "Verificando a decodificação Base64..."
@@ -85,6 +89,7 @@ jobs:
           echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Configurar Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -106,6 +111,7 @@ jobs:
 
       - name: Compilar APK assinado de publicação
         id: release_build
+        if: steps.prepare_signing.outputs.available == 'true'
         run: gradle --no-daemon assembleRelease
 
       - name: Publicar APK assinado

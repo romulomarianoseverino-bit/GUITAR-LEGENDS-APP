@@ -265,7 +265,7 @@ service cloud.firestore {
       return data.userId is string && data.userId == participantUid &&
              data.roomCode is string && data.roomCode == roomCode &&
              data.nickname is string && data.nickname.size() >= 2 && data.nickname.size() <= 24 &&
-             data.instrument is string && data.instrument in ['GUITAR', 'BASS', 'DRUMS', 'VOCALS'] &&
+             data.instrument is string && data.instrument in ['GUITAR', 'ACOUSTIC_GUITAR', 'BASS', 'DRUMS', 'VOCALS'] &&
              data.difficulty is string && data.difficulty in ['EASY', 'MEDIUM', 'HARD', 'EXPERT'] &&
              data.ready is bool &&
              data.connectionState is string && data.connectionState in ['ONLINE', 'RECONNECTING', 'DISCONNECTED'] &&
@@ -302,7 +302,6 @@ service cloud.firestore {
       allow update: if isSignedIn() &&
                        isValidRoomCode(roomCode) &&
                        existing().status != 'CLOSED' &&
-                       incoming().hostUid == existing().hostUid &&
                        incoming().roomCode == existing().roomCode &&
                        incoming().createdAt == existing().createdAt &&
                        isValidMultiplayerRoom(incoming(), roomCode) &&
@@ -310,12 +309,31 @@ service cloud.firestore {
                          // Ação 1: Host atualiza modo, faixa, início ou encerramento da sala
                          (
                            existing().hostUid == request.auth.uid &&
+                           incoming().hostUid == existing().hostUid &&
                            incoming().diff(existing()).affectedKeys().hasOnly([
                              'mode', 'status', 'trackId', 'trackTitle', 'maxPlayers', 'winnerUid', 'inviteMessage', 'updatedAt'
                            ])
                          ) ||
-                         // Ação 2: Convidado entra na sala em espera respeitando limite
+                         // Ação 2: Host sai antes do início e transfere a liderança ao próximo participante
                          (
+                           existing().status == 'WAITING' &&
+                           existing().hostUid == request.auth.uid &&
+                           request.auth.uid in existing().memberUids &&
+                           !(request.auth.uid in incoming().memberUids) &&
+                           existing().memberUids.hasAll(incoming().memberUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() - 1 &&
+                           incoming().hostUid in existing().memberUids &&
+                           incoming().hostUid in incoming().memberUids &&
+                           incoming().hostUid != request.auth.uid &&
+                           exists(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)/participants/$(incoming().hostUid)) &&
+                           get(/databases/$(database)/documents/multiplayer_rooms/$(roomCode)/participants/$(incoming().hostUid)).data.nickname == incoming().hostNickname &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'hostUid', 'hostNickname', 'memberUids', 'updatedAt'
+                           ])
+                         ) ||
+                         // Ação 3: Convidado entra na sala em espera respeitando limite
+                         (
+                           incoming().hostUid == existing().hostUid &&
                            existing().status == 'WAITING' &&
                            !(request.auth.uid in existing().memberUids) &&
                            request.auth.uid in incoming().memberUids &&
@@ -325,6 +343,7 @@ service cloud.firestore {
                          ) ||
                          // Ação 3: Participante sai da sala removendo apenas seu próprio UID
                          (
+                           incoming().hostUid == existing().hostUid &&
                            request.auth.uid != existing().hostUid &&
                            request.auth.uid in existing().memberUids &&
                            !(request.auth.uid in incoming().memberUids) &&

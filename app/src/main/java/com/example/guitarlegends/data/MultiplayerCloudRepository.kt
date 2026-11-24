@@ -395,51 +395,82 @@ class MultiplayerCloudRepository(
         return try {
             val roomRef = firestore.collection("multiplayer_rooms").document(normalized)
             val partRef = roomRef.collection("participants").document(uid)
-            val snap = roomRef.get().await()
-            if (!snap.exists()) {
-                return Result.success(Unit)
-            }
-            val room = snap.toObject(
-                MultiplayerRoomCloud::class.java,
-                DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-            )
-            if (room == null) return Result.success(Unit)
 
-            if (room.hostUid == uid) {
-                if (room.statusEnum != RoomStatus.CLOSED) {
-                    roomRef.update(
-                        mapOf(
-                            "status" to RoomStatus.CLOSED.name,
-                            "updatedAt" to FieldValue.serverTimestamp()
-                        )
-                    ).await()
+            firestore.runTransaction { tx ->
+                val snap = tx.get(roomRef)
+                if (!snap.exists()) {
+                    return@runTransaction Unit
                 }
-                runCatching { partRef.delete().await() }
-            } else {
-                runCatching { partRef.delete().await() }
-                if (room.statusEnum != RoomStatus.CLOSED && room.memberUids.contains(uid)) {
-                    firestore.runTransaction { tx ->
-                        val curSnap = tx.get(roomRef)
-                        val curRoom = curSnap.toObject(
-                            MultiplayerRoomCloud::class.java,
-                            DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-                        )
-                        if (curRoom != null &&
-                            curRoom.statusEnum != RoomStatus.CLOSED &&
-                            curRoom.memberUids.contains(uid)
-                        ) {
-                            val nextMembers = curRoom.memberUids.filter { it != uid }
-                            tx.update(
-                                roomRef,
-                                mapOf(
-                                    "memberUids" to nextMembers,
-                                    "updatedAt" to FieldValue.serverTimestamp()
-                                )
-                            )
+
+                val room = snap.toObject(
+                    MultiplayerRoomCloud::class.java,
+                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                ) ?: return@runTransaction Unit
+
+                if (room.hostUid == uid) {
+                    // Antes do início, transfere a liderança ao próximo participante válido.
+                    // Depois do início, encerra a sala para não deixar uma partida sem autoridade.
+                    var nextHostUid: String? = null
+                    var nextHostNickname: String? = null
+                    if (room.statusEnum == RoomStatus.WAITING) {
+                        for (candidateUid in room.memberUids.filterNot { it == uid }) {
+                            val candidateRef = roomRef.collection("participants").document(candidateUid)
+                            val candidate = tx.get(candidateRef)
+                            val connection = candidate.getString("connectionState")
+                            val heartbeat = candidate.getLong("lastHeartbeatMs")
+                            val recentlyActive = heartbeat != null &&
+                                heartbeat > 0L &&
+                                (System.currentTimeMillis() - heartbeat) <= 14_000L
+                            if (
+                                candidate.exists() &&
+                                connection != ParticipantConnectionState.DISCONNECTED.name &&
+                                recentlyActive
+                            ) {
+                                nextHostUid = candidateUid
+                                nextHostNickname = candidate.getString("nickname")
+                                    ?.trim()
+                                    ?.takeIf { it.length >= 2 }
+                                    ?.take(24)
+                                    ?: "Rocker_${candidateUid.take(4)}"
+                                break
+                            }
                         }
-                    }.await()
+                    }
+
+                    if (nextHostUid != null) {
+                        tx.update(
+                            roomRef,
+                            mapOf(
+                                "hostUid" to nextHostUid,
+                                "hostNickname" to nextHostNickname,
+                                "memberUids" to room.memberUids.filterNot { it == uid },
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                    } else if (room.statusEnum != RoomStatus.CLOSED) {
+                        tx.update(
+                            roomRef,
+                            mapOf(
+                                "status" to RoomStatus.CLOSED.name,
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                    }
+                    tx.delete(partRef)
+                } else {
+                    if (room.statusEnum != RoomStatus.CLOSED && room.memberUids.contains(uid)) {
+                        tx.update(
+                            roomRef,
+                            mapOf(
+                                "memberUids" to room.memberUids.filterNot { it == uid },
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                    }
+                    tx.delete(partRef)
                 }
-            }
+            }.await()
+
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
