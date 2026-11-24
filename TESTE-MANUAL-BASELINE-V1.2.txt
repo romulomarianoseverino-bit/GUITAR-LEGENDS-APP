@@ -1,0 +1,4 @@
+APK experimental de teste manual.
+Base: a3077637f7870a0c2c9c655ff9414e3cd57842ad
+Branch isolada: test/manual-multiplayer-baseline-v1.2
+Nenhuma alteração de aplicativo aplicada.
