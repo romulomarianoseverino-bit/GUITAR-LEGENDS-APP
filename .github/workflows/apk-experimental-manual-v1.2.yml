@@ -1,0 +1,95 @@
+name: APK experimental — teste manual multiplayer 1.2
+
+on:
+  push:
+    branches:
+      - test/manual-multiplayer-baseline-v1.2
+    paths:
+      - '.github/workflows/apk-experimental-manual-v1.2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-experimental:
+    name: Gerar APK experimental da referência 1.2
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Baixar exatamente o código desta branch isolada
+        uses: actions/checkout@v4
+        with:
+          ref: test/manual-multiplayer-baseline-v1.2
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Android SDK
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Criar chave temporária exclusiva para este APK experimental
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Guitar Legends Experimental,O=OpenAI,C=BR"
+
+      - name: Configurar Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Compilar APK experimental de depuração
+        run: gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Identificar APK e registrar limites desta compilação
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          mkdir -p experimental-output
+          cp "$APK" experimental-output/Guitar-Legends-1.2-EXPERIMENTAL-MANUAL.apk
+          sha256sum experimental-output/Guitar-Legends-1.2-EXPERIMENTAL-MANUAL.apk > experimental-output/SHA256SUMS.txt
+          cat > experimental-output/LEIA-ANTES.txt <<'EOF'
+          GUITAR LEGENDS — APK EXPERIMENTAL — TESTE MANUAL — NÃO É RELEASE
+
+          Base funcional de referência:
+          a3077637f7870a0c2c9c655ff9414e3cd57842ad
+
+          Esta compilação não incorpora a branch de diagnóstico do Firebase,
+          o PR de sustain ou alterações posteriores à referência.
+
+          Este fluxo compila o APK de depuração e NÃO executa a suíte de testes
+          automatizados. A compilação não comprova funcionamento em execução.
+
+          Objetivo: instalar em aparelho de teste e validar manualmente login,
+          criação de sala, entrada de outro participante, sincronização,
+          desconexão, reconexão e saída.
+
+          Não substitui nem atualiza a versão de referência instalada.
+          A assinatura é temporária de depuração; não serve para atualizar
+          por cima de uma instalação assinada com outra chave. Pode ser
+          necessário desinstalar a instalação anterior (isso pode apagar
+          dados locais); faça isso somente se aceitar essa consequência.
+          EOF
+
+      - name: Publicar artefato experimental e instruções
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guitar-Legends-1.2-EXPERIMENTAL-MANUAL-NAO-RELEASE
+          path: experimental-output/*
+          if-no-files-found: error
+          retention-days: 14
