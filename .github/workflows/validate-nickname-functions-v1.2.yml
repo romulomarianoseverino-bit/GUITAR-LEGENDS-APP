@@ -55,4 +55,4 @@ jobs:
       - name: Executar Authentication, Firestore e Functions em ambiente demo isolado
         env:
           CI: "true"
-        run: npx --yes firebase-tools emulators:exec --project demo-guitar-legends-nickname --only auth,firestore,functions "node --test functions/nickname.emulator.test.js"
+        run: npx --yes firebase-tools emulators:exec --project demo-guitar-legends-nickname --only auth,firestore,functions "node --test functions/nickname.emulator.integration.cjs"
