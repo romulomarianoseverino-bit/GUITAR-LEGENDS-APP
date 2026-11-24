@@ -69,8 +69,28 @@ jobs:
       - name: Executar testes unitários com Auth e Firestore Emulator
         id: tests
         run: |
-          firebase emulators:exec --project demo-no-project --only auth,firestore \
-            'gradle --no-daemon --no-configuration-cache --stacktrace testDebugUnitTest'
+          firebase --debug emulators:exec --project demo-no-project --only auth,firestore \
+            'set -eu
+             wait_for_http() {
+               name="$1"
+               url="$2"
+               attempts=30
+               echo "Verificando disponibilidade de $name em $url"
+               while [ "$attempts" -gt 0 ]; do
+                 if curl --silent --show-error --max-time 2 --output /dev/null "$url"; then
+                   echo "$name respondeu por HTTP."
+                   return 0
+                 fi
+                 attempts=$((attempts - 1))
+                 sleep 1
+               done
+               echo "::error::$name não respondeu após 30 segundos em $url."
+               return 1
+             }
+             wait_for_http "Auth Emulator" "http://127.0.0.1:9099/"
+             wait_for_http "Firestore Emulator" "http://127.0.0.1:8085/"
+             echo "Os dois emuladores responderam. Iniciando a suíte de testes."
+             gradle --no-daemon --no-configuration-cache --stacktrace testDebugUnitTest'
       - name: Compilar APK candidato para teste humano
         id: build_apk
         if: steps.prepare_signing.outcome == 'success' && steps.tests.outcome == 'success'
