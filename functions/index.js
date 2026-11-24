@@ -14,6 +14,7 @@ const {
   COSMETIC_PRICES,
   getCosmeticPrice
 } = require("./rewardLogic");
+const { canReleaseNicknameReservation } = require("./nicknameLogic");
 
 initializeApp();
 
@@ -352,7 +353,7 @@ exports.claimNicknameAndCreateAccount = onCall(async (request) => {
           tx.create(nicknameRef, { userId: uid, nickname, createdAt: now });
         }
         // Remove the previous reservation only when it still belongs to this authenticated user.
-        if (oldNicknameSnap && oldNicknameSnap.exists && oldNicknameSnap.get("userId") === uid) {
+        if (canReleaseNicknameReservation(oldNicknameSnap, uid)) {
           tx.delete(oldNicknameRef);
         }
         tx.update(userRef, {
