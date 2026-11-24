@@ -97,6 +97,7 @@ abstract class FirestoreEmulatorTestBase {
         const val AUTH_PORT = 9099
         const val PROJECT_ID = "demo-no-project"
         const val DEFAULT_PASSWORD = "password123"
-        const val AUTH_TIMEOUT_MS = 5000L
+        // Firebase Auth Emulator can need several seconds on a cold CI runner.
+        const val AUTH_TIMEOUT_MS = 20000L
     }
 }
