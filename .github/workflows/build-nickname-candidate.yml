@@ -2,6 +2,11 @@ name: Gerar APK candidato — Nickname 1.2
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/nickname-v1.2-isolated-2026-11-24
+    paths:
+      - ".github/workflows/build-nickname-candidate.yml"
 
 permissions:
   contents: read
