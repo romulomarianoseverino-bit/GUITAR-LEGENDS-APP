@@ -180,6 +180,9 @@ jobs:
                   print(f" - {item}")
               sys.exit("::error::Há falhas em testes fora do multiplayer. APK candidato bloqueado.")
 
+          if os.environ.get("TEST_EXIT_CODE") not in ("0", "") and not multiplayer_problems:
+              sys.exit("::error::A execução da suíte falhou sem uma falha identificada exclusivamente no teste de multiplayer. APK candidato bloqueado.")
+
           if failures + errors > 0:
               print("::warning::Falhas restritas ao teste automatizado de multiplayer:")
               for item in multiplayer_problems:
