@@ -1,28 +1,11 @@
 name: Inspecionar APK de referência
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_id:
-        description: "ID do rascunho que contém o APK de referência"
-        required: true
-        default: "456255879"
-        type: string
-      asset_id:
-        description: "ID do arquivo APK enviado"
-        required: true
-        default: "785479740"
-        type: string
-      expected_sha256:
-        description: "SHA-256 confirmado pelo GitHub"
-        required: true
-        default: "ce822be320391f6639e83b907ffe02cab58848ee2e9dcb228f0903baa70baf77"
-        type: string
-      source_ref:
-        description: "Branch/commit do código para comparação estática"
-        required: true
-        default: "main"
-        type: string
+  push:
+    branches:
+      - analysis/reference-apk-inspection-2026-11-24
+    paths:
+      - .github/workflows/inspect-reference-apk.yml
 
 permissions:
   contents: read
@@ -32,17 +15,21 @@ jobs:
     name: Inspecionar APK sem alterar o projeto
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      RELEASE_ID: "456255879"
+      ASSET_ID: "785479740"
+      EXPECTED_SHA256: "ce822be320391f6639e83b907ffe02cab58848ee2e9dcb228f0903baa70baf77"
+      SOURCE_REF: "main"
     steps:
       - name: Baixar código para comparação estática
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ env.SOURCE_REF }}
           persist-credentials: false
 
       - name: Baixar APK do rascunho do GitHub
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ASSET_ID: ${{ inputs.asset_id }}
         run: |
           set -euo pipefail
           mkdir -p inspection
@@ -56,8 +43,6 @@ jobs:
           file inspection/reference.apk | tee inspection/file-type.txt
 
       - name: Validar integridade e estrutura do APK
-        env:
-          EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
         run: |
           set -euo pipefail
           ACTUAL_SHA256="$(sha256sum inspection/reference.apk | awk '{print $1}')"
@@ -70,7 +55,7 @@ jobs:
           unzip -q inspection/reference.apk -d inspection/extracted
           {
             echo "## Estrutura interna"
-            grep -E '^(AndroidManifest.xml|resources.arsc|classes([0-9]+)?\\.dex|lib/|res/)' inspection/apk-file-list.txt | head -n 250 || true
+            grep -E '^(AndroidManifest.xml|resources.arsc|classes([0-9]+)?\.dex|lib/|res/)' inspection/apk-file-list.txt | head -n 250 || true
           } > inspection/apk-structure.md
 
       - name: Extrair metadados Android
@@ -99,8 +84,6 @@ jobs:
           } > inspection/android-metadata.md
 
       - name: Procurar indicadores de recursos no APK e no código
-        env:
-          APK_PATH: inspection/reference.apk
         run: |
           set -euo pipefail
           {
@@ -114,10 +97,10 @@ jobs:
           {
             echo "# Referências da análise"
             echo "Repositório: ${GITHUB_REPOSITORY}"
-            echo "Commit analisado: ${GITHUB_SHA}"
-            echo "Ref solicitada: ${{ inputs.source_ref }}"
-            echo "Release ID: ${{ inputs.release_id }}"
-            echo "Asset ID: ${{ inputs.asset_id }}"
+            echo "Commit que contém a automação: ${GITHUB_SHA}"
+            echo "Código consultado: ${SOURCE_REF}"
+            echo "Release ID: ${RELEASE_ID}"
+            echo "Asset ID: ${ASSET_ID}"
             echo "APK: Guitar.Legends.apk"
             echo
             echo "Esta inspeção é estática. Presença de strings/classes não prova que uma função funciona em execução."
