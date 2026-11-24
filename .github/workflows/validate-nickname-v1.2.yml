@@ -3,12 +3,22 @@ name: Validar nickname isolado sobre a referência 1.2
 on:
   push:
     branches:
+      - main
       - fix/nickname-v1.2-isolated-2026-11-24
     paths:
       - "app/**"
       - "firestore.rules"
       - "firebase.json"
       - ".github/workflows/validate-nickname-v1.2.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "firestore.rules"
+      - "firebase.json"
+      - ".github/workflows/validate-nickname-v1.2.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
