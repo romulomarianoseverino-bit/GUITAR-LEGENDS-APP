@@ -8,6 +8,7 @@ on:
     paths:
       - ".github/workflows/build-nickname-candidate.yml"
       - "app/src/test/java/com/example/base/FirestoreEmulatorTestBase.kt"
+      - "app/src/test/java/com/example/MultiplayerRecoveryTest.kt"
 
 permissions:
   contents: read
