@@ -1,0 +1,45 @@
+name: Validar pontuacao sustain isolada na referencia 1.2
+
+on:
+  push:
+    branches:
+      - feature/sustain-score-v1.2-isolated-2026-11-24
+    paths:
+      - "app/**"
+      - ".github/workflows/validate-sustain-score-v1.2.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - ".github/workflows/validate-sustain-score-v1.2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sustain-score-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Configurar Android SDK
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - name: Configurar Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+      - name: Executar testes específicos de pontuação sustain
+        run: gradle --no-daemon testDebugUnitTest --tests com.example.guitarlegends.analysis.SustainScoreAccumulatorTest
