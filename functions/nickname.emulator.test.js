@@ -47,7 +47,7 @@ async function callNickname(user, nickname) {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${user.token}"
+        authorization: `Bearer ${user.token}`
       },
       body: JSON.stringify({ data: { nickname } })
     }
