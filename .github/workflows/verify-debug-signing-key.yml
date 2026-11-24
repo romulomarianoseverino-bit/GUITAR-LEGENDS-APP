@@ -1,0 +1,66 @@
+name: Verificar chave de assinatura do APK de referência
+
+on:
+  push:
+    branches:
+      - fix/nickname-v1.2-isolated-2026-11-24
+    paths:
+      - ".github/workflows/verify-debug-signing-key.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-key:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Conferir a chave sem revelar segredos
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          DEBUG_KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          DEBUG_KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEBUG_KEYSTORE_BASE64" || { echo "::error::DEBUG_KEYSTORE_BASE64 não está disponível."; exit 1; }
+          test -n "$DEBUG_KEYSTORE_PASSWORD" || { echo "::error::DEBUG_KEYSTORE_PASSWORD não está disponível."; exit 1; }
+          test -n "$DEBUG_KEY_PASSWORD" || { echo "::error::DEBUG_KEY_PASSWORD não está disponível."; exit 1; }
+
+          KEYSTORE="$RUNNER_TEMP/reference-signing.jks"
+          INFO="$RUNNER_TEMP/key-info.txt"
+          printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+
+          if ! keytool -list -v -keystore "$KEYSTORE" -storepass "$DEBUG_KEYSTORE_PASSWORD" > "$INFO" 2>/dev/null; then
+            echo "::error::Não foi possível abrir o keystore. Nenhum valor secreto foi exibido."
+            exit 1
+          fi
+
+          EXPECTED="3D:02:6D:2A:62:E1:B4:E8:DD:31:9B:05:6C:1C:03:CD:77:DC:D3:4F:E7:FC:1B:CF:2D:A6:9E:67:01:55:8F:E9"
+          FOUND="false"
+          echo "Aliases encontrados:"
+          grep '^Alias name:' "$INFO" | sed 's/^Alias name: /- /' || true
+          echo "Impressões digitais SHA-256 encontradas:"
+          while IFS= read -r fingerprint; do
+            echo "- $fingerprint"
+            normalized="$(printf '%s' "$fingerprint" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            expected_normalized="$(printf '%s' "$EXPECTED" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            if [ "$normalized" = "$expected_normalized" ]; then
+              FOUND="true"
+            fi
+          done < <(sed -n 's/^[[:space:]]*SHA256: //p' "$INFO")
+
+          if [ "$FOUND" != "true" ]; then
+            echo "::error::A chave dos segredos não corresponde ao certificado do APK funcional. A compilação foi bloqueada para evitar um APK que não atualize a instalação."
+            exit 1
+          fi
+
+          echo "CONFIRMADO: a chave corresponde ao certificado do APK funcional."
+          echo "A senha da chave privada foi disponibilizada ao ambiente, mas não foi exibida nem registrada."
