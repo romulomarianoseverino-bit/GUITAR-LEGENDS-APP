@@ -1,4 +1,5 @@
 name: Gerar APK candidato 1.2 com sustain isolado
+# Diagnostico reforcado: stacktrace, sem cache de configuracao e build condicionado aos testes
 
 on:
   push:
