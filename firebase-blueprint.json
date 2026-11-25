@@ -369,7 +369,7 @@
         "userId": { "type": "string" },
         "roomCode": { "type": "string" },
         "nickname": { "type": "string" },
-        "instrument": { "type": "string" },
+        "instrument": { "type": "string", "enum": ["GUITAR", "ACOUSTIC_GUITAR", "BASS", "DRUMS", "VOCALS"] },
         "difficulty": { "type": "string" },
         "ready": { "type": "boolean" },
         "connectionState": { "type": "string", "enum": ["ONLINE", "RECONNECTING", "DISCONNECTED"] },

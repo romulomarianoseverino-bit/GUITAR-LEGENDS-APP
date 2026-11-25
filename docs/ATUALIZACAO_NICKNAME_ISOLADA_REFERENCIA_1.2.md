@@ -1,43 +1,21 @@
-# Atualização isolada de nickname — referência Guitar Legends 1.2
+# Linha experimental APP-2 — baseline
 
-## Base protegida
-- Commit de origem: a3077637f7870a0c2c9c655ff9414e3cd57842ad
-- APK de referência: release referencia-apk-2026-11-24
-- Esta branch foi criada diretamente do commit da referência, sem mesclar a main ou branches divergentes.
+## Origem preservada
+- Repositório: GUITAR-LEGENDS-APP-2
+- Commit de origem: 5f09853a20a75b1e5b363ce7b9a5109be54f49ab
+- Branch experimental: exp/app2-baseline-apk-2026-11-24
+- A branch foi criada a partir da main do APP-2, sem alterar a main.
+- A referência funcional 1.2 continua sendo a compilação nº 37 do repositório anterior; este baseline não é declarado equivalente a ela.
 
-## Escopo único
-Corrigir o salvamento/reenvio do nickname quando o mesmo usuário já possui a reserva no Firestore.
+## Preparação mínima para o primeiro APK
+- Inclui a configuração Firebase Android do projeto `guitar-legends-d7708`, cujo pacote Android é `com.aistudio.applet.kpfcic`.
+- Preserva o identificador de banco Firestore já configurado no APP-2.
+- O fluxo experimental executa os testes automatizados com Auth e Firestore Emulator e tenta gerar um APK assinado com a chave permanente.
+- O fluxo verifica o certificado SHA-256 do APK e interrompe a publicação do artefato se a assinatura não corresponder à chave usada pela referência 1.2.
 
-## Diagnóstico do código
-As regras Firestore da referência tratam a reserva em nicknames como criação, não como atualização livre. O fluxo anterior executava tx.set mesmo quando o documento de reserva já existia. Ao salvar novamente o próprio nickname, isso podia ser interpretado como atualização e ser negado pelas regras.
-
-## Alteração aplicada
-- Ler a reserva antiga antes de qualquer gravação na transação.
-- Criar a reserva nova somente quando ainda não existir.
-- Não sobrescrever uma reserva já pertencente ao mesmo usuário.
-- Excluir a reserva anterior somente quando ela existir e pertencer ao UID autenticado.
-- Manter a escrita do documento do usuário e a mesclagem de progresso.
-
-## Teste novo
-claimingTheSameNicknameAgain_doesNotAttemptToUpdateImmutableReservation:
-1. cria uma conta e reserva um nickname;
-2. envia novamente o mesmo nickname;
-3. confirma sucesso e verifica que a reserva continua vinculada ao mesmo UID.
-
-## Validação independente
-Workflow: .github/workflows/validate-nickname-v1.2.yml
-Executa apenas AccountCloudRepositoryRuleTest com Firebase Auth e Firestore Emulator.
-
-## Fora do escopo
-- Não altera autenticação/login.
-- Não altera multiplayer, salas, interface, pistas, pontuação, biblioteca ou playlists.
-- Não altera firestore.rules.
-- Não gera nem publica APK.
-- Não integra esta branch à main.
-
-## Critérios de aceite
-- Workflow específico concluído com sucesso.
-- Testes existentes de conta continuam passando.
-- Teste de reaplicar o mesmo nickname passa.
-- Revisão confirma que nenhuma outra funcionalidade foi alterada.
-- Depois disso, validação de produção Firestore e do aplicativo em aparelho real continua necessária antes de distribuir atualização.
+## Limites desta etapa
+- APK experimental, não release.
+- A compilação não comprova login real, playlists, sincronização nem multiplayer em aparelhos.
+- A configuração OAuth precisa corresponder ao certificado permanente; a validação manual em aparelho continua obrigatória.
+- Nenhum recurso de gameplay foi migrado nesta etapa.
+- Nenhuma alteração foi feita na main do APP-2 ou no repositório anterior.

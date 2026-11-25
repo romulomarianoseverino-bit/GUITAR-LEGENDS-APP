@@ -14,6 +14,13 @@ enum class Instrument(
         description = "Solos rápidos, riffs marcantes e acordes vibrantes.",
         primaryLaneFocus = "Agudos e Médios (Notas rápidas e solos)"
     ),
+    ACOUSTIC_GUITAR(
+        displayName = "Violão Acústico",
+        subtitle = "Dedilhado & Acordes Folk",
+        iconName = "acoustic",
+        description = "Arpejos limpos, batidas acústicas encorpadas e solos melódicos de cordas de aço ou nylon.",
+        primaryLaneFocus = "Médios acústicos, arpejos e acordes dedilhados"
+    ),
     BASS(
         displayName = "Baixo Groove",
         subtitle = "Fundação de Graves",
@@ -136,4 +143,39 @@ data class Track(
 ) {
     val effectiveBpm: Double
         get() = manualBpmOverride?.takeIf { it in 40.0..260.0 } ?: bpm.coerceIn(40.0, 260.0)
+}
+
+data class Playlist(
+    val id: String,
+    val name: String,
+    val trackIds: List<String> = emptyList(),
+    val updatedAtMs: Long = System.currentTimeMillis()
+)
+
+object MatchRewardCalculator {
+    const val MATCH_REWARD_CAP = 50
+    const val WEEKLY_REWARD_CAP = 100
+
+    fun calculateMatchCoins(
+        accuracyPercent: Float,
+        difficulty: Difficulty,
+        durationMs: Long,
+        failed: Boolean = false
+    ): Int {
+        if (failed) return 0
+        val accuracy = accuracyPercent.toDouble().coerceIn(0.0, 100.0)
+        val clampedDurationMs = durationMs.coerceAtLeast(30_000L).toDouble()
+        val durationMinutes = (clampedDurationMs / 60_000.0).coerceIn(0.5, 6.0)
+        val factor = when (difficulty) {
+            Difficulty.EASY -> 0.75
+            Difficulty.MEDIUM -> 0.9
+            Difficulty.HARD -> 1.05
+            Difficulty.EXPERT -> 1.2
+        }
+        val accuracyFactor = 0.25 + (accuracy / 100.0) * 0.75
+        val durationBase = 4.0 + durationMinutes * 5.5
+        return kotlin.math.floor(durationBase * factor * accuracyFactor * 1.13)
+            .toInt()
+            .coerceIn(0, MATCH_REWARD_CAP)
+    }
 }

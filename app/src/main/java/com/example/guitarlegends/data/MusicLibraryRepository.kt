@@ -7,8 +7,11 @@ import com.example.guitarlegends.analysis.AudioAnalyzer
 import com.example.guitarlegends.analysis.PcmAudioAnalyzer
 import com.example.guitarlegends.model.AudioClassification
 import com.example.guitarlegends.model.BpmConfidence
+import com.example.guitarlegends.model.Playlist
 import com.example.guitarlegends.model.Track
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,7 +26,16 @@ import java.util.UUID
  * - Analisa áudio real via PcmAudioAnalyzer (RMS + transientes + BPM).
  * - Grava o manifesto com substituição atômica por arquivo temporário e propagação real de falhas.
  */
+sealed class PlaylistAddResult {
+    data class Added(val playlist: Playlist) : PlaylistAddResult()
+    data class DuplicateTrack(val playlistName: String, val trackId: String) : PlaylistAddResult()
+    data object PlaylistNotFound : PlaylistAddResult()
+    data class SaveFailed(val message: String) : PlaylistAddResult()
+}
+
 class MusicLibraryRepository(private val context: Context) {
+
+    private val playlistsMutex = Mutex()
 
     private val storageDir: File by lazy {
         File(context.filesDir, "imported_audio").apply {
@@ -33,6 +45,10 @@ class MusicLibraryRepository(private val context: Context) {
 
     private val manifestFile: File by lazy {
         File(context.filesDir, "library_manifest.json")
+    }
+
+    private val playlistsFile: File by lazy {
+        File(context.filesDir, "playlists.json")
     }
 
     private val allowedExtensions = setOf("mp3", "wav", "ogg", "m4a", "aac", "flac")
@@ -223,9 +239,149 @@ class MusicLibraryRepository(private val context: Context) {
                 }
             }
 
+            // Limpa referências órfãs da faixa removida em todas as playlists locais
+            playlistsMutex.withLock {
+                val currentPlaylists = loadPlaylistsInternal()
+                val cleanedPlaylists = currentPlaylists.map { pl ->
+                    pl.copy(trackIds = pl.trackIds.filterNot { it == track.id })
+                }
+                if (cleanedPlaylists != currentPlaylists) {
+                    savePlaylistsInternal(cleanedPlaylists)
+                }
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception("Erro ao remover música da biblioteca: ${e.message}"))
+        }
+    }
+
+    suspend fun loadPlaylists(): List<Playlist> = withContext(Dispatchers.IO) {
+        playlistsMutex.withLock {
+            loadPlaylistsInternal()
+        }
+    }
+
+    suspend fun savePlaylists(playlists: List<Playlist>): Result<Unit> = withContext(Dispatchers.IO) {
+        playlistsMutex.withLock {
+            savePlaylistsInternal(playlists)
+        }
+    }
+
+    suspend fun addTrackToPlaylist(playlistId: String, trackId: String): PlaylistAddResult =
+        withContext(Dispatchers.IO) {
+            playlistsMutex.withLock {
+                val current = loadPlaylistsInternal()
+                val target = current.find { it.id == playlistId }
+                    ?: return@withLock PlaylistAddResult.PlaylistNotFound
+                if (target.trackIds.contains(trackId)) {
+                    return@withLock PlaylistAddResult.DuplicateTrack(
+                        playlistName = target.name,
+                        trackId = trackId
+                    )
+                }
+                val updatedPlaylist = target.copy(
+                    trackIds = target.trackIds + trackId,
+                    updatedAtMs = System.currentTimeMillis()
+                )
+                val updatedList = current.map { pl ->
+                    if (pl.id == playlistId) updatedPlaylist else pl
+                }
+                val saveRes = savePlaylistsInternal(updatedList)
+                if (saveRes.isFailure) {
+                    PlaylistAddResult.SaveFailed(
+                        saveRes.exceptionOrNull()?.message ?: "Falha ao salvar playlist."
+                    )
+                } else {
+                    PlaylistAddResult.Added(updatedPlaylist)
+                }
+            }
+        }
+
+    suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): Result<List<Playlist>> =
+        withContext(Dispatchers.IO) {
+            playlistsMutex.withLock {
+                val current = loadPlaylistsInternal()
+                val updated = current.map { pl ->
+                    if (pl.id == playlistId) {
+                        pl.copy(
+                            trackIds = pl.trackIds.filterNot { it == trackId },
+                            updatedAtMs = System.currentTimeMillis()
+                        )
+                    } else {
+                        pl
+                    }
+                }
+                val saveRes = savePlaylistsInternal(updated)
+                if (saveRes.isFailure) {
+                    Result.failure(saveRes.exceptionOrNull() ?: Exception("Falha ao remover faixa da playlist."))
+                } else {
+                    Result.success(updated)
+                }
+            }
+        }
+
+    private fun loadPlaylistsInternal(): List<Playlist> {
+        if (!playlistsFile.exists()) return emptyList()
+        return try {
+            val array = JSONArray(playlistsFile.readText())
+            buildList {
+                for (i in 0 until array.length()) {
+                    val obj = array.optJSONObject(i) ?: continue
+                    val id = obj.optString("id", "").trim()
+                    val name = obj.optString("name", "").trim()
+                    if (id.isBlank() || name.isBlank()) continue
+                    val trackArr = obj.optJSONArray("trackIds")
+                    val ids = buildList {
+                        if (trackArr != null) {
+                            for (j in 0 until trackArr.length()) {
+                                val tid = trackArr.optString(j, "")
+                                if (tid.isNotBlank()) add(tid)
+                            }
+                        }
+                    }.distinct()
+                    add(
+                        Playlist(
+                            id = id,
+                            name = name,
+                            trackIds = ids,
+                            updatedAtMs = obj.optLong("updatedAtMs", System.currentTimeMillis())
+                        )
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun savePlaylistsInternal(playlists: List<Playlist>): Result<Unit> {
+        val tempFile = File(context.filesDir, "playlists.json.tmp")
+        return try {
+            val array = JSONArray()
+            for (pl in playlists) {
+                array.put(
+                    JSONObject().apply {
+                        put("id", pl.id)
+                        put("name", pl.name)
+                        put("trackIds", JSONArray(pl.trackIds.distinct()))
+                        put("updatedAtMs", pl.updatedAtMs)
+                    }
+                )
+            }
+            val payload = array.toString()
+            tempFile.writeText(payload)
+            if (playlistsFile.exists() && !playlistsFile.delete()) {
+                playlistsFile.writeText(payload)
+                tempFile.delete()
+            } else if (!tempFile.renameTo(playlistsFile)) {
+                playlistsFile.writeText(payload)
+                tempFile.delete()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            runCatching { tempFile.delete() }
+            Result.failure(Exception("Falha ao salvar playlists: ${e.message}"))
         }
     }
 

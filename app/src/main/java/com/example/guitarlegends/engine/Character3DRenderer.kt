@@ -168,13 +168,24 @@ fun drawRockerCharacter3D(
         drawScope.drawPath(sidePath, color = topColor.copy(alpha = 0.8f), style = Fill)
     }
 
+    val styleOutlineWidth = when (rocker.artStyle) {
+        CharacterArtStyle.CARTOON -> 3.4f
+        CharacterArtStyle.ANIME -> 2.3f
+        CharacterArtStyle.STYLIZED_REALISTIC -> 1.8f
+    }
+    val styleOutlineAlpha = when (rocker.artStyle) {
+        CharacterArtStyle.CARTOON -> 0.85f
+        CharacterArtStyle.ANIME -> 0.65f
+        CharacterArtStyle.STYLIZED_REALISTIC -> 0.35f
+    }
+
     val chestPts = if (facingFront) torsoFront else torsoBack
     val chestPath = Path().apply {
         chestPts.forEachIndexed { idx, off -> if (idx == 0) moveTo(off.x, off.y) else lineTo(off.x, off.y) }
         close()
     }
     drawScope.drawPath(chestPath, color = topColor, style = Fill)
-    drawScope.drawPath(chestPath, color = Color.Black.copy(alpha = 0.45f), style = Stroke(width = 2f))
+    drawScope.drawPath(chestPath, color = Color.Black.copy(alpha = styleOutlineAlpha), style = Stroke(width = styleOutlineWidth))
 
     // Detalhes da roupa conforme opção equipada
     if (facingFront) {
@@ -303,10 +314,27 @@ fun drawRockerCharacter3D(
 
     if (facingFront) drawHair()
 
-    val headR = scale * 0.17f
+    val headR = scale * when (rocker.artStyle) {
+        CharacterArtStyle.ANIME -> 0.185f
+        CharacterArtStyle.CARTOON -> 0.19f
+        CharacterArtStyle.STYLIZED_REALISTIC -> 0.17f
+    }
     val isGothicFace = rocker.bodyTattoos.contains("Gótica")
-    drawScope.drawCircle(color = if (isGothicFace) Color(0xFFECEAE6) else skinColor, radius = headR, center = headCenter)
-    drawScope.drawCircle(color = Color.Black.copy(alpha = 0.28f), radius = headR, center = headCenter, style = Stroke(width = 1.5f))
+    val faceFill = if (isGothicFace) Color(0xFFECEAE6) else skinColor
+    drawScope.drawCircle(color = faceFill, radius = headR, center = headCenter)
+    if (rocker.artStyle == CharacterArtStyle.CARTOON) {
+        drawScope.drawCircle(
+            color = Color.White.copy(alpha = 0.18f),
+            radius = headR * 0.72f,
+            center = Offset(headCenter.x - headR * 0.14f, headCenter.y - headR * 0.14f)
+        )
+    }
+    drawScope.drawCircle(
+        color = if (rocker.artStyle == CharacterArtStyle.ANIME && isStarPowerActive) Color(0xFF00E5FF) else Color.Black.copy(alpha = styleOutlineAlpha),
+        radius = headR,
+        center = headCenter,
+        style = Stroke(width = styleOutlineWidth)
+    )
 
     if (facingFront) {
         val eyeL = pt(-0.055f, headY - 0.02f, -0.15f)
@@ -343,8 +371,22 @@ fun drawRockerCharacter3D(
             )
             drawScope.drawLine(color = accColor, start = eyeL, end = eyeR, strokeWidth = 2.5f)
         } else {
-            drawScope.drawCircle(color = if (isGothicFace) Color.White else Color(0xFF18141E), radius = headR * 0.12f, center = eyeL)
-            drawScope.drawCircle(color = if (isGothicFace) Color.White else Color(0xFF18141E), radius = headR * 0.12f, center = eyeR)
+            val irisRadius = when (rocker.artStyle) {
+                CharacterArtStyle.ANIME -> headR * 0.17f
+                CharacterArtStyle.CARTOON -> headR * 0.15f
+                CharacterArtStyle.STYLIZED_REALISTIC -> headR * 0.12f
+            }
+            val irisColor = if (isGothicFace) Color.White else if (rocker.artStyle == CharacterArtStyle.ANIME) accColor else Color(0xFF18141E)
+            if (rocker.artStyle == CharacterArtStyle.ANIME) {
+                drawScope.drawCircle(color = Color.White, radius = irisRadius * 1.25f, center = eyeL)
+                drawScope.drawCircle(color = Color.White, radius = irisRadius * 1.25f, center = eyeR)
+            }
+            drawScope.drawCircle(color = irisColor, radius = irisRadius, center = eyeL)
+            drawScope.drawCircle(color = irisColor, radius = irisRadius, center = eyeR)
+            if (rocker.artStyle != CharacterArtStyle.STYLIZED_REALISTIC) {
+                drawScope.drawCircle(color = Color.White, radius = irisRadius * 0.38f, center = Offset(eyeL.x - irisRadius * 0.3f, eyeL.y - irisRadius * 0.3f))
+                drawScope.drawCircle(color = Color.White, radius = irisRadius * 0.38f, center = Offset(eyeR.x - irisRadius * 0.3f, eyeR.y - irisRadius * 0.3f))
+            }
         }
 
         // Expressão facial viva
@@ -382,13 +424,14 @@ fun drawRockerCharacter3D(
     // 4. BRAÇOS E INSTRUMENTO CUSTOMIZADO EMPUNHADO EM 3D
     val activeInstConfig = when (instrument) {
         Instrument.GUITAR -> studio.guitarConfig
+        Instrument.ACOUSTIC_GUITAR -> studio.acousticConfig
         Instrument.BASS -> studio.bassConfig
         Instrument.DRUMS -> studio.drumsConfig
         Instrument.VOCALS -> studio.vocalConfig
     }
 
     when (instrument) {
-        Instrument.GUITAR, Instrument.BASS -> {
+        Instrument.GUITAR, Instrument.ACOUSTIC_GUITAR, Instrument.BASS -> {
             val frettingHand = Vec3(-0.34f, shoulderY + 0.18f, -0.26f)
             val strummingHand = Vec3(0.14f, hipY - 0.12f + strumSwing, -0.26f)
             drawArm(-1f, frettingHand)

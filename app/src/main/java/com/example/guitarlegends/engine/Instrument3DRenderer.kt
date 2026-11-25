@@ -349,7 +349,198 @@ fun drawInstrument3D(
                 }
 
                 // Adesivo personalizado
+                drawInstrumentStamp(drawScope, config.stampId, centerX, centerY, scale, yawDeg, pitchDeg, hardware, primary)
                 drawInstrumentSticker(drawScope, config.stickerId, centerX, centerY, scale, yawDeg, pitchDeg, -thickness - 0.025f)
+            }
+        }
+
+        Instrument.ACOUSTIC_GUITAR -> {
+            // Violão Acústico 3D (Dreadnought / Clássico Nylon / Eletro-Acústico Cutaway)
+            val isCutaway = config.modelStyleId == "violao_eletro_cutaway" || config.modelStyleId == "acoustic_cutaway"
+            val isNylon = config.modelStyleId == "violao_nylon_classico" || config.modelStyleId == "acoustic_classic_nylon"
+            val outline = if (isCutaway) {
+                listOf(
+                    Vec3(-0.18f, -0.02f, 0f),
+                    Vec3(0.08f, -0.04f, 0f),
+                    Vec3(0.16f, 0.14f, 0f),
+                    Vec3(0.32f, 0.06f, 0f),
+                    Vec3(0.42f, 0.22f, 0f),
+                    Vec3(0.29f, 0.36f, 0f),
+                    Vec3(0.46f, 0.60f, 0f),
+                    Vec3(0.24f, 0.77f, 0f),
+                    Vec3(-0.24f, 0.77f, 0f),
+                    Vec3(-0.46f, 0.60f, 0f),
+                    Vec3(-0.29f, 0.36f, 0f),
+                    Vec3(-0.40f, 0.16f, 0f)
+                )
+            } else {
+                listOf(
+                    Vec3(-0.22f, -0.02f, 0f),
+                    Vec3(0.22f, -0.02f, 0f),
+                    Vec3(0.40f, 0.16f, 0f),
+                    Vec3(0.29f, 0.36f, 0f),
+                    Vec3(0.46f, 0.60f, 0f),
+                    Vec3(0.24f, 0.77f, 0f),
+                    Vec3(-0.24f, 0.77f, 0f),
+                    Vec3(-0.46f, 0.60f, 0f),
+                    Vec3(-0.29f, 0.36f, 0f),
+                    Vec3(-0.40f, 0.16f, 0f)
+                )
+            }
+
+            val thickness = 0.17f
+            val frontPts = outline.map { projectVec3(it.copy(z = -thickness), yawDeg, pitchDeg, centerX, centerY, scale).first }
+            val backPts = outline.map { projectVec3(it.copy(z = thickness), yawDeg, pitchDeg, centerX, centerY, scale).first }
+
+            for (i in outline.indices) {
+                val next = (i + 1) % outline.size
+                val sidePath = Path().apply {
+                    moveTo(frontPts[i].x, frontPts[i].y)
+                    lineTo(frontPts[next].x, frontPts[next].y)
+                    lineTo(backPts[next].x, backPts[next].y)
+                    lineTo(backPts[i].x, backPts[i].y)
+                    close()
+                }
+                drawScope.drawPath(sidePath, color = secondary.copy(alpha = 0.94f), style = Fill)
+                drawScope.drawPath(sidePath, color = Color(0xFF2B1810).copy(alpha = 0.45f), style = Stroke(width = 1.2f))
+            }
+
+            val mainFacePts = if (facingFront) frontPts else backPts
+            val bodyPath = Path().apply {
+                mainFacePts.forEachIndexed { idx, offset ->
+                    if (idx == 0) moveTo(offset.x, offset.y) else lineTo(offset.x, offset.y)
+                }
+                close()
+            }
+            val topBrush = Brush.radialGradient(
+                colors = listOf(primary, secondary),
+                center = projectVec3(Vec3(0f, 0.32f, 0f), yawDeg, pitchDeg, centerX, centerY, scale).first,
+                radius = scale * 0.78f
+            )
+            if (facingFront) {
+                drawScope.drawPath(bodyPath, brush = topBrush, style = Fill)
+            } else {
+                drawScope.drawPath(bodyPath, color = secondary, style = Fill)
+                val centerStripTop = projectVec3(Vec3(0f, 0.02f, thickness + 0.01f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                val centerStripBot = projectVec3(Vec3(0f, 0.73f, thickness + 0.01f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                drawScope.drawLine(color = hardware.copy(alpha = 0.55f), start = centerStripTop, end = centerStripBot, strokeWidth = 3f)
+            }
+            drawScope.drawPath(bodyPath, color = hardware.copy(alpha = 0.7f), style = Stroke(width = 2.4f))
+
+            // Braço de mogno + Escala
+            val neckW = if (isNylon) 0.082f else 0.072f
+            val neckLength = -1.04f
+            val nFront = listOf(
+                Vec3(-neckW, neckLength, -thickness * 0.65f),
+                Vec3(neckW, neckLength, -thickness * 0.65f),
+                Vec3(neckW, 0.05f, -thickness * 0.65f),
+                Vec3(-neckW, 0.05f, -thickness * 0.65f)
+            ).map { projectVec3(it, yawDeg, pitchDeg, centerX, centerY, scale).first }
+            val nBack = listOf(
+                Vec3(-neckW, neckLength, thickness * 0.4f),
+                Vec3(neckW, neckLength, thickness * 0.4f),
+                Vec3(neckW, 0.05f, thickness * 0.4f),
+                Vec3(-neckW, 0.05f, thickness * 0.4f)
+            ).map { projectVec3(it, yawDeg, pitchDeg, centerX, centerY, scale).first }
+            val neckPath = Path().apply {
+                val pts = if (facingFront) nFront else nBack
+                pts.forEachIndexed { i, pt -> if (i == 0) moveTo(pt.x, pt.y) else lineTo(pt.x, pt.y) }
+                close()
+            }
+            drawScope.drawPath(neckPath, color = if (facingFront) Color(0xFF2B1B17) else secondary, style = Fill)
+
+            // Headstock clássico simétrico com tarraxas dos dois lados
+            val headPts = listOf(
+                Vec3(-neckW * 1.35f, neckLength, -thickness * 0.6f),
+                Vec3(neckW * 1.35f, neckLength, -thickness * 0.6f),
+                Vec3(neckW * 1.25f, neckLength - 0.30f, -thickness * 0.6f),
+                Vec3(-neckW * 1.25f, neckLength - 0.30f, -thickness * 0.6f)
+            ).map { projectVec3(it, yawDeg, pitchDeg, centerX, centerY, scale).first }
+            val headPath = Path().apply {
+                headPts.forEachIndexed { i, pt -> if (i == 0) moveTo(pt.x, pt.y) else lineTo(pt.x, pt.y) }
+                close()
+            }
+            drawScope.drawPath(headPath, color = secondary, style = Fill)
+            drawScope.drawPath(headPath, color = Color.Black.copy(alpha = 0.5f), style = Stroke(width = 1.6f))
+
+            if (facingFront) {
+                drawInstrumentStamp(drawScope, config.stampId, centerX, centerY, scale, yawDeg, pitchDeg, hardware, primary)
+
+                // Boca circular + Roseta dupla ornamentada
+                val holeCenter = projectVec3(Vec3(0f, 0.22f, -thickness - 0.01f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                val holeRadius = scale * 0.155f
+                drawScope.drawCircle(color = Color(0xFF140B08), radius = holeRadius, center = holeCenter)
+                drawScope.drawCircle(color = hardware.copy(alpha = 0.85f), radius = holeRadius * 1.18f, center = holeCenter, style = Stroke(width = 3.2f))
+                drawScope.drawCircle(color = Color(0xFFFFE0B2).copy(alpha = 0.65f), radius = holeRadius * 1.07f, center = holeCenter, style = Stroke(width = 1.4f))
+
+                // Escudo gota folk / eletroacústico
+                if (!isNylon) {
+                    val pgPts = listOf(
+                        Vec3(0.11f, 0.17f, -thickness - 0.008f),
+                        Vec3(0.26f, 0.22f, -thickness - 0.008f),
+                        Vec3(0.28f, 0.42f, -thickness - 0.008f),
+                        Vec3(0.12f, 0.44f, -thickness - 0.008f)
+                    ).map { projectVec3(it, yawDeg, pitchDeg, centerX, centerY, scale).first }
+                    val pgPath = Path().apply {
+                        pgPts.forEachIndexed { idx, off -> if (idx == 0) moveTo(off.x, off.y) else lineTo(off.x, off.y) }
+                        close()
+                    }
+                    drawScope.drawPath(pgPath, color = Color(0xFF3E1C14).copy(alpha = 0.88f), style = Fill)
+                }
+
+                // Pré-amplificador lateral no Eletro-Acústico Cutaway
+                if (isCutaway) {
+                    val eqTL = projectVec3(Vec3(-0.37f, 0.14f, -thickness * 0.4f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawRect(
+                        color = Color(0xFF121218),
+                        topLeft = Offset(eqTL.x - 5f, eqTL.y - 9f),
+                        size = Size(10f, 18f)
+                    )
+                    drawScope.drawCircle(color = Color(0xFF00E5FF), radius = 2.5f, center = eqTL)
+                }
+
+                // Ponte de madeira com rastilho + pinos
+                val brL = projectVec3(Vec3(-0.16f, 0.50f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                val brR = projectVec3(Vec3(0.16f, 0.50f, -thickness - 0.012f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                drawScope.drawLine(color = Color(0xFF2B1610), start = brL, end = brR, strokeWidth = (scale * 0.075f).coerceAtLeast(6f))
+                drawScope.drawLine(color = Color(0xFFF5EFE6), start = brL, end = brR, strokeWidth = 2f)
+
+                // Trastes e marcações em ponto
+                val fretsCount = 12
+                val dotFrets = setOf(3, 5, 7, 9)
+                for (f in 1..fretsCount) {
+                    val fy = neckLength + (0.04f - neckLength) * (f / fretsCount.toFloat())
+                    val fL = projectVec3(Vec3(-neckW, fy, -thickness * 0.67f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    val fR = projectVec3(Vec3(neckW, fy, -thickness * 0.67f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawLine(color = hardware.copy(alpha = 0.72f), start = fL, end = fR, strokeWidth = 1.4f)
+                    if (f in dotFrets) {
+                        val fyMid = neckLength + (0.04f - neckLength) * ((f - 0.5f) / fretsCount.toFloat())
+                        val dotPt = projectVec3(Vec3(0f, fyMid, -thickness * 0.68f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                        drawScope.drawCircle(color = Color(0xFFFFF8E1), radius = (scale * 0.016f).coerceAtLeast(1.8f), center = dotPt)
+                    }
+                }
+
+                // 6 cordas (bronze ou nylon)
+                val stringColor = if (isNylon) Color(0xFFEEE8D5) else Color(0xFFD4A359)
+                for (s in 0 until 6) {
+                    val frac = (s + 0.5f) / 6f - 0.5f
+                    val topS = projectVec3(Vec3(frac * neckW * 1.55f, neckLength, -thickness * 0.70f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    val botS = projectVec3(Vec3(frac * neckW * 2.0f, 0.50f, -thickness - 0.015f), yawDeg, pitchDeg, centerX, centerY, scale).first
+                    drawScope.drawLine(color = stringColor, start = topS, end = botS, strokeWidth = 1.25f)
+                }
+
+                // Tarraxas 3+3
+                for (side in listOf(-1f, 1f)) {
+                    for (t in 0 until 3) {
+                        val pegPt = projectVec3(
+                            Vec3(side * neckW * 1.45f, neckLength - 0.07f - t * 0.08f, -thickness * 0.6f),
+                            yawDeg, pitchDeg, centerX, centerY, scale
+                        ).first
+                        drawScope.drawCircle(color = hardware, radius = (scale * 0.022f).coerceAtLeast(2f), center = pegPt)
+                    }
+                }
+
+                drawInstrumentSticker(drawScope, config.stickerId, centerX, centerY, scale, yawDeg, pitchDeg, -thickness - 0.024f)
             }
         }
 

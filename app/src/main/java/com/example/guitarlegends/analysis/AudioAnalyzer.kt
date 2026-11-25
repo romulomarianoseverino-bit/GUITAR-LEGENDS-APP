@@ -130,7 +130,7 @@ object AudioAnalyzer {
             )
             val isStarPower = (alignedTime % 28_000L) in 0L..4_000L
             val nextGap = minSpacingMs * 2
-            val isSustain = (instrument == Instrument.VOCALS || instrument == Instrument.GUITAR) &&
+            val isSustain = (instrument == Instrument.VOCALS || instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR) &&
                 phraseStep % 7 == 0 && alignedTime + nextGap < maxAllowedTime
             val durationMs = if (isSustain) (beatIntervalMs * 1.1).toLong() else 0L
 
@@ -146,7 +146,7 @@ object AudioAnalyzer {
 
             // Acordes musicais ocasionais no Difícil/Especialista em cabeças de compasso
             if ((difficulty == Difficulty.HARD || difficulty == Difficulty.EXPERT) &&
-                instrument == Instrument.GUITAR &&
+                (instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR) &&
                 phraseStep % 8 == 0 &&
                 lanesCount >= 3
             ) {
@@ -223,7 +223,7 @@ object AudioAnalyzer {
 
             if (shouldSpawn) {
                 val lane = selectMusicalLane(instrument, lanesCount, stepIndex + section, energy)
-                val isSustain = (instrument == Instrument.GUITAR || instrument == Instrument.VOCALS) &&
+                val isSustain = (instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR || instrument == Instrument.VOCALS) &&
                     barStep == 0 && (currentTimeMs + beatIntervalMs < maxAllowedTime)
                 val duration = if (isSustain) (beatIntervalMs * 1.25).toLong() else 0L
                 val isStarPower = (currentTimeMs % 28_000L) in 0L..4_000L
@@ -239,7 +239,7 @@ object AudioAnalyzer {
                 )
 
                 if ((difficulty == Difficulty.HARD || difficulty == Difficulty.EXPERT) &&
-                    instrument == Instrument.GUITAR &&
+                    (instrument == Instrument.GUITAR || instrument == Instrument.ACOUSTIC_GUITAR) &&
                     barStep % 8 == 0 &&
                     lanesCount >= 3
                 ) {
@@ -277,6 +277,10 @@ object AudioAnalyzer {
                 val pattern = intArrayOf(0, 1, 2, 1, 3, 2, 4, 2)
                 val raw = pattern[phraseStep % pattern.size]
                 if (energy > 0.8 && raw + 1 < safeLanes && phraseStep % 3 == 0) raw + 1 else raw % safeLanes
+            }
+            Instrument.ACOUSTIC_GUITAR -> {
+                val fingerstyle = intArrayOf(0, 2, 1, 3, 2, 4, 3, 1)
+                fingerstyle[phraseStep % fingerstyle.size] % safeLanes
             }
             Instrument.BASS -> {
                 val bassMax = minOf(safeLanes, 3)

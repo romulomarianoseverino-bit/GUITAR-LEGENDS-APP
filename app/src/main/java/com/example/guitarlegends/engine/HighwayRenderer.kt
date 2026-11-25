@@ -89,11 +89,93 @@ class ParticleSystem {
     }
 }
 
+data class HighwayLayoutGeometry(
+    val canvasWidth: Float,
+    val canvasHeight: Float,
+    val numLanes: Int,
+    val centerX: Float,
+    val horizonY: Float,
+    val strikeY: Float,
+    val topWidth: Float,
+    val bottomWidth: Float,
+    val highwayBottomY: Float,
+    val receptorRx: Float,
+    val receptorRy: Float
+) {
+    val topHalfW: Float get() = topWidth * 0.5f
+    val bottomHalfW: Float get() = bottomWidth * 0.5f
+    val laneWidthAtStrike: Float get() = bottomWidth / numLanes.coerceAtLeast(1)
+
+    fun pointAt(lane: Int, depth01: Float): Offset {
+        val curvedT = depth01.coerceIn(0f, 1.15f).toDouble().pow(1.65).toFloat()
+        val currentY = horizonY + (strikeY - horizonY) * curvedT
+        val currentWidth = topWidth + (bottomWidth - topWidth) * curvedT
+        val startX = centerX - currentWidth * 0.5f
+        val laneWidth = currentWidth / numLanes.coerceAtLeast(1)
+        val laneCenterX = startX + laneWidth * (lane + 0.5f)
+        return Offset(laneCenterX, currentY)
+    }
+
+    fun laneCenterXAtStrike(lane: Int): Float =
+        (centerX - bottomHalfW) + laneWidthAtStrike * (lane + 0.5f)
+
+    fun laneDividerTopX(dividerIndex: Int): Float =
+        (centerX - topHalfW) + (topWidth / numLanes.coerceAtLeast(1)) * dividerIndex
+
+    fun laneDividerBottomX(dividerIndex: Int): Float =
+        (centerX - bottomHalfW) + laneWidthAtStrike * dividerIndex
+}
+
+fun computeHighwayGeometry(
+    canvasWidth: Float,
+    canvasHeight: Float,
+    numLanes: Int
+): HighwayLayoutGeometry {
+    val safeW = canvasWidth.coerceAtLeast(1f)
+    val safeH = canvasHeight.coerceAtLeast(1f)
+    val safeLanes = numLanes.coerceIn(1, 5)
+    val isPortrait = safeH > safeW
+
+    val centerX = safeW * 0.50f
+    val horizonY = if (isPortrait) safeH * 0.22f else safeH * 0.14f
+    val strikeY = if (isPortrait) safeH * 0.84f else safeH * 0.82f
+
+    val bottomWidth = if (isPortrait) {
+        (safeW * 0.86f).coerceIn(safeW * 0.72f, safeW * 0.92f)
+    } else {
+        (safeW * 0.37f).coerceIn(safeW * 0.33f, safeW * 0.42f)
+    }
+    val topWidth = if (isPortrait) {
+        bottomWidth * 0.42f
+    } else {
+        (safeW * 0.155f).coerceIn(bottomWidth * 0.38f, bottomWidth * 0.48f)
+    }
+
+    val laneW = bottomWidth / safeLanes
+    val receptorRx = (laneW * 0.41f).coerceAtMost(safeH * 0.10f)
+    val receptorRy = receptorRx * 0.74f
+    val highwayBottomY = (strikeY + receptorRy * 1.45f).coerceAtMost(safeH - 4f)
+
+    return HighwayLayoutGeometry(
+        canvasWidth = safeW,
+        canvasHeight = safeH,
+        numLanes = safeLanes,
+        centerX = centerX,
+        horizonY = horizonY,
+        strikeY = strikeY,
+        topWidth = topWidth,
+        bottomWidth = bottomWidth,
+        highwayBottomY = highwayBottomY,
+        receptorRx = receptorRx,
+        receptorRy = receptorRy
+    )
+}
+
 /**
  * Renderizador de Palco 3D e Esteira de Notas Estilo Console Clássico Modernizado.
- * - Perspectiva fixa clássica centralizada e proporcional (não redimensionável).
+ * - Perspectiva fixa clássica centralizada e proporcional (sistema único de coordenadas).
  * - Cenários temáticos de show com banda completa (guitarrista customizado, baterista e baixista).
- * - Notas 3D chanfradas, notas estrela Star Power, trilhos com LEDs e chamas de impacto.
+ * - Notas 3D chanfradas, alvos únicos alinhados à strikeline, notas estrela Star Power e chamas de impacto.
  */
 fun drawHighway(
     drawScope: DrawScope,
@@ -114,9 +196,15 @@ fun drawHighway(
     overlayOpacity: Float = 0.55f
 ) {
     val numLanes = difficulty.lanesUsed
-    val horizonY = canvasHeight * 0.14f
-    val strikeY = canvasHeight * 0.82f
-    val centerX = canvasWidth * 0.50f
+    val geometry = computeHighwayGeometry(canvasWidth, canvasHeight, numLanes)
+    val horizonY = geometry.horizonY
+    val strikeY = geometry.strikeY
+    val centerX = geometry.centerX
+    val topWidth = geometry.topWidth
+    val bottomWidth = geometry.bottomWidth
+    val topHalfW = geometry.topHalfW
+    val bottomHalfW = geometry.bottomHalfW
+    val highwayBottomY = geometry.highwayBottomY
     val timeSec = currentTimeMs / 1000f
 
     // 1. DESENHO DO PALCO DE SHOW TEMÁTICO COM BANDA COMPLETA AO REDOR DA ESTEIRA
@@ -136,16 +224,10 @@ fun drawHighway(
     )
 
     // 2. ESTEIRA DE NOTAS CLÁSSICA COM PERSPECTIVA FIXA CENTRALIZADA
-    val topWidth = (canvasWidth * 0.19f).coerceIn(130f, 235f)
-    val bottomWidth = (canvasWidth * 0.46f).coerceIn(310f, 540f)
-
-    val topHalfW = topWidth * 0.5f
-    val bottomHalfW = bottomWidth * 0.5f
-
     val highwayTopLeft = Offset(centerX - topHalfW, horizonY)
     val highwayTopRight = Offset(centerX + topHalfW, horizonY)
-    val highwayBottomRight = Offset(centerX + bottomHalfW, strikeY + 40f)
-    val highwayBottomLeft = Offset(centerX - bottomHalfW, strikeY + 40f)
+    val highwayBottomRight = Offset(centerX + bottomHalfW, highwayBottomY)
+    val highwayBottomLeft = Offset(centerX - bottomHalfW, highwayBottomY)
 
     val highwayPath = Path().apply {
         moveTo(highwayTopLeft.x, highwayTopLeft.y)
@@ -165,13 +247,13 @@ fun drawHighway(
                 Color(0xFF00E5FF).copy(alpha = 0.90f)
             ),
             startY = horizonY,
-            endY = strikeY
+            endY = highwayBottomY
         )
     } else {
         Brush.verticalGradient(
             colors = themeColors,
             startY = horizonY,
-            endY = strikeY
+            endY = highwayBottomY
         )
     }
 
@@ -183,7 +265,7 @@ fun drawHighway(
             val destLeft = (centerX - bottomHalfW).toInt()
             val destTop = horizonY.toInt()
             val destW = bottomWidth.toInt().coerceAtLeast(1)
-            val destH = (strikeY + 40f - horizonY).toInt().coerceAtLeast(1)
+            val destH = (highwayBottomY - horizonY).toInt().coerceAtLeast(1)
             drawImage(
                 image = highwayOverlayBitmap,
                 srcOffset = IntOffset.Zero,
@@ -197,6 +279,33 @@ fun drawHighway(
                 color = Color.Black.copy(alpha = 0.28f),
                 topLeft = Offset(destLeft.toFloat(), destTop.toFloat()),
                 size = Size(destW.toFloat(), destH.toFloat())
+            )
+        }
+    }
+
+    // Revestimento da pista: micro-riscos de aço escovado e divisões de traste em perspectiva
+    drawScope.clipPath(highwayPath) {
+        for (grain in 0..22) {
+            val frac = grain / 22f
+            val x = centerX - bottomHalfW + frac * bottomWidth
+            val topX = centerX - topHalfW + frac * topWidth
+            drawLine(
+                color = Color.White.copy(alpha = if (grain % 2 == 0) 0.035f else 0.018f),
+                start = Offset(topX, horizonY + 3f),
+                end = Offset(x, highwayBottomY - 2f),
+                strokeWidth = 1f
+            )
+        }
+        for (fret in 1..5) {
+            val depth = fret / 6f
+            val curved = depth.toDouble().pow(1.65).toFloat()
+            val fy = horizonY + (strikeY - horizonY) * curved
+            val fw = topWidth + (bottomWidth - topWidth) * curved
+            drawLine(
+                color = Color(0xFF8C8794).copy(alpha = 0.22f),
+                start = Offset(centerX - fw * 0.5f, fy),
+                end = Offset(centerX + fw * 0.5f, fy),
+                strokeWidth = 2.0f + curved * 2.2f
             )
         }
     }
@@ -222,36 +331,26 @@ fun drawHighway(
         drawScope.drawCircle(color = ledColor, radius = ledR, center = Offset(centerX + halfW, ly))
     }
 
-    fun get3dPosition(lane: Int, depth01: Float): Offset {
-        val curvedT = depth01.coerceIn(0f, 1.15f).toDouble().pow(1.65).toFloat()
-        val currentY = horizonY + (strikeY - horizonY) * curvedT
-        val currentWidth = topWidth + (bottomWidth - topWidth) * curvedT
-        val startX = centerX - currentWidth * 0.5f
-        val laneWidth = currentWidth / numLanes
-        val laneCenterX = startX + laneWidth * (lane + 0.5f)
-        return Offset(laneCenterX, currentY)
-    }
-
-    // Cordas metálicas enroladas ao longo de cada pista + divisórias
+    // Cordas metálicas enroladas ao longo de cada pista + divisórias alinhadas à strikeline
     for (lane in 0 until numLanes) {
         val topFrac = (lane + 0.5f) / numLanes
         val topStrX = (centerX - topHalfW) + topWidth * topFrac
-        val botStrX = (centerX - bottomHalfW) + bottomWidth * topFrac
+        val botStrX = geometry.laneCenterXAtStrike(lane)
         drawScope.drawLine(
             color = Color(0xFFB8C0CC).copy(alpha = 0.34f),
             start = Offset(topStrX, horizonY),
-            end = Offset(botStrX, strikeY + 32f),
+            end = Offset(botStrX, highwayBottomY),
             strokeWidth = 2.0f
         )
     }
     for (i in 1 until numLanes) {
-        val topLaneX = (centerX - topHalfW) + (topWidth / numLanes) * i
-        val bottomLaneX = (centerX - bottomHalfW) + (bottomWidth / numLanes) * i
+        val topLaneX = geometry.laneDividerTopX(i)
+        val bottomLaneX = geometry.laneDividerBottomX(i)
         drawScope.drawLine(
-            color = Color.White.copy(alpha = 0.20f),
+            color = Color.White.copy(alpha = 0.22f),
             start = Offset(topLaneX, horizonY),
-            end = Offset(bottomLaneX, strikeY + 38f),
-            strokeWidth = 1.5f
+            end = Offset(bottomLaneX, highwayBottomY),
+            strokeWidth = 1.6f
         )
     }
 
@@ -276,7 +375,7 @@ fun drawHighway(
         }
     }
 
-    // Barra metálica da Zona de Impacto (Strikeline)
+    // Barra metálica da Zona de Impacto (Strikeline) conectando os alvos
     val strikeLineColor = if (isStarPowerActive) Color(0xFF80D8FF) else Color(0xFFD6DAE2)
     drawScope.drawLine(
         color = strikeLineColor.copy(alpha = 0.85f),
@@ -285,50 +384,69 @@ fun drawHighway(
         strokeWidth = 4.0f
     )
 
-    // Alvos de Traste 3D Chanfrados (Target Rings estilo console PS2) + Chamas ao pressionar
+    // Alvos de Traste 3D Chanfrados ÚNICOS (Target Rings estilo PS2 diretamente na base das pistas)
     for (lane in 0 until numLanes) {
-        val targetPos = get3dPosition(lane, 1.0f)
+        val targetPos = geometry.pointAt(lane, 1.0f)
         val color = if (isStarPowerActive) Color(0xFF00E5FF) else LaneColors[lane]
         val isPressed = activeFretLanes.contains(lane)
-        val rx = (bottomWidth / numLanes) * 0.38f
-        val ry = rx * 0.62f
+        val rx = geometry.receptorRx
+        val ry = geometry.receptorRy
 
         // Base escura do anel receptor
         drawScope.drawOval(
-            color = Color(0xFF0E0B14),
-            topLeft = Offset(targetPos.x - rx * 1.10f, targetPos.y - ry * 1.05f + 3f),
-            size = Size(rx * 2.20f, ry * 2.10f)
+            color = Color(0xFF0C0912),
+            topLeft = Offset(targetPos.x - rx * 1.12f, targetPos.y - ry * 1.04f + 3f),
+            size = Size(rx * 2.24f, ry * 2.12f)
         )
 
         if (isPressed) {
             // Brilho e chama estilizada ao segurar/acertar o traste
             drawScope.drawOval(
-                color = color.copy(alpha = 0.55f),
+                color = color.copy(alpha = 0.58f),
                 topLeft = Offset(targetPos.x - rx * 1.38f, targetPos.y - ry * 1.38f),
                 size = Size(rx * 2.76f, ry * 2.76f)
             )
             drawFretFlameBurst(drawScope, targetPos, rx, color, timeSec + lane)
         }
 
-        // Anel colorido chanfrado
+        // Aro externo metálico prateado (estilo PS2 clássico)
         drawScope.drawOval(
-            color = if (isPressed) Color.White else color,
+            brush = Brush.linearGradient(
+                colors = listOf(Color(0xFFF3F4F6), Color(0xFF8E929B), Color(0xFF1F1D24)),
+                start = Offset(targetPos.x - rx, targetPos.y - ry),
+                end = Offset(targetPos.x + rx, targetPos.y + ry)
+            ),
             topLeft = Offset(targetPos.x - rx, targetPos.y - ry),
             size = Size(rx * 2f, ry * 2f),
-            style = Stroke(width = if (isPressed) 7.5f else 5.2f)
+            style = Stroke(width = (rx * 0.22f).coerceAtLeast(3.5f))
         )
-        // Borda cromada interna
+
+        // Poço colorido interno com gradiente radial 3D
+        drawScope.drawOval(
+            brush = Brush.radialGradient(
+                colors = if (isPressed) {
+                    listOf(Color.White, color, Color(0xFF12101A))
+                } else {
+                    listOf(color.copy(alpha = 0.96f), color.copy(alpha = 0.68f), Color(0xFF14111B))
+                },
+                center = Offset(targetPos.x, targetPos.y),
+                radius = rx * 0.92f
+            ),
+            topLeft = Offset(targetPos.x - rx * 0.80f, targetPos.y - ry * 0.80f),
+            size = Size(rx * 1.60f, ry * 1.60f)
+        )
+
+        // Borda interna luminosa + centro afundado
         drawScope.drawOval(
             color = Color.White.copy(alpha = if (isPressed) 0.95f else 0.55f),
-            topLeft = Offset(targetPos.x - rx * 0.84f, targetPos.y - ry * 0.84f),
-            size = Size(rx * 1.68f, ry * 1.68f),
+            topLeft = Offset(targetPos.x - rx * 0.78f, targetPos.y - ry * 0.78f),
+            size = Size(rx * 1.56f, ry * 1.56f),
             style = Stroke(width = 1.6f)
         )
-        // Centro afundado
         drawScope.drawOval(
-            color = if (isPressed) color else Color(0xFF1A1622),
-            topLeft = Offset(targetPos.x - rx * 0.52f, targetPos.y - ry * 0.52f),
-            size = Size(rx * 1.04f, ry * 1.04f)
+            color = if (isPressed) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.35f),
+            topLeft = Offset(targetPos.x - rx * 0.22f, targetPos.y - ry * 0.34f),
+            size = Size(rx * 0.44f, ry * 0.34f)
         )
     }
 
@@ -341,14 +459,14 @@ fun drawHighway(
         if (timeUntilHit in -250L..lookAheadMs) {
             val depth = (1.0f - (timeUntilHit.toFloat() / lookAheadMs.toFloat())).coerceIn(0f, 1.15f)
             val curved = depth.toDouble().pow(1.65).toFloat()
-            val notePos = get3dPosition(note.lane, depth)
+            val notePos = geometry.pointAt(note.lane, depth)
             val laneW = (topWidth + (bottomWidth - topWidth) * curved) / numLanes
-            val rx = (laneW * 0.37f).coerceIn(7f, 40f)
-            val ry = rx * 0.64f
+            val rx = (laneW * 0.35f).coerceIn(6f, geometry.receptorRx * 0.92f)
+            val ry = rx * 0.70f
 
             if (note.durationMs > 50L) {
                 val tailEndDepth = (1.0f - ((timeUntilHit + note.durationMs).toFloat() / lookAheadMs.toFloat())).coerceIn(0f, 1.15f)
-                val tailEndPos = get3dPosition(note.lane, tailEndDepth)
+                val tailEndPos = geometry.pointAt(note.lane, tailEndDepth)
                 val sustainColor = if (note.isStarPower || isStarPowerActive) Color(0xFF00E5FF) else LaneColors[note.lane]
 
                 // Aura externa + núcleo brilhante da cauda sustain
@@ -382,20 +500,24 @@ fun drawHighway(
                     topLeft = Offset(notePos.x - rx * 1.06f, notePos.y - ry * 0.95f + 4f),
                     size = Size(rx * 2.12f, ry * 2.04f)
                 )
-                // Anel colorido principal
+                // Anel colorido principal com brilho 3D chanfrado
                 drawScope.drawOval(
-                    color = gemColor,
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.96f), gemColor, Color(0xFF101018)),
+                        center = Offset(notePos.x - rx * 0.24f, notePos.y - ry * 0.34f),
+                        radius = rx * 1.65f
+                    ),
                     topLeft = Offset(notePos.x - rx, notePos.y - ry),
                     size = Size(rx * 2f, ry * 2f)
                 )
                 // Borda cromada
                 drawScope.drawOval(
-                    color = Color.White.copy(alpha = 0.85f),
+                    color = Color.White.copy(alpha = 0.88f),
                     topLeft = Offset(notePos.x - rx, notePos.y - ry),
                     size = Size(rx * 2f, ry * 2f),
-                    style = Stroke(width = (rx * 0.12f).coerceAtLeast(1.8f))
+                    style = Stroke(width = (rx * 0.13f).coerceAtLeast(1.8f))
                 )
-                // Domo interno preto + ponto branco superior clássico
+                // Domo interno escuro + núcleo branco superior clássico
                 drawScope.drawOval(
                     color = Color(0xFF17131E),
                     topLeft = Offset(notePos.x - rx * 0.56f, notePos.y - ry * 0.54f),
@@ -728,19 +850,52 @@ private fun drawStageEnvironment(
         combo = combo
     )
 
-    // 5. Silhueta da Plateia Vibrante na Base do Palco
+    // 5. Silhueta da Plateia Reativa na Base do Palco (vibra no Star Power / combo, retrai em risco de vaia)
+    val highEnergy = isStarPower || combo >= 20 || rockMeter > 0.72f
+    val crowdDanger = rockMeter < 0.30f
+    val crowdEdgeColor = when {
+        isStarPower -> Color(0x4400E5FF)
+        highEnergy -> Color(0x33FFD54F)
+        crowdDanger -> Color(0x44FF1744)
+        else -> Color.Transparent
+    }
+    if (crowdEdgeColor != Color.Transparent) {
+        drawScope.drawRect(
+            brush = Brush.verticalGradient(listOf(Color.Transparent, crowdEdgeColor)),
+            topLeft = Offset(0f, height - 72f),
+            size = Size(width, 72f)
+        )
+    }
+
     val crowdColor = Color(0xEE090510)
-    val crowdFreq = if (rockMeter > 0.7f) 7.5f else 5.0f
+    val crowdFreq = when {
+        isStarPower -> 10.5f
+        highEnergy -> 8.0f
+        crowdDanger -> 2.4f
+        else -> 5.0f
+    }
+    val crowdAmp = when {
+        isStarPower -> 14f
+        highEnergy -> 10f
+        crowdDanger -> 3f
+        else -> 7f
+    }
+    val armsOffset = when {
+        isStarPower -> 34f
+        highEnergy -> 26f
+        crowdDanger -> 10f
+        else -> 20f
+    }
     val crowdPath = Path().apply {
         moveTo(0f, height)
         for (cx in 0..(width.toInt()) step 34) {
-            val crowdBob = sin(timeSec * crowdFreq + cx * 0.08f) * 8f
-            val cy = height - 28f + crowdBob
+            val crowdBob = sin(timeSec * crowdFreq + cx * 0.08f) * crowdAmp
+            val cy = (if (crowdDanger) height - 18f else height - 28f) + crowdBob
             lineTo(cx.toFloat(), cy)
             if (cx % 68 == 0) {
-                lineTo(cx.toFloat() - 5f, cy - 24f)
-                lineTo(cx.toFloat() + 3f, cy - 18f)
-                lineTo(cx.toFloat() + 9f, cy - 26f)
+                lineTo(cx.toFloat() - 5f, cy - armsOffset)
+                lineTo(cx.toFloat() + 3f, cy - armsOffset * 0.72f)
+                lineTo(cx.toFloat() + 9f, cy - armsOffset * 1.06f)
             }
         }
         lineTo(width, height)

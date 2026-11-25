@@ -64,6 +64,7 @@ service cloud.firestore {
              data.email is string && data.email.size() <= 200 &&
              data.nickname is string && data.nickname.size() >= 3 && data.nickname.size() <= 24 &&
              data.nicknameNormalized is string && isValidNicknameKey(data.nicknameNormalized) &&
+             data.nickname.lower() == data.nicknameNormalized &&
              data.coins is int && data.coins >= 0 && data.coins <= 10000000 &&
              data.totalScore is int && data.totalScore >= 0 &&
              data.notesHitTotal is int && data.notesHitTotal >= 0 &&
@@ -97,9 +98,30 @@ service cloud.firestore {
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
-    function isValidNicknameClaim(data) {
+    function ownsClaimedNicknameAfter(data) {
+      return existsAfter(/databases/$(database)/documents/nicknames/$(data.nicknameNormalized)) &&
+             getAfter(/databases/$(database)/documents/nicknames/$(data.nicknameNormalized)).data.userId == request.auth.uid &&
+             getAfter(/databases/$(database)/documents/nicknames/$(data.nicknameNormalized)).data.nickname == data.nickname;
+    }
+
+    function isValidUserProgressTransition() {
+      return incoming().totalScore >= existing().totalScore &&
+             incoming().notesHitTotal >= existing().notesHitTotal &&
+             incoming().maxStreakOverall >= existing().maxStreakOverall &&
+             incoming().songsCompleted >= existing().songsCompleted &&
+             incoming().unlockedStars >= existing().unlockedStars &&
+             incoming().competitiveWins >= existing().competitiveWins &&
+             incoming().competitiveMatches >= existing().competitiveMatches &&
+             incoming().careerStageMax >= existing().careerStageMax &&
+             incoming().unlockedCosmetics.hasAll(existing().unlockedCosmetics) &&
+             incoming().achievementsUnlocked.hasAll(existing().achievementsUnlocked) &&
+             (incoming().coins - existing().coins) <= 5000;
+    }
+
+    function isValidNicknameClaim(data, normalizedKey) {
       return data.userId is string && data.userId == request.auth.uid &&
              data.nickname is string && data.nickname.size() >= 3 && data.nickname.size() <= 24 &&
+             data.nickname.lower() == normalizedKey &&
              data.createdAt is timestamp && data.createdAt <= request.time;
     }
 
@@ -112,7 +134,7 @@ service cloud.firestore {
              data.streakCount is int && data.streakCount >= 1 &&
              data.rewardTitle is string && data.rewardTitle.size() >= 1 && data.rewardTitle.size() <= 100 &&
              data.rewardType is string && data.rewardType in ['coins', 'cosmetic', 'skin', 'bundle'] &&
-             data.coinsGranted is int && data.coinsGranted >= 0 && data.coinsGranted <= 5000 &&
+             data.coinsGranted is int && data.coinsGranted >= 0 && data.coinsGranted <= 100 &&
              data.cosmeticId is string && data.cosmeticId.size() <= 64 &&
              data.claimedAt is timestamp && data.claimedAt <= request.time;
     }
@@ -161,28 +183,28 @@ service cloud.firestore {
                          'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
                          'schemaVersion', 'syncRevision', 'studioProfileJson', 'createdAt', 'updatedAt'
                        ]) &&
-                       isValidUserAccount(incoming());
+                       isValidUserAccount(incoming()) &&
+                       ownsClaimedNicknameAfter(incoming());
 
       allow update: if isOwner(userId) &&
                        isValidId(userId) &&
                        isValidUserAccount(incoming()) &&
+                       ownsClaimedNicknameAfter(incoming()) &&
+                       isValidUserProgressTransition() &&
                        incoming().userId == existing().userId &&
                        incoming().createdAt == existing().createdAt &&
                        incoming().syncRevision >= existing().syncRevision &&
-                       (
-                         // Ação 1: Sincronização de progresso, inventário, personalização e configurações
-                         incoming().diff(existing()).affectedKeys().hasOnly([
-                           'email', 'nickname', 'nicknameNormalized', 'coins',
-                           'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
-                           'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
-                           'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
-                           'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
-                           'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
-                           'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
-                           'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
-                           'schemaVersion', 'syncRevision', 'studioProfileJson', 'updatedAt'
-                         ])
-                       );
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'email', 'nickname', 'nicknameNormalized', 'coins',
+                         'totalScore', 'notesHitTotal', 'maxStreakOverall', 'songsCompleted',
+                         'unlockedStars', 'competitiveWins', 'competitiveMatches', 'careerStageMax',
+                         'selectedCharacterId', 'selectedGuitarId', 'selectedBassId',
+                         'selectedDrumsId', 'selectedVocalMicId', 'selectedHighwayThemeId',
+                         'unlockedCosmetics', 'achievementsUnlocked', 'customRocker',
+                         'glassAdaptiveEnabled', 'audioLatencyOffsetMs', 'controlMode',
+                         'graphicsQuality', 'rewardStreak', 'lastRewardDayKey',
+                         'schemaVersion', 'syncRevision', 'studioProfileJson', 'updatedAt'
+                       ]);
 
       allow delete: if isOwner(userId) && isValidId(userId);
 
@@ -229,9 +251,11 @@ service cloud.firestore {
                        isValidNicknameKey(normalizedNickname) &&
                        incoming().keys().hasAll(['userId', 'nickname', 'createdAt']) &&
                        incoming().keys().hasOnly(['userId', 'nickname', 'createdAt']) &&
-                       isValidNicknameClaim(incoming());
+                       isValidNicknameClaim(incoming(), normalizedNickname);
       allow update: if false;
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow delete: if isSignedIn() &&
+                       isValidNicknameKey(normalizedNickname) &&
+                       existing().userId == request.auth.uid;
     }
 
     // 3. Catálogo de versões/atualizações (somente leitura para clientes autenticados)
@@ -265,7 +289,7 @@ service cloud.firestore {
       return data.userId is string && data.userId == participantUid &&
              data.roomCode is string && data.roomCode == roomCode &&
              data.nickname is string && data.nickname.size() >= 2 && data.nickname.size() <= 24 &&
-             data.instrument is string && data.instrument in ['GUITAR', 'BASS', 'DRUMS', 'VOCALS'] &&
+             data.instrument is string && data.instrument in ['GUITAR', 'ACOUSTIC_GUITAR', 'BASS', 'DRUMS', 'VOCALS'] &&
              data.difficulty is string && data.difficulty in ['EASY', 'MEDIUM', 'HARD', 'EXPERT'] &&
              data.ready is bool &&
              data.connectionState is string && data.connectionState in ['ONLINE', 'RECONNECTING', 'DISCONNECTED'] &&
@@ -302,13 +326,13 @@ service cloud.firestore {
       allow update: if isSignedIn() &&
                        isValidRoomCode(roomCode) &&
                        existing().status != 'CLOSED' &&
-                       incoming().hostUid == existing().hostUid &&
                        incoming().roomCode == existing().roomCode &&
                        incoming().createdAt == existing().createdAt &&
                        isValidMultiplayerRoom(incoming(), roomCode) &&
                        (
                          // Ação 1: Host atualiza modo, faixa, início ou encerramento da sala
                          (
+                           incoming().hostUid == existing().hostUid &&
                            existing().hostUid == request.auth.uid &&
                            incoming().diff(existing()).affectedKeys().hasOnly([
                              'mode', 'status', 'trackId', 'trackTitle', 'maxPlayers', 'winnerUid', 'inviteMessage', 'updatedAt'
@@ -316,6 +340,7 @@ service cloud.firestore {
                          ) ||
                          // Ação 2: Convidado entra na sala em espera respeitando limite
                          (
+                           incoming().hostUid == existing().hostUid &&
                            existing().status == 'WAITING' &&
                            !(request.auth.uid in existing().memberUids) &&
                            request.auth.uid in incoming().memberUids &&
@@ -325,12 +350,24 @@ service cloud.firestore {
                          ) ||
                          // Ação 3: Participante sai da sala removendo apenas seu próprio UID
                          (
+                           incoming().hostUid == existing().hostUid &&
                            request.auth.uid != existing().hostUid &&
                            request.auth.uid in existing().memberUids &&
                            !(request.auth.uid in incoming().memberUids) &&
                            existing().memberUids.hasAll(incoming().memberUids) &&
                            incoming().memberUids.size() == existing().memberUids.size() - 1 &&
                            incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+                         ) ||
+                         // Ação 4: Anfitrião sai com outros músicos ativos -> transfere anfitrião atomicamente
+                         (
+                           existing().hostUid == request.auth.uid &&
+                           existing().memberUids.size() > 1 &&
+                           !(request.auth.uid in incoming().memberUids) &&
+                           existing().memberUids.hasAll(incoming().memberUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() - 1 &&
+                           incoming().hostUid in incoming().memberUids &&
+                           incoming().hostUid != existing().hostUid &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['hostUid', 'hostNickname', 'memberUids', 'updatedAt'])
                          )
                        );
 

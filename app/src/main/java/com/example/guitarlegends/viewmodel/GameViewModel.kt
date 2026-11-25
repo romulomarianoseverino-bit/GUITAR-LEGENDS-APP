@@ -178,6 +178,30 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedTrackFlow = MutableStateFlow(AudioAnalyzer.BUILT_IN_TRACKS[0])
     val selectedTrackFlow: StateFlow<Track> = _selectedTrackFlow.asStateFlow()
 
+    private val _selectedInstrumentFlow = MutableStateFlow(Instrument.GUITAR)
+    val selectedInstrumentFlow: StateFlow<Instrument> = _selectedInstrumentFlow.asStateFlow()
+
+    private val _selectedDifficultyFlow = MutableStateFlow(Difficulty.MEDIUM)
+    val selectedDifficultyFlow: StateFlow<Difficulty> = _selectedDifficultyFlow.asStateFlow()
+
+    private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
+    val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
+
+    private val _activePlaylistId = MutableStateFlow<String?>(null)
+    val activePlaylistId: StateFlow<String?> = _activePlaylistId.asStateFlow()
+
+    private val _playlistQueue = MutableStateFlow<List<Track>>(emptyList())
+    val playlistQueue: StateFlow<List<Track>> = _playlistQueue.asStateFlow()
+
+    private val _playlistQueueIndex = MutableStateFlow(0)
+    val playlistQueueIndex: StateFlow<Int> = _playlistQueueIndex.asStateFlow()
+
+    private val _playlistStatusMessage = MutableStateFlow<String?>(null)
+    val playlistStatusMessage: StateFlow<String?> = _playlistStatusMessage.asStateFlow()
+
+    private val _playlistStatusIsError = MutableStateFlow(false)
+    val playlistStatusIsError: StateFlow<Boolean> = _playlistStatusIsError.asStateFlow()
+
     private val _isImportingAudio = MutableStateFlow(false)
     val isImportingAudio: StateFlow<Boolean> = _isImportingAudio.asStateFlow()
 
@@ -361,6 +385,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         )
     )
 
+    val acoustics = listOf(
+        InstrumentGear(
+            id = "violao_nylon_classico",
+            instrumentType = Instrument.ACOUSTIC_GUITAR,
+            name = "Clássico Nylon Estrada",
+            modelStyle = "Nylon Clássico Acústico",
+            colorHex = 0xFFD4A359,
+            priceCoins = 0,
+            isUnlocked = true,
+            description = "Timbre quente com cordas de nylon ideal para baladas acústicas e dedilhados."
+        ),
+        InstrumentGear(
+            id = "violao_aco_folk",
+            instrumentType = Instrument.ACOUSTIC_GUITAR,
+            name = "Folk Aço Dreadnought",
+            modelStyle = "Dreadnought Acústico",
+            colorHex = 0xFF8D6E63,
+            priceCoins = 0,
+            isUnlocked = true,
+            description = "Caixa acústica robusta com projeção brilhante em cordas de aço."
+        ),
+        InstrumentGear(
+            id = "violao_eletro_cutaway",
+            instrumentType = Instrument.ACOUSTIC_GUITAR,
+            name = "Eletro-Acústico Palco",
+            modelStyle = "Cutaway Pré-Amp 3D",
+            colorHex = 0xFFFFB74D,
+            priceCoins = 450,
+            isUnlocked = false,
+            description = "Recorte cutaway para alcançar os agudos com pré-amplificador de arena."
+        )
+    )
+
     val basses = listOf(
         InstrumentGear(
             id = "thunder_bass",
@@ -487,6 +544,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (all.none { it.id == selectedTrack.id }) {
                 selectTrack(all.firstOrNull() ?: AudioAnalyzer.BUILT_IN_TRACKS[0])
             }
+            _playlists.value = musicLibraryRepository.loadPlaylists()
         }
 
         viewModelScope.launch {
@@ -674,7 +732,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     navigateTo(GameScreen.MainMenu, pushStack = false)
                 }
             }.onFailure { err ->
-                _authErrorMessage.value = err.message ?: "Não foi possível reservar este nickname."
+                val fsEx = (err as? com.google.firebase.firestore.FirebaseFirestoreException)
+                    ?: (err.cause as? com.google.firebase.firestore.FirebaseFirestoreException)
+                _authErrorMessage.value =
+                    if (fsEx?.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                        "Permissão negada no Firestore (PERMISSION_DENIED). Confirme se as regras do Firebase foram publicadas."
+                    } else {
+                        err.message ?: "Não foi possível reservar este nickname."
+                    }
             }
             _isAuthBusy.value = false
         }
@@ -953,10 +1018,25 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateCustomRockerPhoto(uriString: String) {
-        val current = _playerStats.value.customRocker
-        _playerStats.value = _playerStats.value.copy(
-            customRocker = current.copy(photoUri = uriString)
+        val analysis = AvatarPhotoAnalyzer.analyzeAndCachePhoto(context, uriString)
+        val cur = _playerStats.value
+        val currentRocker = cur.customRocker
+        _playerStats.value = cur.copy(
+            selectedCharacterId = "custom_rocker",
+            customRocker = currentRocker.copy(
+                photoUri = analysis.savedPathOrUri,
+                hairColorHex = if (analysis.extractedFromPixels) analysis.hairColorHex else currentRocker.hairColorHex
+            ),
+            studioProfile = cur.studioProfile.copy(
+                skinToneHex = if (analysis.extractedFromPixels) analysis.skinToneHex else cur.studioProfile.skinToneHex
+            )
         )
+        soundFx.playUiClick(isConfirm = true)
+        _studioActionMessage.value = if (analysis.extractedFromPixels) {
+            "Avatar 3D criado a partir da foto com paleta automática!"
+        } else {
+            "Foto vinculada ao seu Rocker 3D!"
+        }
         triggerBackgroundCloudSync(customizationChanged = true)
     }
 
@@ -1059,6 +1139,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun getInstrumentConfig(stats: PlayerStats, instrument: Instrument): InstrumentCustomConfig {
         return when (instrument) {
             Instrument.GUITAR -> stats.studioProfile.guitarConfig
+            Instrument.ACOUSTIC_GUITAR -> stats.studioProfile.acousticConfig
             Instrument.BASS -> stats.studioProfile.bassConfig
             Instrument.DRUMS -> stats.studioProfile.drumsConfig
             Instrument.VOCALS -> stats.studioProfile.vocalConfig
@@ -1069,6 +1150,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val studio = _playerStats.value.studioProfile
         val updatedStudio = when (instrument) {
             Instrument.GUITAR -> studio.copy(guitarConfig = config)
+            Instrument.ACOUSTIC_GUITAR -> studio.copy(acousticConfig = config)
             Instrument.BASS -> studio.copy(bassConfig = config)
             Instrument.DRUMS -> studio.copy(drumsConfig = config)
             Instrument.VOCALS -> studio.copy(vocalConfig = config)
@@ -1439,14 +1521,190 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun selectTrack(track: Track) {
         selectedTrack = track
         _selectedTrackFlow.value = track
+        if (_activePlaylistId.value != null &&
+            _playlistQueue.value.getOrNull(_playlistQueueIndex.value)?.id != track.id
+        ) {
+            clearActivePlaylist()
+        }
+    }
+
+    fun createPlaylist(rawName: String): Playlist {
+        val cleanName = rawName.trim().ifBlank { "Setlist #${_playlists.value.size + 1}" }.take(40)
+        val created = Playlist(
+            id = "pl_${UUID.randomUUID().toString().take(8)}",
+            name = cleanName,
+            trackIds = emptyList(),
+            updatedAtMs = System.currentTimeMillis()
+        )
+        val updated = listOf(created) + _playlists.value
+        _playlists.value = updated
+        viewModelScope.launch {
+            musicLibraryRepository.savePlaylists(updated)
+        }
+        soundFx.playUiClick(isConfirm = true)
+        return created
+    }
+
+    fun renamePlaylist(playlistId: String, rawName: String) {
+        val cleanName = rawName.trim().take(40)
+        if (cleanName.isBlank()) return
+        val updated = _playlists.value.map { pl ->
+            if (pl.id == playlistId) pl.copy(name = cleanName, updatedAtMs = System.currentTimeMillis()) else pl
+        }
+        _playlists.value = updated
+        viewModelScope.launch {
+            musicLibraryRepository.savePlaylists(updated)
+        }
+        soundFx.playUiClick()
+    }
+
+    fun deletePlaylist(playlistId: String) {
+        val updated = _playlists.value.filterNot { it.id == playlistId }
+        _playlists.value = updated
+        if (_activePlaylistId.value == playlistId) {
+            clearActivePlaylist()
+        }
+        viewModelScope.launch {
+            musicLibraryRepository.savePlaylists(updated)
+        }
+        soundFx.playUiClick()
+    }
+
+    fun clearPlaylistStatusMessage() {
+        _playlistStatusMessage.value = null
+        _playlistStatusIsError.value = false
+    }
+
+    fun addTrackToPlaylist(playlistId: String, trackId: String): Boolean {
+        val current = _playlists.value
+        val target = current.find { it.id == playlistId } ?: return false
+        if (target.trackIds.contains(trackId)) {
+            _playlistStatusIsError.value = true
+            _playlistStatusMessage.value =
+                "Essa música já foi adicionada na playlist '${target.name}'."
+            soundFx.playUiClick()
+            return false
+        }
+        val updated = current.map { pl ->
+            if (pl.id == playlistId) {
+                pl.copy(trackIds = pl.trackIds + trackId, updatedAtMs = System.currentTimeMillis())
+            } else pl
+        }
+        _playlists.value = updated
+        _playlistStatusIsError.value = false
+        _playlistStatusMessage.value = "Música adicionada à playlist '${target.name}'!"
+        viewModelScope.launch {
+            when (val res = musicLibraryRepository.addTrackToPlaylist(playlistId, trackId)) {
+                is PlaylistAddResult.Added -> Unit
+                is PlaylistAddResult.DuplicateTrack -> {
+                    _playlistStatusIsError.value = true
+                    _playlistStatusMessage.value =
+                        "Essa música já foi adicionada na playlist '${res.playlistName}'."
+                    _playlists.value = musicLibraryRepository.loadPlaylists()
+                }
+                is PlaylistAddResult.PlaylistNotFound -> {
+                    _playlists.value = musicLibraryRepository.loadPlaylists()
+                }
+                is PlaylistAddResult.SaveFailed -> {
+                    _playlistStatusIsError.value = true
+                    _playlistStatusMessage.value = res.message
+                    _playlists.value = musicLibraryRepository.loadPlaylists()
+                }
+            }
+        }
+        soundFx.playUiClick(isConfirm = true)
+        return true
+    }
+
+    fun removeTrackFromPlaylist(playlistId: String, trackId: String) {
+        val updated = _playlists.value.map { pl ->
+            if (pl.id == playlistId) {
+                pl.copy(trackIds = pl.trackIds.filterNot { it == trackId }, updatedAtMs = System.currentTimeMillis())
+            } else pl
+        }
+        _playlists.value = updated
+        if (_activePlaylistId.value == playlistId) {
+            val filteredQueue = _playlistQueue.value.filterNot { it.id == trackId }
+            _playlistQueue.value = filteredQueue
+            if (filteredQueue.isEmpty()) {
+                clearActivePlaylist()
+            } else if (_playlistQueueIndex.value >= filteredQueue.size) {
+                _playlistQueueIndex.value = 0
+            }
+        }
+        viewModelScope.launch {
+            musicLibraryRepository.removeTrackFromPlaylist(playlistId, trackId)
+        }
+        soundFx.playUiClick()
+    }
+
+    fun clearActivePlaylist() {
+        _activePlaylistId.value = null
+        _playlistQueue.value = emptyList()
+        _playlistQueueIndex.value = 0
+    }
+
+    fun advanceToNextTrackFromStart(): Track {
+        val activeId = _activePlaylistId.value
+        val queue = _playlistQueue.value
+        if (activeId != null && queue.isNotEmpty()) {
+            val nextIdx = (_playlistQueueIndex.value + 1) % queue.size
+            val nextTrack = queue[nextIdx]
+            _playlistQueueIndex.value = nextIdx
+            selectTrack(nextTrack)
+            soundFx.playUiClick(isConfirm = true)
+            return nextTrack
+        }
+        val all = _tracks.value.ifEmpty { AudioAnalyzer.BUILT_IN_TRACKS }
+        val currentIdx = all.indexOfFirst { it.id == selectedTrack.id }
+        val nextTrack = all[(currentIdx + 1) % all.size]
+        selectTrack(nextTrack)
+        soundFx.playUiClick(isConfirm = true)
+        return nextTrack
+    }
+
+    fun startPlaylistPlayback(playlistId: String, shuffle: Boolean = false): Boolean {
+        val playlist = _playlists.value.find { it.id == playlistId } ?: return false
+        val allTracks = _tracks.value
+        val resolved = playlist.trackIds.mapNotNull { tid -> allTracks.find { it.id == tid } }
+        if (resolved.isEmpty()) {
+            _libraryErrorMessage.value = "Adicione pelo menos 1 faixa válida à playlist '${playlist.name}' antes de tocar."
+            return false
+        }
+        val queue = if (shuffle && resolved.size > 1) resolved.shuffled() else resolved
+        _activePlaylistId.value = playlistId
+        _playlistQueue.value = queue
+        _playlistQueueIndex.value = 0
+        selectTrack(queue.first())
+        stopPreview()
+        navigateTo(GameScreen.InstrumentSelect)
+        return true
+    }
+
+    fun hasNextInPlaylist(): Boolean {
+        val queue = _playlistQueue.value
+        val idx = _playlistQueueIndex.value
+        return _activePlaylistId.value != null && idx + 1 < queue.size
+    }
+
+    fun playNextInPlaylist(): Boolean {
+        if (!hasNextInPlaylist()) return false
+        val nextIdx = _playlistQueueIndex.value + 1
+        val nextTrack = _playlistQueue.value.getOrNull(nextIdx) ?: return false
+        _playlistQueueIndex.value = nextIdx
+        selectTrack(nextTrack)
+        startMatch()
+        return true
     }
 
     fun selectInstrument(instrument: Instrument) {
         selectedInstrument = instrument
+        _selectedInstrumentFlow.value = instrument
     }
 
     fun selectDifficulty(difficulty: Difficulty) {
         selectedDifficulty = difficulty
+        _selectedDifficultyFlow.value = difficulty
     }
 
     fun setCompetitiveMode(competitive: Boolean) {
@@ -1517,6 +1775,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess {
                 val updated = musicLibraryRepository.loadAllTracks()
                 _tracks.value = updated
+                _playlists.value = musicLibraryRepository.loadPlaylists()
+                if (_playlistQueue.value.any { it.id == track.id }) {
+                    _playlistQueue.value = _playlistQueue.value.filterNot { it.id == track.id }
+                    if (_playlistQueue.value.isEmpty()) clearActivePlaylist()
+                }
                 if (selectedTrack.id == track.id) {
                     selectTrack(updated.firstOrNull() ?: AudioAnalyzer.BUILT_IN_TRACKS[0])
                 }
@@ -1826,10 +2089,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         adaptiveEngine.onNoteResult(rating, diffMs)
 
-        if (selectedInstrument == Instrument.DRUMS) {
-            soundFx.playDrumHit(lane)
-        } else {
-            soundFx.playHitChord(lane)
+        when (selectedInstrument) {
+            Instrument.DRUMS -> soundFx.playDrumHit(lane)
+            Instrument.ACOUSTIC_GUITAR -> soundFx.playAcousticHit(lane)
+            else -> soundFx.playHitChord(lane)
         }
         triggerHaptic(longVibe = false)
     }
@@ -1894,7 +2157,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             else -> 1
         }
 
-        val coinsEarned = if (failed) 20 else (stars * 60 + (_score.value / 800)).coerceAtLeast(40)
+        val coinsEarned = MatchRewardCalculator.calculateMatchCoins(
+            accuracyPercent = accuracy,
+            difficulty = selectedDifficulty,
+            durationMs = selectedTrack.durationMs,
+            failed = failed
+        )
 
         val result = MatchResult(
             track = selectedTrack,
@@ -2060,22 +2328,29 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (_playerStats.value.coins >= price) {
             val updatedCoins = _playerStats.value.coins - price
             val unlocked = (_playerStats.value.unlockedCosmetics + id).distinct()
+            val cur = _playerStats.value
             _playerStats.value = when (instrumentType) {
-                Instrument.GUITAR -> _playerStats.value.copy(coins = updatedCoins, selectedGuitarId = id, unlockedCosmetics = unlocked)
-                Instrument.BASS -> _playerStats.value.copy(coins = updatedCoins, selectedBassId = id, unlockedCosmetics = unlocked)
-                Instrument.DRUMS -> _playerStats.value.copy(coins = updatedCoins, selectedDrumsId = id, unlockedCosmetics = unlocked)
-                Instrument.VOCALS -> _playerStats.value.copy(coins = updatedCoins, selectedVocalMicId = id, unlockedCosmetics = unlocked)
+                Instrument.GUITAR -> cur.copy(coins = updatedCoins, selectedGuitarId = id, unlockedCosmetics = unlocked)
+                Instrument.ACOUSTIC_GUITAR -> StudioCatalog.applyCosmeticLook(
+                    cur.copy(coins = updatedCoins, unlockedCosmetics = unlocked),
+                    id
+                )
+                Instrument.BASS -> cur.copy(coins = updatedCoins, selectedBassId = id, unlockedCosmetics = unlocked)
+                Instrument.DRUMS -> cur.copy(coins = updatedCoins, selectedDrumsId = id, unlockedCosmetics = unlocked)
+                Instrument.VOCALS -> cur.copy(coins = updatedCoins, selectedVocalMicId = id, unlockedCosmetics = unlocked)
             }
             triggerBackgroundCloudSync(customizationChanged = true)
         }
     }
 
     fun selectGear(instrumentType: Instrument, id: String) {
+        val cur = _playerStats.value
         _playerStats.value = when (instrumentType) {
-            Instrument.GUITAR -> _playerStats.value.copy(selectedGuitarId = id)
-            Instrument.BASS -> _playerStats.value.copy(selectedBassId = id)
-            Instrument.DRUMS -> _playerStats.value.copy(selectedDrumsId = id)
-            Instrument.VOCALS -> _playerStats.value.copy(selectedVocalMicId = id)
+            Instrument.GUITAR -> cur.copy(selectedGuitarId = id)
+            Instrument.ACOUSTIC_GUITAR -> StudioCatalog.applyCosmeticLook(cur, id)
+            Instrument.BASS -> cur.copy(selectedBassId = id)
+            Instrument.DRUMS -> cur.copy(selectedDrumsId = id)
+            Instrument.VOCALS -> cur.copy(selectedVocalMicId = id)
         }
         triggerBackgroundCloudSync(customizationChanged = true)
     }
@@ -2392,6 +2667,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         hasAutoStartedRoomMatch = false
 
         roomObserveJob = viewModelScope.launch {
+            var lastKnownHostUid: String? = _multiplayerRoom.value?.hostUid
             try {
                 repo.observeRoom(roomCode).collect { room ->
                     if (room == null || room.statusEnum == RoomStatus.CLOSED) {
@@ -2402,6 +2678,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         _multiplayerConnectionWarning.value = closedMsg
                         hasAutoStartedRoomMatch = false
                         return@collect
+                    }
+
+                    if (lastKnownHostUid != null &&
+                        room.hostUid.isNotBlank() &&
+                        room.hostUid != lastKnownHostUid
+                    ) {
+                        val selfUid = repo.currentUidOrNull()
+                        _multiplayerConnectionWarning.value = if (room.hostUid == selfUid) {
+                            "O anfitrião anterior saiu — você agora é o anfitrião da sala!"
+                        } else {
+                            "Novo anfitrião da sala: ${room.hostNickname}."
+                        }
+                    }
+                    if (room.hostUid.isNotBlank()) {
+                        lastKnownHostUid = room.hostUid
                     }
 
                     _multiplayerRoom.value = room

@@ -108,17 +108,23 @@ class AccountCloudRepository(
                 // Uma reserva antiga ausente ou pertencente a outra conta nunca é apagada.
                 val oldNickSnap = oldNickRef?.let { tx.get(it) }
 
+                val resolvedNick = if (nickSnap.exists()) {
+                    nickSnap.getString("nickname")?.takeIf { it.isNotBlank() } ?: trimmed
+                } else {
+                    trimmed
+                }
+
                 val nextRevision = maxOf(existingUser?.syncRevision ?: 0L, localStats.syncRevision) + 1L
                 val mergedStats = if (existingUser != null) {
                     mergeStats(localStats, existingUser.toPlayerStats())
                 } else {
                     localStats
-                }.copy(nickname = trimmed, email = email, syncRevision = nextRevision)
+                }.copy(nickname = resolvedNick, email = email, syncRevision = nextRevision)
 
                 val cloudObj = UserAccountCloud.fromPlayerStats(
                     uid = uid,
                     email = email,
-                    nickname = trimmed,
+                    nickname = resolvedNick,
                     stats = mergedStats,
                     syncRevision = nextRevision
                 )
@@ -187,26 +193,33 @@ class AccountCloudRepository(
                     if (!isValidNicknameFormat(nick)) {
                         throw IllegalStateException("Defina um nickname exclusivo antes de sincronizar na nuvem.")
                     }
-                    val cloudObj = UserAccountCloud.fromPlayerStats(
-                        uid = uid,
-                        email = email,
-                        nickname = nick,
-                        stats = localStats,
-                        syncRevision = maxOf(1L, localStats.syncRevision)
-                    )
                     val nickRef = firestore.collection("nicknames").document(nick.lowercase())
                     val nickSnap = tx.get(nickRef)
                     if (nickSnap.exists() && nickSnap.getString("userId") != uid) {
                         throw IllegalStateException("Nickname já reservado por outra conta.")
                     }
-                    tx.set(
-                        nickRef,
-                        mapOf(
-                            "userId" to uid,
-                            "nickname" to nick,
-                            "createdAt" to FieldValue.serverTimestamp()
-                        )
+                    val resolvedNick = if (nickSnap.exists()) {
+                        nickSnap.getString("nickname")?.takeIf { it.isNotBlank() } ?: nick
+                    } else {
+                        nick
+                    }
+                    val cloudObj = UserAccountCloud.fromPlayerStats(
+                        uid = uid,
+                        email = email,
+                        nickname = resolvedNick,
+                        stats = localStats.copy(nickname = resolvedNick),
+                        syncRevision = maxOf(1L, localStats.syncRevision)
                     )
+                    if (!nickSnap.exists()) {
+                        tx.set(
+                            nickRef,
+                            mapOf(
+                                "userId" to uid,
+                                "nickname" to resolvedNick,
+                                "createdAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                    }
                     tx.set(userRef, cloudObj.toCreateMap())
                     cloudObj
                 } else {

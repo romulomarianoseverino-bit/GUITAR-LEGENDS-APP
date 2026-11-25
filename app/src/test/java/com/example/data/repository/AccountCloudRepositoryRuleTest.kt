@@ -200,7 +200,7 @@ class AccountCloudRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertTrue("Legitimate UTC daily reward claim must succeed: ${claimRes.exceptionOrNull()?.message}", claimRes.isSuccess)
         val (claim, updatedUser) = claimRes.getOrThrow()
         assertEquals(1, claim.dayNumber)
-        assertEquals(250, updatedUser.coins) // 100 iniciais + 150 dia 1
+        assertEquals(200, updatedUser.coins) // 100 iniciais + 100 dia 1 (DailyRewardCatalog)
 
         // 3. Segundo resgate no mesmo dia UTC deve ser bloqueado
         val replayRes = withTimeout(DEFAULT_TIMEOUT_MS) {

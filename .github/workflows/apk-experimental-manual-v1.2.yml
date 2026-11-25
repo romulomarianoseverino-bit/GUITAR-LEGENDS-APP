@@ -1,104 +1,111 @@
-name: APK experimental — teste manual multiplayer 1.2
+name: APK experimental — linha APP-2 (baseline)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - test/manual-multiplayer-baseline-v1.2
+      - exp/app2-baseline-apk-2026-11-24
 
 permissions:
   contents: read
 
 jobs:
   build-experimental:
-    if: github.ref == 'refs/heads/test/manual-multiplayer-baseline-v1.2'
-    name: Gerar APK experimental da referência 1.2
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    if: github.ref == 'refs/heads/exp/app2-baseline-apk-2026-11-24'
+    name: Testar e gerar APK experimental do APP-2
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
     steps:
-      - name: Baixar exatamente o código da referência isolada
+      - name: Baixar exatamente a branch experimental
         uses: actions/checkout@v4
         with:
-          ref: test/manual-multiplayer-baseline-v1.2
+          ref: ${{ github.ref }}
 
-      - name: Configurar Java 17
+      - name: Configurar Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Configurar Android SDK
         run: |
           echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
           echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+          echo "/usr/local/lib/android/sdk/build-tools/36.0.0" >> "$GITHUB_PATH"
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
           /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
-
-      - name: Preparar a chave permanente já cadastrada no repositório
-        env:
-          KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          test -n "$KEYSTORE_BASE64" || { echo "::error::Segredo DEBUG_KEYSTORE_BASE64 ausente."; exit 1; }
-          test -n "$STORE_PASSWORD" || { echo "::error::Segredo DEBUG_KEYSTORE_PASSWORD ausente."; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo "::error::Segredo DEBUG_KEY_PASSWORD ausente."; exit 1; }
-          KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-permanent.jks"
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
-          chmod 600 "$KEYSTORE_PATH"
-          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias androiddebugkey >/dev/null
-          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-
-      - name: Ajustar somente a configuração de assinatura no ambiente temporário
-        run: |
-          set -euo pipefail
-          sed -i 's/keyAlias = "upload"/keyAlias = "androiddebugkey"/' app/build.gradle.kts
-          grep -q 'keyAlias = "androiddebugkey"' app/build.gradle.kts
 
       - name: Configurar Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
-      - name: Compilar APK experimental assinado com a chave permanente
-        run: gradle --no-daemon --stacktrace assembleRelease
+      - name: Executar testes automatizados com Auth e Firestore Emulator
+        id: tests
+        continue-on-error: true
+        run: |
+          npm install --global firebase-tools@13.35.1
+          firebase emulators:exec --project demo-no-project --only auth,firestore \
+            'gradle --no-daemon testDebugUnitTest'
 
-      - name: Identificar APK e registrar limites desta compilação
+      - name: Preparar a chave permanente de assinatura
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.DEBUG_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          test -n "$KEYSTORE_BASE64" || { echo "::error::Segredo DEBUG_KEYSTORE_BASE64 ausente neste repositório."; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo "::error::Segredo DEBUG_KEYSTORE_PASSWORD ausente neste repositório."; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "::error::Segredo DEBUG_KEY_PASSWORD ausente neste repositório."; exit 1; }
+          KEYSTORE_PATH="$RUNNER_TEMP/guitar-legends-permanent.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias androiddebugkey >/dev/null
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
+
+      - name: Compilar APK experimental assinado
+        id: build
+        if: always() && steps.signing.outcome == 'success' && !cancelled()
+        run: |
+          set -euo pipefail
+          gradle --no-daemon clean assembleRelease
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
           test -n "$APK"
           mkdir -p experimental-output
-          cp "$APK" experimental-output/Guitar-Legends-1.2-EXPERIMENTAL-MANUAL.apk
-          sha256sum experimental-output/Guitar-Legends-1.2-EXPERIMENTAL-MANUAL.apk > experimental-output/SHA256SUMS.txt
-          cat > experimental-output/LEIA-ANTES.txt <<'EOF'
-          GUITAR LEGENDS — APK EXPERIMENTAL — TESTE MANUAL — NÃO É RELEASE
+          cp "$APK" experimental-output/Guitar-Legends-APP-2-BASELINE-EXPERIMENTAL.apk
+          apksigner verify --print-certs experimental-output/Guitar-Legends-APP-2-BASELINE-EXPERIMENTAL.apk > experimental-output/SIGNATURE.txt
+          echo "Certificado encontrado no APK:"
+          cat experimental-output/SIGNATURE.txt
+          EXPECTED='3D:02:6D:2A:62:E1:B4:E8:DD:31:9B:05:6C:1C:03:CD:77:DC:D3:4F:E7:FC:1B:CF:2D:A6:9E:67:01:55:8F:E9'
+          EXPECTED_NORMALIZED="$(printf '%s' "$EXPECTED" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          ACTUAL_NORMALIZED="$(awk -F': ' '/certificate SHA-256 digest:/ {print tolower($2)}' experimental-output/SIGNATURE.txt | tr -d ':')"
+          test -n "$ACTUAL_NORMALIZED" && test "$ACTUAL_NORMALIZED" = "$EXPECTED_NORMALIZED" || {
+            echo "::error::A assinatura do APK não corresponde à chave permanente da versão 1.2."
+            echo "Fingerprint SHA-256 encontrado: ${ACTUAL_NORMALIZED:-não identificado}"
+            exit 1
+          }
+          sha256sum experimental-output/Guitar-Legends-APP-2-BASELINE-EXPERIMENTAL.apk > experimental-output/SHA256SUMS.txt
+          {
+            echo "Tipo: APK EXPERIMENTAL — não é release"
+            echo "Base APP-2: 5f09853a20a75b1e5b363ce7b9a5109be54f49ab"
+            echo "Branch: exp/app2-baseline-apk-2026-11-24"
+            echo "Commit compilado: $(git rev-parse HEAD)"
+            echo "Testes automatizados: ${{ steps.tests.outcome }}"
+            echo "Login, playlists e multiplayer ainda exigem validação manual em aparelho."
+          } > experimental-output/LEIA-ANTES.txt
 
-          Base funcional de referência:
-          a3077637f7870a0c2c9c655ff9414e3cd57842ad
-
-          Nenhuma alteração de aplicativo foi incorporada. Esta compilação
-          usa a chave permanente cadastrada no repositório para permitir
-          atualização da instalação existente, desde que seja a mesma chave
-          usada para assinar o aplicativo atualmente instalado.
-
-          Este fluxo compila o APK e NÃO executa a suíte automatizada.
-          Compilação bem-sucedida não comprova funcionamento em execução.
-
-          Testar manualmente: login, criação de sala, entrada de outro
-          participante, sincronização, desconexão, reconexão e saída.
-
-          Não é release definitivo nem foi validado em aparelho.
-          EOF
-
-      - name: Publicar artefato experimental e instruções
+      - name: Publicar APK e relatórios experimentais
+        if: always() && steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Guitar-Legends-1.2-EXPERIMENTAL-MANUAL-NAO-RELEASE
+          name: Guitar-Legends-APP-2-BASELINE-EXPERIMENTAL-NAO-RELEASE
           path: experimental-output/*
           if-no-files-found: error
           retention-days: 14

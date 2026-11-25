@@ -175,34 +175,46 @@ fun ResultsScreen(viewModel: GameViewModel) {
                     }
 
                     // Action buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        RockButton(
-                            text = "TOCAR NOVAMENTE",
-                            onClick = { viewModel.startMatch() },
-                            modifier = Modifier.weight(1f),
-                            testTag = "results_retry_button",
-                            containerColor = RockAccentGreen,
-                            contentColor = Color.Black
-                        )
-                        RockButton(
-                            text = "TROCAR MÚSICA",
-                            onClick = { viewModel.navigateTo(GameScreen.MusicLibrary) },
-                            modifier = Modifier.weight(1f),
-                            testTag = "results_change_song_button",
-                            containerColor = RockAccentCyan,
-                            contentColor = Color.Black
-                        )
-                        RockButton(
-                            text = "MENU PRINCIPAL",
-                            onClick = { viewModel.navigateTo(GameScreen.MainMenu) },
-                            modifier = Modifier.weight(1f),
-                            testTag = "results_menu_button",
-                            containerColor = RockDarkCard,
-                            contentColor = Color.White
-                        )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (viewModel.hasNextInPlaylist()) {
+                            RockButton(
+                                text = "PRÓXIMA DA PLAYLIST ▶",
+                                onClick = { viewModel.playNextInPlaylist() },
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "results_next_playlist_button",
+                                containerColor = RockAccentGold,
+                                contentColor = Color.Black
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            RockButton(
+                                text = "TOCAR NOVAMENTE",
+                                onClick = { viewModel.startMatch() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "results_retry_button",
+                                containerColor = RockAccentGreen,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "TROCAR MÚSICA",
+                                onClick = { viewModel.navigateTo(GameScreen.MusicLibrary) },
+                                modifier = Modifier.weight(1f),
+                                testTag = "results_change_song_button",
+                                containerColor = RockAccentCyan,
+                                contentColor = Color.Black
+                            )
+                            RockButton(
+                                text = "MENU PRINCIPAL",
+                                onClick = { viewModel.navigateTo(GameScreen.MainMenu) },
+                                modifier = Modifier.weight(1f),
+                                testTag = "results_menu_button",
+                                containerColor = RockDarkCard,
+                                contentColor = Color.White
+                            )
+                        }
                     }
                 }
             }

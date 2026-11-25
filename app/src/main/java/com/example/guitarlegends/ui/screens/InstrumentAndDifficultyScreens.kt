@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -92,6 +94,7 @@ fun InstrumentCard(
 ) {
     val accentColor = when (instrument) {
         Instrument.GUITAR -> RockAccentRed
+        Instrument.ACOUSTIC_GUITAR -> Color(0xFFFFB74D)
         Instrument.BASS -> Color(0xFF7C4DFF)
         Instrument.DRUMS -> RockAccentOrange
         Instrument.VOCALS -> RockAccentCyan
@@ -99,6 +102,7 @@ fun InstrumentCard(
 
     val icon: ImageVector = when (instrument) {
         Instrument.GUITAR -> Icons.Default.ElectricBolt
+        Instrument.ACOUSTIC_GUITAR -> Icons.Default.Audiotrack
         Instrument.BASS -> Icons.Default.GraphicEq
         Instrument.DRUMS -> Icons.Default.MusicNote
         Instrument.VOCALS -> Icons.Default.Mic
@@ -193,6 +197,12 @@ fun DifficultySelectScreen(viewModel: GameViewModel) {
     }
     val stats by viewModel.playerStats.collectAsState()
     val playbackError by viewModel.playbackErrorMessage.collectAsState()
+    val selectedTrack by viewModel.selectedTrackFlow.collectAsState()
+    val selectedInstrument by viewModel.selectedInstrumentFlow.collectAsState()
+    val selectedDifficulty by viewModel.selectedDifficultyFlow.collectAsState()
+    val activePlaylistId by viewModel.activePlaylistId.collectAsState()
+    val playlists by viewModel.playlists.collectAsState()
+    val activePlaylist = playlists.find { it.id == activePlaylistId }
 
     if (playbackError != null) {
         AlertDialog(
@@ -247,11 +257,12 @@ fun DifficultySelectScreen(viewModel: GameViewModel) {
             Column(
                 modifier = Modifier
                     .weight(1.3f)
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Difficulty.values().forEach { diff ->
-                    val isSelected = diff == viewModel.selectedDifficulty
+                    val isSelected = diff == selectedDifficulty
                     val diffColor = when (diff) {
                         Difficulty.EASY -> RockAccentGreen
                         Difficulty.MEDIUM -> RockAccentGold
@@ -338,10 +349,15 @@ fun DifficultySelectScreen(viewModel: GameViewModel) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -371,7 +387,7 @@ fun DifficultySelectScreen(viewModel: GameViewModel) {
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
                             text = if (stats.glassAdaptiveEnabled)
@@ -379,22 +395,40 @@ fun DifficultySelectScreen(viewModel: GameViewModel) {
                             else
                                 "DESATIVADO: Dificuldade 100% estática conforme o modo selecionado.",
                             color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 11.sp,
-                            lineHeight = 15.sp
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp
                         )
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Surface(
                             color = Color(0x15FFFFFF),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
                                 Text(text = "RESUMO DO SHOW", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text(text = "Música: ${viewModel.selectedTrack.title}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                                Text(text = "Instrumento: ${viewModel.selectedInstrument.displayName}", color = RockAccentGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                Text(text = "Dificuldade: ${viewModel.selectedDifficulty.displayName}", color = RockAccentGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text(text = "Música: ${selectedTrack.title}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                                Text(text = "Instrumento: ${selectedInstrument.displayName}", color = RockAccentGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text(text = "Dificuldade: ${selectedDifficulty.displayName}", color = RockAccentGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                if (activePlaylist != null) {
+                                    Text(text = "Playlist: ${activePlaylist.name}", color = RockAccentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = { viewModel.advanceToNextTrackFromStart() },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 38.dp)
+                                        .testTag("prematch_next_track_button")
+                                ) {
+                                    Text("PRÓXIMA MÚSICA ▶", color = RockAccentCyan, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                }
                             }
                         }
                     }

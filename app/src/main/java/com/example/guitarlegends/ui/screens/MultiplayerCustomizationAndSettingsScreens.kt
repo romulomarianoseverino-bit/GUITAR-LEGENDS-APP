@@ -666,6 +666,45 @@ fun SettingsScreen(viewModel: GameViewModel) {
 fun SplashScreen(viewModel: GameViewModel) {
     val authState by viewModel.authUiState.collectAsState()
     val stats by viewModel.playerStats.collectAsState()
+    val selectedTrack by viewModel.selectedTrackFlow.collectAsState()
+    val selectedInstrument by viewModel.selectedInstrumentFlow.collectAsState()
+    val selectedDifficulty by viewModel.selectedDifficultyFlow.collectAsState()
+    val activePlaylistId by viewModel.activePlaylistId.collectAsState()
+    val playlists by viewModel.playlists.collectAsState()
+    val playlistQueue by viewModel.playlistQueue.collectAsState()
+    val playlistQueueIndex by viewModel.playlistQueueIndex.collectAsState()
+    val playbackError by viewModel.playbackErrorMessage.collectAsState()
+
+    val activePlaylist = playlists.find { it.id == activePlaylistId }
+
+    if (playbackError != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.clearPlaybackError() },
+            containerColor = RockDarkCard,
+            title = {
+                Text("Falha ao Iniciar Show", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
+            },
+            text = {
+                Text(playbackError.orEmpty(), color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearPlaybackError()
+                        viewModel.startMatch()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RockAccentCyan)
+                ) {
+                    Text("TENTAR NOVAMENTE", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.clearPlaybackError() }) {
+                    Text("FECHAR", color = RockAccentGold, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+            }
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -689,8 +728,9 @@ fun SplashScreen(viewModel: GameViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
             modifier = Modifier
-                .widthIn(max = 520.dp)
-                .padding(horizontal = 24.dp)
+                .widthIn(max = 580.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             Surface(
                 color = RockAccentRed,
@@ -700,16 +740,16 @@ fun SplashScreen(viewModel: GameViewModel) {
                     text = "ERA CLÁSSICA DO ROCK RÍTMICO",
                     color = Color.White,
                     fontWeight = FontWeight.Black,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "GUITAR LEGENDS",
                 color = Color.White,
                 fontWeight = FontWeight.Black,
-                fontSize = 40.sp,
+                fontSize = 36.sp,
                 letterSpacing = 2.sp,
                 textAlign = TextAlign.Center
             )
@@ -721,17 +761,163 @@ fun SplashScreen(viewModel: GameViewModel) {
                         "Acesso imediato no Modo Visitante • Conta na nuvem opcional"
                 },
                 color = RockAccentGold,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(22.dp))
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Cartão da Nova Tela de Start: Música, contexto da partida e avanço direto (sem controles de volume)
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xD91A112E)),
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    brush = Brush.horizontalGradient(listOf(RockAccentCyan, RockAccentGold))
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("start_match_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "SHOW PRONTO PARA COMEÇAR",
+                            color = RockAccentCyan,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 10.sp,
+                            letterSpacing = 0.8.sp
+                        )
+                        Surface(
+                            color = if (activePlaylist != null) Color(0x3300E676) else Color(0x22FFFFFF),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = if (activePlaylist != null && playlistQueue.isNotEmpty()) {
+                                    "PLAYLIST: ${activePlaylist.name} (${playlistQueueIndex + 1}/${playlistQueue.size})"
+                                } else {
+                                    "CATÁLOGO PRINCIPAL"
+                                },
+                                color = if (activePlaylist != null) RockAccentGreen else Color.White.copy(alpha = 0.85f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = selectedTrack.title,
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp,
+                                maxLines = 1,
+                                modifier = Modifier.testTag("start_current_track_title")
+                            )
+                            Text(
+                                text = "${selectedTrack.artist} • ${selectedTrack.effectiveBpm.toInt()} BPM • ${formatTime(selectedTrack.durationMs)}",
+                                color = Color.White.copy(alpha = 0.78f),
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            color = Color(0x26FFD54F),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "🎸 ${selectedInstrument.displayName}",
+                                color = RockAccentGold,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        Surface(
+                            color = Color(0x2600E676),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "⚡ ${selectedDifficulty.displayName} (${selectedDifficulty.lanesUsed} botões)",
+                                color = RockAccentGreen,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { viewModel.advanceToNextTrackFromStart() },
+                            shape = RoundedCornerShape(10.dp),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = Brush.horizontalGradient(listOf(RockAccentCyan, RockAccentGold))
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .testTag("start_next_track_button")
+                        ) {
+                            Text(
+                                text = "PRÓXIMA MÚSICA ▶",
+                                color = RockAccentCyan,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Button(
+                            onClick = { viewModel.startMatch() },
+                            colors = ButtonDefaults.buttonColors(containerColor = RockAccentRed),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .testTag("start_play_now_button")
+                        ) {
+                            Text(
+                                text = "TOCAR AGORA ⚡",
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             RockButton(
                 text = "ENTRAR NO JOGO",
                 onClick = { viewModel.enterGame() },
                 modifier = Modifier
-                    .fillMaxWidth(0.75f)
-                    .height(54.dp),
+                    .fillMaxWidth(0.78f)
+                    .height(50.dp),
                 testTag = "enter_game_button",
                 icon = Icons.Default.PlayArrow,
                 containerColor = RockAccentGold,

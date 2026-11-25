@@ -112,11 +112,27 @@ test("Unauthenticated user: denied across all collections", async () => {
   );
 });
 
-test("Owner: can create, read, and update own UserAccount profile", async () => {
+async function createUserWithNicknameBatch(db, uid, nickname = "Axel_Shredder", syncRevision = 1) {
+  const batch = db.batch();
+  const normalized = nickname.toLowerCase();
+  batch.set(db.collection("nicknames").doc(normalized), {
+    userId: uid,
+    nickname,
+    createdAt: serverTimestamp(),
+  });
+  batch.set(db.collection("users").doc(uid), makeValidUserAccount(uid, nickname, syncRevision));
+  return batch.commit();
+}
+
+test("Owner: can create, read, and update own UserAccount profile with owned nickname", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const docRef = aliceDb.collection("users").doc(ALICE_UID);
 
-  await assertSucceeds(docRef.set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 1)));
+  // Creating /users/{uid} without owning /nicknames/{normalized} must fail
+  await assertFails(docRef.set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 1)));
+
+  // Atomic claim of /nicknames/{normalized} + /users/{uid} succeeds
+  await assertSucceeds(createUserWithNicknameBatch(aliceDb, ALICE_UID, "Axel_Shredder", 1));
   await assertSucceeds(docRef.get());
 
   await assertSucceeds(
@@ -139,9 +155,7 @@ test("Owner: can create, read, and update own UserAccount profile", async () => 
 
 test("Cross-user isolation: Bob cannot read or modify Alice profile or subcollections", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).set(makeValidUserAccount(ALICE_UID))
-  );
+  await assertSucceeds(createUserWithNicknameBatch(aliceDb, ALICE_UID, "Axel_Shredder", 1));
 
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   await assertFails(bobDb.collection("users").doc(ALICE_UID).get());
@@ -164,33 +178,80 @@ test("Cross-user isolation: Bob cannot read or modify Alice profile or subcollec
   );
 });
 
-test("Anti-tampering: rejects extra shadow fields and syncRevision rollback", async () => {
+test("Anti-tampering: rejects extra shadow fields, syncRevision/progress rollback, and coin inflation", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const docRef = aliceDb.collection("users").doc(ALICE_UID);
 
-  const invalidPayload = { ...makeValidUserAccount(ALICE_UID), isAdmin: true };
-  await assertFails(docRef.set(invalidPayload));
+  const batchInvalid = aliceDb.batch();
+  batchInvalid.set(aliceDb.collection("nicknames").doc("axel_shredder"), {
+    userId: ALICE_UID,
+    nickname: "Axel_Shredder",
+    createdAt: serverTimestamp(),
+  });
+  batchInvalid.set(docRef, { ...makeValidUserAccount(ALICE_UID), isAdmin: true });
+  await assertFails(batchInvalid.commit());
 
-  await assertSucceeds(docRef.set(makeValidUserAccount(ALICE_UID, "Axel_Shredder", 3)));
+  await assertSucceeds(createUserWithNicknameBatch(aliceDb, ALICE_UID, "Axel_Shredder", 3));
+
+  // Sync revision rollback rejected
   await assertFails(
     docRef.update({
       syncRevision: 2,
       updatedAt: serverTimestamp(),
     })
   );
+
+  // Excessive coin jump (> +5000 per update) rejected
+  await assertFails(
+    docRef.update({
+      coins: 50000,
+      syncRevision: 4,
+      updatedAt: serverTimestamp(),
+    })
+  );
+
+  // Removing unlocked cosmetics rejected
+  await assertFails(
+    docRef.update({
+      unlockedCosmetics: ["axel_rocker"],
+      syncRevision: 4,
+      updatedAt: serverTimestamp(),
+    })
+  );
+
+  // Pointing user profile to a nickname owned by Bob rejected
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  await assertSucceeds(
+    bobDb.collection("nicknames").doc("bob_rock").set({
+      userId: BOB_UID,
+      nickname: "Bob_Rock",
+      createdAt: serverTimestamp(),
+    })
+  );
+  await assertFails(
+    docRef.update({
+      nickname: "Bob_Rock",
+      nicknameNormalized: "bob_rock",
+      syncRevision: 4,
+      updatedAt: serverTimestamp(),
+    })
+  );
 });
 
-test("Nicknames: unique claim enforcement, no open listing, no cross-user hijack", async () => {
+test("Nicknames: unique claim enforcement, casing parity, atomic swap, no open listing, no cross-user hijack", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
-  await assertSucceeds(
-    aliceDb.collection("nicknames").doc("slash_br").set({
+  // Mismatched key vs lowercase nickname must fail
+  await assertFails(
+    aliceDb.collection("nicknames").doc("wrong_key").set({
       userId: ALICE_UID,
       nickname: "Slash_BR",
       createdAt: serverTimestamp(),
     })
   );
+
+  await assertSucceeds(createUserWithNicknameBatch(aliceDb, ALICE_UID, "Slash_BR", 1));
 
   // Availability lookup by signed-in user works on exact doc, list is denied
   await assertSucceeds(bobDb.collection("nicknames").doc("slash_br").get());
@@ -207,6 +268,22 @@ test("Nicknames: unique claim enforcement, no open listing, no cross-user hijack
 
   // Bob cannot delete Alice's nickname
   await assertFails(bobDb.collection("nicknames").doc("slash_br").delete());
+
+  // Alice atomically swaps Slash_BR -> Slash_Pro
+  const swapBatch = aliceDb.batch();
+  swapBatch.set(aliceDb.collection("nicknames").doc("slash_pro"), {
+    userId: ALICE_UID,
+    nickname: "Slash_Pro",
+    createdAt: serverTimestamp(),
+  });
+  swapBatch.delete(aliceDb.collection("nicknames").doc("slash_br"));
+  swapBatch.update(aliceDb.collection("users").doc(ALICE_UID), {
+    nickname: "Slash_Pro",
+    nicknameNormalized: "slash_pro",
+    syncRevision: 2,
+    updatedAt: serverTimestamp(),
+  });
+  await assertSucceeds(swapBatch.commit());
 });
 
 test("Daily Rewards: enforces UTC server dayKey and immutability", async () => {
@@ -223,9 +300,9 @@ test("Daily Rewards: enforces UTC server dayKey and immutability", async () => {
       dayKey: today,
       dayNumber: 1,
       streakCount: 1,
-      rewardTitle: "150 Moedas de Lenda",
+      rewardTitle: "100 Moedas de Lenda",
       rewardType: "coins",
-      coinsGranted: 150,
+      coinsGranted: 100,
       cosmeticId: "",
       claimedAt: serverTimestamp(),
     })
@@ -399,5 +476,42 @@ test("Multiplayer rooms: host create, exact-code join, participant sync, leave &
   await assertSucceeds(aliceRoomRef.update({ status: "PLAYING", updatedAt: serverTimestamp() }));
   await assertSucceeds(aliceRoomRef.update({ status: "CLOSED", updatedAt: serverTimestamp() }));
   await assertFails(aliceRoomRef.update({ status: "WAITING", updatedAt: serverTimestamp() }));
+});
+
+test("Multiplayer rooms: host transfer when host leaves active room & ACOUSTIC_GUITAR participant", async () => {
+  const roomCode = "ACST-2026";
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  const aliceRoomRef = aliceDb.collection("multiplayer_rooms").doc(roomCode);
+  await assertSucceeds(aliceRoomRef.set(makeValidRoom(roomCode, ALICE_UID, "BAND_COOP", 4)));
+  await assertSucceeds(aliceRoomRef.collection("participants").doc(ALICE_UID).set(makeValidParticipant(roomCode, ALICE_UID, "AliceHost")));
+
+  await assertSucceeds(
+    bobDb.collection("multiplayer_rooms").doc(roomCode).update({
+      memberUids: [ALICE_UID, BOB_UID],
+      updatedAt: serverTimestamp(),
+    })
+  );
+  const acousticBob = { ...makeValidParticipant(roomCode, BOB_UID, "BobViolao"), instrument: "ACOUSTIC_GUITAR" };
+  await assertSucceeds(bobDb.collection("multiplayer_rooms").doc(roomCode).collection("participants").doc(BOB_UID).set(acousticBob));
+
+  // Host Alice transfers leadership to Bob on exit while room stays WAITING
+  await assertSucceeds(
+    aliceRoomRef.update({
+      hostUid: BOB_UID,
+      hostNickname: "BobViolao",
+      memberUids: [BOB_UID],
+      updatedAt: serverTimestamp(),
+    })
+  );
+
+  // Now Bob is host and can start the room
+  await assertSucceeds(
+    bobDb.collection("multiplayer_rooms").doc(roomCode).update({
+      status: "PLAYING",
+      updatedAt: serverTimestamp(),
+    })
+  );
 });
 

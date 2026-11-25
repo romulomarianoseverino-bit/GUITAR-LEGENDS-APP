@@ -399,47 +399,56 @@ class MultiplayerCloudRepository(
             if (!snap.exists()) {
                 return Result.success(Unit)
             }
-            val room = snap.toObject(
-                MultiplayerRoomCloud::class.java,
-                DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-            )
-            if (room == null) return Result.success(Unit)
 
-            if (room.hostUid == uid) {
-                if (room.statusEnum != RoomStatus.CLOSED) {
-                    roomRef.update(
+            firestore.runTransaction { tx ->
+                val curSnap = tx.get(roomRef)
+                if (!curSnap.exists()) return@runTransaction
+                val curRoom = curSnap.toObject(
+                    MultiplayerRoomCloud::class.java,
+                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                ) ?: return@runTransaction
+
+                if (curRoom.statusEnum == RoomStatus.CLOSED) return@runTransaction
+
+                val remaining = curRoom.memberUids.filter { it != uid }
+                if (curRoom.hostUid == uid) {
+                    if (remaining.isEmpty()) {
+                        tx.update(
+                            roomRef,
+                            mapOf(
+                                "status" to RoomStatus.CLOSED.name,
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                    } else {
+                        val nextHostUid = remaining.first()
+                        val nextHostPartSnap = tx.get(roomRef.collection("participants").document(nextHostUid))
+                        val nextNick = safeNickname(
+                            nextHostPartSnap.getString("nickname").orEmpty(),
+                            nextHostUid
+                        )
+                        tx.update(
+                            roomRef,
+                            mapOf(
+                                "hostUid" to nextHostUid,
+                                "hostNickname" to nextNick,
+                                "memberUids" to remaining,
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                    }
+                } else if (curRoom.memberUids.contains(uid)) {
+                    tx.update(
+                        roomRef,
                         mapOf(
-                            "status" to RoomStatus.CLOSED.name,
+                            "memberUids" to remaining,
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
-                    ).await()
+                    )
                 }
-                runCatching { partRef.delete().await() }
-            } else {
-                runCatching { partRef.delete().await() }
-                if (room.statusEnum != RoomStatus.CLOSED && room.memberUids.contains(uid)) {
-                    firestore.runTransaction { tx ->
-                        val curSnap = tx.get(roomRef)
-                        val curRoom = curSnap.toObject(
-                            MultiplayerRoomCloud::class.java,
-                            DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-                        )
-                        if (curRoom != null &&
-                            curRoom.statusEnum != RoomStatus.CLOSED &&
-                            curRoom.memberUids.contains(uid)
-                        ) {
-                            val nextMembers = curRoom.memberUids.filter { it != uid }
-                            tx.update(
-                                roomRef,
-                                mapOf(
-                                    "memberUids" to nextMembers,
-                                    "updatedAt" to FieldValue.serverTimestamp()
-                                )
-                            )
-                        }
-                    }.await()
-                }
-            }
+            }.await()
+
+            runCatching { partRef.delete().await() }
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e

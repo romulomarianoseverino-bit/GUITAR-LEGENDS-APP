@@ -148,6 +148,16 @@ data class StudioProfileConfig(
         stampId = "inst_stamp_stripes",
         stickerId = "sticker_star"
     ),
+    val selectedAcousticId: String = "violao_nylon_classico",
+    val acousticConfig: InstrumentCustomConfig = InstrumentCustomConfig(
+        modelStyleId = "acoustic_dreadnought",
+        primaryColorHex = 0xFFC68642L,
+        secondaryColorHex = 0xFF4E2A14L,
+        hardwareColorHex = 0xFFE5C158L,
+        finish = InstrumentFinish.GLOSS,
+        stampId = "inst_stamp_none",
+        stickerId = "sticker_none"
+    ),
     val vocalConfig: InstrumentCustomConfig = InstrumentCustomConfig(
         modelStyleId = "vintage_55s",
         primaryColorHex = 0xFFE0E0E0L,
@@ -282,6 +292,11 @@ object StudioCatalog {
             "explorer_metal" to "Explorer Heavy",
             "cyber_laser" to "Cyber Laser Futurista"
         ),
+        Instrument.ACOUSTIC_GUITAR to listOf(
+            "acoustic_dreadnought" to "Violão Folk Dreadnought",
+            "acoustic_cutaway" to "Eletroacústico Cutaway",
+            "acoustic_classic_nylon" to "Clássico Nylon Acústico"
+        ),
         Instrument.BASS to listOf(
             "precision_bass" to "Precision Bass 4-Cordas",
             "skull_5string" to "Groove Skull 5-Cordas",
@@ -337,6 +352,7 @@ object StudioCatalog {
         CosmeticShopItem("tattoo_raio_carmesim", "Acessórios & Tatuagens", "Tatuagem Raio Carmesim", "Arte tribal e raios nos braços", 160, 0xFFFF1744L),
         CosmeticShopItem("kai_cyber", "Personagens", "Kai Neo-Anime", "Integrante estilo cyberpunk futurista", 600, 0xFF00E5FFL),
         CosmeticShopItem("neon_thunder", "Instrumentos", "Neon Cyber Strat", "Guitarra com LEDs reativos", 500, 0xFF00E5FFL),
+        CosmeticShopItem("violao_eletro_cutaway", "Instrumentos", "Eletroacústico Stage Cutaway", "Violão de aço com recorte ergonômico e brilho de arena", 450, 0xFFFFB74DL),
         CosmeticShopItem("cyber_bass", "Instrumentos", "Cyber Wave Fretless", "Baixo holográfico de fibra de carbono", 450, 0xFF00E5FFL),
         CosmeticShopItem("electronic_neon_kit", "Instrumentos", "Cyber Mesh Eletrônica", "Bateria eletrônica com aros RGB", 500, 0xFF7C4DFFL),
         CosmeticShopItem("punk_distress_mic", "Instrumentos", "Riot Distress Custom", "Microfone clássico de circuito underground", 400, 0xFFFF3D00L)
@@ -351,7 +367,7 @@ object StudioCatalog {
             id = "chl_first_3_shows",
             title = "Aquecimento da Turnê",
             description = "Conclua 3 apresentações no palco em qualquer modo.",
-            rewardCoins = 180,
+            rewardCoins = 100,
             targetValue = 3,
             progressProvider = { it.songsCompleted }
         ),
@@ -359,7 +375,7 @@ object StudioCatalog {
             id = "chl_hit_250_notes",
             title = "Dedos Incansáveis",
             description = "Acerte um total de 250 notas acumuladas.",
-            rewardCoins = 220,
+            rewardCoins = 100,
             targetValue = 250,
             progressProvider = { it.notesHitTotal.toInt() }
         ),
@@ -367,7 +383,7 @@ object StudioCatalog {
             id = "chl_combo_35",
             title = "Ritmo Inabalável",
             description = "Atinja um combo contínuo de 35+ notas.",
-            rewardCoins = 260,
+            rewardCoins = 100,
             targetValue = 35,
             progressProvider = { it.maxStreakOverall }
         ),
@@ -375,7 +391,7 @@ object StudioCatalog {
             id = "chl_stars_12",
             title = "Caçador de Estrelas",
             description = "Acumule 12 estrelas de carreira.",
-            rewardCoins = 320,
+            rewardCoins = 100,
             targetValue = 12,
             progressProvider = { it.unlockedStars }
         ),
@@ -383,7 +399,7 @@ object StudioCatalog {
             id = "chl_duel_win",
             title = "Rei do Duelo 1v1",
             description = "Vença 1 partida no modo Batalha Competitiva.",
-            rewardCoins = 250,
+            rewardCoins = 100,
             targetValue = 1,
             progressProvider = { it.competitiveWins }
         )
@@ -413,6 +429,13 @@ object StudioCatalog {
             )
             "axel_rocker", "roxie_riot", "kai_cyber" -> base.copy(selectedCharacterId = cosmeticId)
             "flame_caster", "void_v", "neon_thunder" -> base.copy(selectedGuitarId = cosmeticId)
+            "violao_nylon_classico", "violao_aco_folk", "violao_eletro_cutaway" ->
+                base.copy(
+                    studioProfile = studio.copy(
+                        selectedAcousticId = cosmeticId,
+                        acousticConfig = studio.acousticConfig.copy(modelStyleId = cosmeticId)
+                    )
+                )
             "thunder_bass", "skull_bass", "cyber_bass" -> base.copy(selectedBassId = cosmeticId)
             "arena_beast_kit", "punk_garage_kit", "electronic_neon_kit" -> base.copy(selectedDrumsId = cosmeticId)
             "vintage_shure_55s", "golden_supreme_mic", "punk_distress_mic" -> base.copy(selectedVocalMicId = cosmeticId)
@@ -422,6 +445,7 @@ object StudioCatalog {
                 base.copy(
                     studioProfile = studio.copy(
                         guitarConfig = studio.guitarConfig.copy(fullSkinId = cosmeticId),
+                        acousticConfig = studio.acousticConfig.copy(fullSkinId = cosmeticId),
                         bassConfig = studio.bassConfig.copy(fullSkinId = cosmeticId),
                         drumsConfig = studio.drumsConfig.copy(fullSkinId = cosmeticId),
                         vocalConfig = studio.vocalConfig.copy(fullSkinId = cosmeticId)

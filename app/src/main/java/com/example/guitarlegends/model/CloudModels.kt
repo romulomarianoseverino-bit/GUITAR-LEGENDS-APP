@@ -267,22 +267,24 @@ data class DailyRewardDefinition(
 )
 
 object DailyRewardCatalog {
+    const val WEEKLY_REWARD_CAP = 100
+
     val cycleRewards: List<DailyRewardDefinition> = listOf(
-        DailyRewardDefinition(1, "150 Moedas de Lenda", "Reforço inicial para sua turnê", "coins", 150),
+        DailyRewardDefinition(1, "100 Moedas de Lenda", "Reforço inicial para sua turnê", "coins", 100),
         DailyRewardDefinition(2, "Jaqueta Chamas de Palco", "Roupa estilizada + 100 moedas", "cosmetic", 100, "outfit_chamas_palco"),
-        DailyRewardDefinition(3, "250 Moedas de Lenda", "Cache de show intermediário", "coins", 250),
-        DailyRewardDefinition(4, "Óculos Neon Holográficos", "Acessório exclusivo de palco", "cosmetic", 120, "acc_oculos_neon"),
-        DailyRewardDefinition(5, "Moicano Turquesa Elétrico", "Penteado vibrante para customização", "cosmetic", 150, "hair_moicano_turquesa"),
-        DailyRewardDefinition(6, "400 Moedas de Lenda", "Preparação para o grande festival", "coins", 400),
-        DailyRewardDefinition(7, "Bônus Semanal: Kai Neo-Anime", "Personagem lendário + 600 moedas", "bundle", 600, "kai_cyber", isMilestone = true),
-        DailyRewardDefinition(8, "200 Moedas de Lenda", "Ritmo constante na segunda semana", "coins", 200),
-        DailyRewardDefinition(9, "Tatuagem Raio Carmesim", "Arte corporal para o seu roqueiro", "cosmetic", 150, "tattoo_raio_carmesim"),
-        DailyRewardDefinition(10, "350 Moedas de Lenda", "Recompensa de dedicação diária", "coins", 350),
-        DailyRewardDefinition(11, "Neon Cyber Strat", "Guitarra exclusiva c/ LEDs reativos", "skin", 200, "neon_thunder"),
-        DailyRewardDefinition(12, "300 Moedas de Lenda", "Energia extra para a loja", "coins", 300),
-        DailyRewardDefinition(13, "Cyber Wave Fretless", "Baixo holográfico desbloqueado", "skin", 200, "cyber_bass"),
-        DailyRewardDefinition(14, "Bônus Quinzenal: Bateria Cyber", "Kit eletrônico + 800 moedas", "bundle", 800, "electronic_neon_kit", isMilestone = true),
-        DailyRewardDefinition(15, "Microfone Riot Distress", "Item raro para Vocal Melódico", "skin", 250, "punk_distress_mic")
+        DailyRewardDefinition(3, "100 Moedas de Lenda", "Cachê de show intermediário", "coins", 100),
+        DailyRewardDefinition(4, "Óculos Neon Holográficos", "Acessório exclusivo de palco + 100 moedas", "cosmetic", 100, "acc_oculos_neon"),
+        DailyRewardDefinition(5, "Moicano Turquesa Elétrico", "Penteado vibrante + 100 moedas", "cosmetic", 100, "hair_moicano_turquesa"),
+        DailyRewardDefinition(6, "100 Moedas de Lenda", "Preparação para o grande festival", "coins", 100),
+        DailyRewardDefinition(7, "Bônus Semanal: Kai Neo-Anime", "Personagem lendário + 100 moedas", "bundle", 100, "kai_cyber", isMilestone = true),
+        DailyRewardDefinition(8, "100 Moedas de Lenda", "Ritmo constante na segunda semana", "coins", 100),
+        DailyRewardDefinition(9, "Tatuagem Raio Carmesim", "Arte corporal + 100 moedas", "cosmetic", 100, "tattoo_raio_carmesim"),
+        DailyRewardDefinition(10, "100 Moedas de Lenda", "Recompensa de dedicação diária", "coins", 100),
+        DailyRewardDefinition(11, "Neon Cyber Strat", "Guitarra exclusiva c/ LEDs + 100 moedas", "skin", 100, "neon_thunder"),
+        DailyRewardDefinition(12, "100 Moedas de Lenda", "Energia extra para a loja", "coins", 100),
+        DailyRewardDefinition(13, "Cyber Wave Fretless", "Baixo holográfico + 100 moedas", "skin", 100, "cyber_bass"),
+        DailyRewardDefinition(14, "Bônus Quinzenal: Bateria Cyber", "Kit eletrônico + 100 moedas", "bundle", 100, "electronic_neon_kit", isMilestone = true),
+        DailyRewardDefinition(15, "Microfone Riot Distress", "Item raro para Vocal + 100 moedas", "skin", 100, "punk_distress_mic")
     )
 
     fun rewardForDay(dayNumber: Int): DailyRewardDefinition {

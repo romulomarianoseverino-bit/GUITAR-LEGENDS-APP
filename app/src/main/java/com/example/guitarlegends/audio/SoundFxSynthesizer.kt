@@ -35,6 +35,11 @@ class SoundFxSynthesizer {
     private val yellowChordBuffer = generatePowerChord(110.0f, 0.22f)
     private val blueChordBuffer = generatePowerChord(123.5f, 0.22f)
     private val orangeChordBuffer = generatePowerChord(146.8f, 0.25f)
+    private val acousticGreenBuffer = generateAcousticPluck(110.0f, 0.28f)
+    private val acousticRedBuffer = generateAcousticPluck(130.8f, 0.28f)
+    private val acousticYellowBuffer = generateAcousticPluck(146.8f, 0.28f)
+    private val acousticBlueBuffer = generateAcousticPluck(164.8f, 0.28f)
+    private val acousticOrangeBuffer = generateAcousticPluck(196.0f, 0.30f)
     private val drumKickBuffer = generateKick(0.18f)
     private val drumSnareBuffer = generateSnare(0.16f)
     private val missScreechBuffer = generateMissBuzz(0.14f)
@@ -42,6 +47,29 @@ class SoundFxSynthesizer {
     private val uiClickBuffer = generateUiTone(640f, 920f, 0.055f)
     private val uiSuccessBuffer = generateUiTone(520f, 1040f, 0.14f)
     private val stageCheerBuffer = generateCrowdCheer(0.45f)
+
+    private fun generateAcousticPluck(rootFreq: Float, durationSec: Float): ShortArray {
+        val numSamples = (sampleRate * durationSec).toInt()
+        val buffer = ShortArray(numSamples)
+        val thirdFreq = rootFreq * 1.25f
+        val fifthFreq = rootFreq * 1.4983f
+
+        for (i in 0 until numSamples) {
+            val t = i.toFloat() / sampleRate
+            val frac = i.toFloat() / numSamples
+            val attack = (i / (sampleRate * 0.008f)).coerceIn(0f, 1f)
+            val decay = (1.0f - frac).coerceIn(0f, 1f)
+            val env = attack * decay * decay * decay
+
+            val fundamental = sin(2.0 * PI * rootFreq * t).toFloat()
+            val harmonic2 = 0.45f * sin(2.0 * PI * rootFreq * 2.0f * t).toFloat()
+            val bodyThird = 0.28f * sin(2.0 * PI * thirdFreq * t).toFloat()
+            val bodyFifth = 0.32f * sin(2.0 * PI * fifthFreq * t).toFloat()
+            val warm = ((fundamental + harmonic2 + bodyThird + bodyFifth) * 0.42f * env).coerceIn(-0.98f, 0.98f)
+            buffer[i] = (warm * Short.MAX_VALUE).toInt().toShort()
+        }
+        return buffer
+    }
 
     private fun generatePowerChord(rootFreq: Float, durationSec: Float): ShortArray {
         val numSamples = (sampleRate * durationSec).toInt()
@@ -155,6 +183,19 @@ class SoundFxSynthesizer {
             2 -> yellowChordBuffer
             3 -> blueChordBuffer
             else -> orangeChordBuffer
+        }
+        playBufferAsync(buffer, gain)
+    }
+
+    fun playAcousticHit(lane: Int) {
+        val gain = currentSettings.effectiveGameplaySfx()
+        if (gain <= 0.01f) return
+        val buffer = when (lane) {
+            0 -> acousticGreenBuffer
+            1 -> acousticRedBuffer
+            2 -> acousticYellowBuffer
+            3 -> acousticBlueBuffer
+            else -> acousticOrangeBuffer
         }
         playBufferAsync(buffer, gain)
     }

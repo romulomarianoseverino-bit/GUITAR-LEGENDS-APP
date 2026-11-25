@@ -221,11 +221,9 @@ class AudioPlayerEngine(private val context: Context) {
 
         if (isUsingMediaPlayer && mediaPlayer != null) {
             return try {
-                val mpPos = mediaPlayer?.currentPosition?.toLong() ?: 0L
-                val nanoPos = (System.nanoTime() - startTimeNano) / 1_000_000L
-                if (kotlin.math.abs(mpPos - nanoPos) > 150L) mpPos else nanoPos
+                mediaPlayer?.currentPosition?.toLong() ?: pausedPositionMs
             } catch (_: Exception) {
-                (System.nanoTime() - startTimeNano) / 1_000_000L
+                pausedPositionMs
             }
         }
 

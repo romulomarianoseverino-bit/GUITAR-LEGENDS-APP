@@ -348,8 +348,16 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                     }
                 }
 
+                val studioListState = androidx.compose.foundation.lazy.rememberLazyListState()
+                LaunchedEffect(selectedCategory) {
+                    studioListState.scrollToItem(0)
+                }
+
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    state = studioListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("studio_lazy_column"),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     when (selectedCategory) {
@@ -496,6 +504,23 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                         }
                                     }
 
+                                    if (!stats.customRocker.photoUri.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Surface(
+                                            color = RockAccentCyan.copy(alpha = 0.16f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.fillMaxWidth().testTag("photo_avatar_status_badge")
+                                        ) {
+                                            Text(
+                                                text = "📷 Foto vinculada • Estilo ${stats.customRocker.artStyle.displayName}",
+                                                color = RockAccentCyan,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 9.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         CharacterArtStyle.values().forEach { art ->
@@ -507,7 +532,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                                 ),
                                                 shape = RoundedCornerShape(8.dp),
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f).testTag("art_style_${art.name.lowercase()}")
                                             ) {
                                                 Text(art.displayName, color = Color(art.badgeColorHex), fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
                                             }
@@ -520,7 +545,7 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                         1 -> {
                             // ABA 1: INSTRUMENTOS 3D (MODELOS, CORES, ACABAMENTO, ESTAMPAS, ADESIVOS & SKINS)
                             item {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     for (inst in Instrument.values()) {
                                         val isSel = instrumentTab == inst
                                         Button(
@@ -530,10 +555,11 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                                 contentColor = if (isSel) Color.Black else Color.White
                                             ),
                                             shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 4.dp),
                                             modifier = Modifier.weight(1f).testTag("inst_studio_tab_${inst.name}")
                                         ) {
-                                            Text(inst.displayName.split(" ")[0].uppercase(), fontWeight = FontWeight.Black, fontSize = 9.sp)
+                                            val label = if (inst == Instrument.ACOUSTIC_GUITAR) "VIOLÃO" else inst.displayName.split(" ")[0].uppercase()
+                                            Text(label, fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
                                         }
                                     }
                                 }
@@ -674,12 +700,14 @@ fun CustomizationScreen(viewModel: GameViewModel) {
                                 Instrument.GUITAR -> viewModel.guitars.map {
                                     InstrumentGear(it.id, Instrument.GUITAR, it.name, it.type, it.colorHex, it.priceCoins, it.isUnlocked, it.description)
                                 }
+                                Instrument.ACOUSTIC_GUITAR -> viewModel.acoustics
                                 Instrument.BASS -> viewModel.basses
                                 Instrument.DRUMS -> viewModel.drums
                                 Instrument.VOCALS -> viewModel.vocalMics
                             }
                             val equippedId = when (instrumentTab) {
                                 Instrument.GUITAR -> stats.selectedGuitarId
+                                Instrument.ACOUSTIC_GUITAR -> stats.studioProfile.selectedAcousticId
                                 Instrument.BASS -> stats.selectedBassId
                                 Instrument.DRUMS -> stats.selectedDrumsId
                                 Instrument.VOCALS -> stats.selectedVocalMicId

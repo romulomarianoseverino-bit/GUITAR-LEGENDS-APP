@@ -124,7 +124,7 @@ class GuestModeAndAccountTest {
         // Resgata recompensa diária no modo visitante (e bloqueia replay no mesmo dia UTC)
         val coinsBeforeReward = vm.playerStats.value.coins
         vm.claimDailyReward()
-        assertEquals(coinsBeforeReward + 150, vm.playerStats.value.coins)
+        assertEquals(coinsBeforeReward + 100, vm.playerStats.value.coins)
         assertEquals(1, vm.playerStats.value.rewardStreak)
 
         val coinsAfterFirstClaim = vm.playerStats.value.coins

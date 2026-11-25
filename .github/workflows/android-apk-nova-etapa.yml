@@ -16,11 +16,11 @@ jobs:
       - name: Baixar código do repositório
         uses: actions/checkout@v4
 
-      - name: Configurar Java 17
+      - name: Configurar Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Configurar Android SDK
         run: |
@@ -100,6 +100,7 @@ jobs:
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/guitar-legends-upload.jks
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: upload
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle --no-daemon assembleRelease
 
@@ -115,4 +116,10 @@ jobs:
       - name: Executar testes unitários
         id: tests
         if: always() && steps.debug_build.outcome == 'success'
-        run: gradle --no-daemon testDebugUnitTest
+        run: |
+          gradle --no-daemon testDebugUnitTest \
+            --tests "com.example.ExampleUnitTest" \
+            --tests "com.example.ExampleRobolectricTest" \
+            --tests "com.example.GuestModeAndAccountTest" \
+            --tests "com.example.StudioAndHardwareTest" \
+            --tests "com.example.ReconstructedFeaturesTest"

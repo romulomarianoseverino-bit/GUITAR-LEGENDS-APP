@@ -583,7 +583,7 @@ fun MultiplayerScreen(viewModel: GameViewModel) {
                                 text = if (selectedMode == MultiplayerMode.BATTLE_1V1) {
                                     "Crie uma sala para gerar um código único ou informe o código de um amigo para disputar pontuação, combo e Rock Meter em tempo real."
                                 } else {
-                                    "Cada integrante escolhe Guitarra, Baixo, Bateria ou Vocal e todos sobem ao palco sincronizados na mesma faixa."
+                                    "Cada integrante escolhe Guitarra, Violão, Baixo, Bateria ou Vocal e todos sobem ao palco sincronizados na mesma faixa."
                                 },
                                 color = Color.White.copy(alpha = 0.78f),
                                 fontSize = 11.sp,
